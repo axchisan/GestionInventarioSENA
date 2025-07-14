@@ -18,9 +18,9 @@ class Loan(Base):
     end_date = Column(Date, nullable=False)
     actual_return_date = Column(Date)
     status = Column(String(20), nullable=False, default="pending")
-    rejection_reason = Column(Text
-
-)
+    rejection_reason = Column(Text)
+    
+    
     acta_pdf_path = Column(String(500))
     created_at = Column(TIMESTAMP, server_default=func.current_timestamp())
     updated_at = Column(TIMESTAMP, server_default=func.current_timestamp())

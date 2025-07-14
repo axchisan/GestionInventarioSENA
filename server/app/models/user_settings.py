@@ -1,6 +1,7 @@
 from sqlalchemy import Column, String, Boolean, TIMESTAMP, ForeignKey
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.sql import func
+from sqlalchemy.sql.schema import UniqueConstraint
 import uuid
 
 from ..database import Base
@@ -21,5 +22,5 @@ class UserSetting(Base):
     updated_at = Column(TIMESTAMP, server_default=func.current_timestamp())
 
     __table_args__ = (
-        {"postgresql_unique_constraint": ["user_id"]},
+        UniqueConstraint("user_id", name="uq_user_setting_user_id"),
     )
