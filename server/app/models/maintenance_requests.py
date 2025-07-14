@@ -25,6 +25,6 @@ class MaintenanceRequest(Base):
     updated_at = Column(TIMESTAMP, server_default=func.current_timestamp())
 
     __table_args__ = (
-        CheckConstraint("priority IN ('low', ou 'medium', 'high', 'urgent')", name="check_priority"),
+        CheckConstraint("priority IN ('low', 'medium', 'high', 'urgent')", name="check_priority"),
         CheckConstraint("status IN ('pending', 'assigned', 'in_progress', 'completed', 'cancelled')", name="check_status"),
     )

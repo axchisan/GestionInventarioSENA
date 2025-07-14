@@ -1,6 +1,7 @@
 from sqlalchemy import CheckConstraint, Column, String, Integer, Boolean, TIMESTAMP, ForeignKey
 from sqlalchemy.dialects.postgresql import UUID, ARRAY
 from sqlalchemy.sql import func
+from sqlalchemy.sql.schema import UniqueConstraint
 import uuid
 
 from ..database import Base
@@ -20,5 +21,5 @@ class AlertSetting(Base):
     __table_args__ = (
         CheckConstraint("alert_type IS NOT NULL", name="check_alert_type"),
         CheckConstraint("is_enabled IN (true, false)", name="check_is_enabled"),
-        {"postgresql_unique_constraint": ["user_id", "alert_type"]},
+        UniqueConstraint("user_id", "alert_type", name="uq_alert_setting_user_id_alert_type"),
     )
