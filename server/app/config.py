@@ -8,7 +8,7 @@ class Settings(BaseSettings):
     DATABASE_NAME: str = "gestionInventario"
     DATABASE_URL: str = f"postgresql+psycopg2://{DATABASE_USER}:{DATABASE_PASSWORD}@{DATABASE_HOST}:{DATABASE_PORT}/{DATABASE_NAME}"
     
-    SECRET_KEY: str = "CAMBIAR_EN_LOCAL"  # Cambiar por una clave segura en producción
+    SECRET_KEY: str = "CAMBIAR_EN_LOCAL"  
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
     
