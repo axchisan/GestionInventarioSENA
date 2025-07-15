@@ -22,4 +22,4 @@ networks:
     driver: bridge
 
 volumes:
-  postgres_data:  # Este volumen ya no es necesario, pero lo dejamos por si cambias de idea
+  postgres_data:  # Este volumen ya no es necesario, pero lo dejamos por consistencia
