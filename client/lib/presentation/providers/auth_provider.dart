@@ -55,7 +55,7 @@ class AuthProvider extends ChangeNotifier {
 
     try {
       final response = await http.get(
-        Uri.parse('${APIConstants.baseUrl}/api/auth/me'),
+        Uri.parse('${APIConstants.baseUrl}${APIConstants.getUserEndpoint}'),
         headers: {
           'Content-Type': 'application/json',
           'Authorization': 'Bearer $_token',
