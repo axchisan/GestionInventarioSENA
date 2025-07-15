@@ -16,6 +16,7 @@ class Settings(BaseSettings):
     class Config:
         env_file = ".env"
         env_file_encoding = "utf-8"
+        extra = "ignore"  # Ignora campos no definidos como source_commit y host
 
     def __init__(self, **data):
         super().__init__(**data)
