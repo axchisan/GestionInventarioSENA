@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
-import '../../../core/services/auth_service.dart';
+
 import '../../../core/services/navigation_service.dart';
 import '../../../core/theme/app_colors.dart';
-import '../../../data/models/auth_models.dart';
+import '../../providers/auth_provider.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -14,11 +14,12 @@ class LoginScreen extends StatefulWidget {
 }
 
 class _LoginScreenState extends State<LoginScreen> {
-  final _formKey = GlobalKey<FormState>();
-  final _emailController = TextEditingController();
+  final _formKey           = GlobalKey<FormState>();
+  final _emailController   = TextEditingController();
   final _passwordController = TextEditingController();
-  bool _isLoading = false;
-  bool _obscurePassword = true;
+
+  bool   _isLoading        = false;
+  bool   _obscurePassword  = true;
   String? _errorMessage;
 
   @override
@@ -29,30 +30,49 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   Future<void> _login() async {
-    if (_formKey.currentState!.validate()) {
-      setState(() {
-        _isLoading = true;
-        _errorMessage = null;
-      });
+    if (!_formKey.currentState!.validate()) return;
 
-      try {
-        final authService = context.read<AuthService>();
-        final response = await authService.login(LoginRequest(
-          email: _emailController.text,
-          password: _passwordController.text,
-        ));
-        NavigationService.navigateToRole(response.role);
-      } catch (e) {
-        setState(() {
-          _errorMessage = 'Error al iniciar sesión: $e';
-        });
-      } finally {
-        if (mounted) {
-          setState(() {
-            _isLoading = false;
-          });
-        }
+    setState(() {
+      _isLoading    = true;
+      _errorMessage = null;
+    });
+
+    // 👉 Disponible en todo el método
+    final authProvider = context.read<AuthProvider>();
+
+    try {
+      await authProvider.login(
+        _emailController.text,
+        _passwordController.text,
+      );
+
+      if (authProvider.currentUser != null && authProvider.isAuthenticated) {
+        if (!mounted) return;
+        showDialog(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: const Text('Éxito'),
+            content: const Text('Inicio de sesión exitoso.'),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('OK'),
+              ),
+            ],
+          ),
+        );
+      } else if (authProvider.errorMessage != null) {
+        setState(() => _errorMessage = authProvider.errorMessage);
       }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _errorMessage =
+              authProvider.errorMessage ?? 'Error al iniciar sesión: $e';
+        });
+      }
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 
@@ -63,10 +83,11 @@ class _LoginScreenState extends State<LoginScreen> {
       body: SafeArea(
         child: Center(
           child: SingleChildScrollView(
-            padding: const EdgeInsets.all(24.0),
+            padding: const EdgeInsets.all(24),
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
+                // --- LOGO ---------------------------------------------------
                 Container(
                   width: 120,
                   height: 120,
@@ -85,8 +106,6 @@ class _LoginScreenState extends State<LoginScreen> {
                     borderRadius: BorderRadius.circular(60),
                     child: Image.asset(
                       'assets/images/sena_logo.png',
-                      width: 100,
-                      height: 100,
                       fit: BoxFit.contain,
                     ),
                   ),
@@ -103,15 +122,14 @@ class _LoginScreenState extends State<LoginScreen> {
                 const SizedBox(height: 8),
                 const Text(
                   'Sistema de Gestión de Inventario',
-                  style: TextStyle(
-                    fontSize: 16,
-                    color: AppColors.grey600,
-                  ),
+                  style: TextStyle(fontSize: 16, color: AppColors.grey600),
                 ),
                 const SizedBox(height: 48),
+
+                // --- FORM ---------------------------------------------------
                 Card(
                   child: Padding(
-                    padding: const EdgeInsets.all(24.0),
+                    padding: const EdgeInsets.all(24),
                     child: Form(
                       key: _formKey,
                       child: Column(
@@ -124,12 +142,8 @@ class _LoginScreenState extends State<LoginScreen> {
                               border: OutlineInputBorder(),
                             ),
                             keyboardType: TextInputType.emailAddress,
-                            validator: (value) {
-                              if (value == null || value.isEmpty) {
-                                return 'Por favor ingrese su correo';
-                              }
-                              return null;
-                            },
+                            validator: (v) =>
+                                v == null || v.isEmpty ? 'Ingrese su correo' : null,
                           ),
                           const SizedBox(height: 16),
                           TextFormField(
@@ -138,30 +152,22 @@ class _LoginScreenState extends State<LoginScreen> {
                               labelText: 'Contraseña',
                               prefixIcon: const Icon(Icons.lock),
                               suffixIcon: IconButton(
-                                icon: Icon(
-                                  _obscurePassword
-                                      ? Icons.visibility
-                                      : Icons.visibility_off,
-                                ),
-                                onPressed: () {
-                                  setState(() {
-                                    _obscurePassword = !_obscurePassword;
-                                  });
-                                },
+                                icon: Icon(_obscurePassword
+                                    ? Icons.visibility
+                                    : Icons.visibility_off),
+                                onPressed: () => setState(
+                                    () => _obscurePassword = !_obscurePassword),
                               ),
                               border: const OutlineInputBorder(),
                             ),
                             obscureText: _obscurePassword,
-                            validator: (value) {
-                              if (value == null || value.isEmpty) {
-                                return 'Por favor ingrese su contraseña';
-                              }
-                              return null;
-                            },
+                            validator: (v) => v == null || v.isEmpty
+                                ? 'Ingrese su contraseña'
+                                : null,
                           ),
                           if (_errorMessage != null)
                             Padding(
-                              padding: const EdgeInsets.only(top: 8.0),
+                              padding: const EdgeInsets.only(top: 8),
                               child: Text(
                                 _errorMessage!,
                                 style: const TextStyle(color: Colors.red),
@@ -173,9 +179,16 @@ class _LoginScreenState extends State<LoginScreen> {
                             child: ElevatedButton(
                               onPressed: _isLoading ? null : _login,
                               child: _isLoading
-                                  ? const CircularProgressIndicator(color: Colors.white)
+                                  ? const CircularProgressIndicator(
+                                      color: Colors.white,
+                                    )
                                   : const Text('Iniciar Sesión'),
                             ),
+                          ),
+                          const SizedBox(height: 12),
+                          TextButton(
+                            onPressed: () => context.go('/register'),
+                            child: const Text('¿No tienes cuenta? Regístrate'),
                           ),
                         ],
                       ),
