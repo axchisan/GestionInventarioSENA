@@ -6,7 +6,7 @@ class Settings(BaseSettings):
     DATABASE_USER: str
     DATABASE_PASSWORD: str
     DATABASE_NAME: str
-    DATABASE_URL: str = None # type: ignore
+    DATABASE_URL: str | None = None  # Explicitamente opcional
 
     SECRET_KEY: str
     ALGORITHM: str = "HS256"
@@ -18,9 +18,10 @@ class Settings(BaseSettings):
         env_file_encoding = "utf-8"
         extra = "ignore"  
 
-    def __init__(self, **data):
-        super().__init__(**data)
-        if not self.DATABASE_URL:
-            self.DATABASE_URL = f"postgresql+psycopg2://{self.DATABASE_USER}:{self.DATABASE_PASSWORD}@{self.DATABASE_HOST}:{self.DATABASE_PORT}/{self.DATABASE_NAME}"
+    @property
+    def constructed_database_url(self) -> str:
+        if self.DATABASE_URL:
+            return self.DATABASE_URL
+        return f"postgresql+psycopg2://{self.DATABASE_USER}:{self.DATABASE_PASSWORD}@{self.DATABASE_HOST}:{self.DATABASE_PORT}/{self.DATABASE_NAME}"
 
 settings = Settings()
