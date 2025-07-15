@@ -1,11 +1,11 @@
 from pydantic_settings import BaseSettings # type: ignore
 
 class Settings(BaseSettings):
-    DATABASE_HOST: str
-    DATABASE_PORT: str
-    DATABASE_USER: str
-    DATABASE_PASSWORD: str
-    DATABASE_NAME: str
+    DATABASE_HOST: str = "147.93.178.204"
+    DATABASE_PORT: str = "5433"
+    DATABASE_USER: str = "postgres"
+    DATABASE_PASSWORD: str = "F2lCLAg76EfRwbd1mkTnC2ZdEuwp8teHyADb7n23YomSk2VI4CipeyW21XZLApIe"
+    DATABASE_NAME: str = "gestionInventario"
     DATABASE_URL: str = None # type: ignore
 
     SECRET_KEY: str
