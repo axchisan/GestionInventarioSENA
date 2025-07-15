@@ -6,9 +6,7 @@ services:
     ports:
       - "8001:8001"  # Puerto externo:puerto interno
     environment:
-      - DATABASE_URL=postgresql+psycopg2://postgres:F2lCLAg76EfRwbd1mkTnC2ZdEuwp8teHyADb7n23YomSk2VI4CipeyW21XZLApIe@147.93.178.204:5433/gestionInventario
-      - SECRET_KEY=your-secret-key-here  # Ajuste en producción
-      - APP_PORT=8001
+      - APP_PORT=8001  
     volumes:
       - .:/app
     networks:
@@ -20,6 +18,3 @@ services:
 networks:
   app-network:
     driver: bridge
-
-volumes:
-  postgres_data:  # Este volumen ya no es necesario, pero lo dejamos por consistencia
