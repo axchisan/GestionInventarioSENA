@@ -1,6 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from .routers import auth, users, environments, inventory, schedules, checks, loans, maintenance, notifications, reports, settings
+from .routers import auth
+from .config import settings
 
 app = FastAPI(title="Sistema de Gestión de Inventarios SENA")
 
@@ -15,7 +16,6 @@ app.add_middleware(
 
 # Incluir routers
 app.include_router(auth.router, prefix="/api/auth", tags=["auth"])
-
 
 @app.get("/")
 async def root():
