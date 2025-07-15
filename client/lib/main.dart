@@ -5,12 +5,12 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import 'app.dart';
+import 'core/services/navigation_service.dart';
 import 'core/services/theme_service.dart';
 import 'core/services/language_service.dart';
-import 'core/services/navigation_service.dart';
 import 'presentation/providers/auth_provider.dart';
-import 'presentation/providers/inventory_provider.dart';
-import 'presentation/providers/notification_provider.dart';
+import 'presentation/screens/auth/login_screen.dart';
+import 'presentation/screens/auth/register_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -19,15 +19,13 @@ void main() async {
   await ThemeService.instance.init();
   await LanguageService.instance.init();
 
-  // Set system UI overlay style
-  SystemChrome.setSystemUIOverlayStyle(
-    const SystemUiOverlayStyle(
-      statusBarColor: Colors.transparent,
-      statusBarIconBrightness: Brightness.dark,
-      systemNavigationBarColor: Colors.white,
-      systemNavigationBarIconBrightness: Brightness.dark,
-    ),
-  );
+  // Set system UI overlay style (compatible with web and mobile)
+  SystemChrome.setSystemUIOverlayStyle(const SystemUiOverlayStyle(
+    statusBarColor: Colors.transparent,
+    statusBarIconBrightness: Brightness.dark,
+    systemNavigationBarColor: Colors.white,
+    systemNavigationBarIconBrightness: Brightness.dark,
+  ));
 
   runApp(
     MultiProvider(
@@ -35,9 +33,6 @@ void main() async {
         ChangeNotifierProvider(create: (_) => ThemeService.instance),
         ChangeNotifierProvider(create: (_) => LanguageService.instance),
         ChangeNotifierProvider(create: (_) => AuthProvider()),
-        // Desactivamos temporalmente providers no usados hasta que se implementen
-        // ChangeNotifierProvider(create: (_) => InventoryProvider()),
-        // ChangeNotifierProvider(create: (_) => NotificationProvider()),
       ],
       child: const SenaInventoryApp(),
     ),
@@ -66,7 +61,8 @@ class SenaInventoryApp extends StatelessWidget {
             GlobalWidgetsLocalizations.delegate,
             GlobalCupertinoLocalizations.delegate,
           ],
-          supportedLocales: const [Locale('es', 'CO')],
+          supportedLocales: LanguageService.instance.supportedLocales,
+          locale: LanguageService.instance.currentLocale,
           routerConfig: NavigationService.router,
         );
       },

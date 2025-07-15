@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
-import '../../../core/services/auth_service.dart';
+
 import '../../../core/theme/app_colors.dart';
-import '../../../data/models/auth_models.dart';
+import '../../providers/auth_provider.dart';
 
 class RegisterScreen extends StatefulWidget {
   const RegisterScreen({super.key});
@@ -18,15 +18,15 @@ class _RegisterScreenState extends State<RegisterScreen> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
-  final _documentController = TextEditingController();
   final _phoneController = TextEditingController();
+
   bool _isLoading = false;
   bool _obscurePassword = true;
   bool _obscureConfirmPassword = true;
   bool _acceptTerms = false;
+
   String _selectedRole = 'Aprendiz';
   String _selectedProgram = 'Análisis y Desarrollo de Software';
-  String _selectedDocumentType = 'Cédula de Ciudadanía';
 
   final List<String> _roles = ['Aprendiz', 'Instructor', 'Supervisor'];
   final List<String> _programs = [
@@ -39,12 +39,12 @@ class _RegisterScreenState extends State<RegisterScreen> {
     'Cocina',
     'Contabilidad y Finanzas',
   ];
-  final List<String> _documentTypes = [
-    'Cédula de Ciudadanía',
-    'Tarjeta de Identidad',
-    'Cédula de Extranjería',
-    'Pasaporte',
-  ];
+
+  final Map<String, String> _roleMapping = {
+    'Aprendiz': 'student',
+    'Instructor': 'instructor',
+    'Supervisor': 'supervisor',
+  };
 
   String? _errorMessage;
 
@@ -54,95 +54,68 @@ class _RegisterScreenState extends State<RegisterScreen> {
     _emailController.dispose();
     _passwordController.dispose();
     _confirmPasswordController.dispose();
-    _documentController.dispose();
     _phoneController.dispose();
     super.dispose();
   }
 
   Future<void> _register() async {
-    if (_formKey.currentState!.validate()) {
-      if (!_acceptTerms) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Debe aceptar los términos y condiciones'),
-            backgroundColor: Colors.red,
-          ),
-        );
-        return;
-      }
+    if (!_formKey.currentState!.validate()) return;
 
-      setState(() {
-        _isLoading = true;
-        _errorMessage = null;
-      });
+    if (!_acceptTerms) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Debe aceptar los términos y condiciones'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
 
-      try {
-        final authService = context.read<AuthService>();
-        await authService.register(RegisterRequest(
-          email: _emailController.text,
-          password: _passwordController.text,
-          firstName: _nameController.text.split(' ')[0],
-          lastName: _nameController.text.contains(' ') ? _nameController.text.split(' ').sublist(1).join(' ') : '',
-          role: _selectedRole,
-          phone: _phoneController.text.isNotEmpty ? _phoneController.text : null,
-          program: _selectedProgram,
-          ficha: null,
-          avatarUrl: null,
-        ));
-        if (mounted) {
-          showDialog(
-            context: context,
-            barrierDismissible: false,
-            builder: (context) => AlertDialog(
-              icon: const Icon(Icons.check_circle, color: AppColors.primary, size: 48),
-              title: const Text('¡Registro Exitoso!'),
-              content: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    'Tu cuenta ha sido creada exitosamente como $_selectedRole.',
-                    textAlign: TextAlign.center,
-                  ),
-                  const SizedBox(height: 12),
-                  Container(
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: Colors.orange[50],
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: Colors.orange[200]!),
-                    ),
-                    child: const Text(
-                      'Tu cuenta está pendiente de aprobación por un administrador. Recibirás una notificación por correo cuando sea activada.',
-                      style: TextStyle(fontSize: 12, color: Colors.orange),
-                      textAlign: TextAlign.center,
-                    ),
-                  ),
-                ],
-              ),
-              actions: [
-                ElevatedButton(
-                  onPressed: () {
-                    Navigator.pop(context);
-                    context.go('/login');
-                  },
-                  style: ElevatedButton.styleFrom(backgroundColor: AppColors.primary),
-                  child: const Text('Ir a Iniciar Sesión'),
-                ),
-              ],
+    setState(() {
+      _isLoading = true;
+      _errorMessage = null;
+    });
+
+    final authProvider = context.read<AuthProvider>();
+
+    try {
+      final nameParts = _nameController.text.split(' ');
+      final firstName = nameParts[0];
+      final lastName = nameParts.length > 1 ? nameParts.sublist(1).join(' ') : null;
+
+      await authProvider.register(
+        email: _emailController.text,
+        password: _passwordController.text,
+        firstName: firstName,
+        lastName: lastName,
+        phone: _phoneController.text.isNotEmpty ? _phoneController.text : null,
+        role: _roleMapping[_selectedRole]!,
+        program: _selectedProgram,
+      );
+
+      if (!mounted) return;
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (_) => AlertDialog(
+          title: const Text('Éxito'),
+          content: const Text('Registro exitoso. Espera la aprobación del administrador.'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('OK'),
             ),
-          );
-        }
-      } catch (e) {
+          ],
+        ),
+      );
+    } catch (e) {
+      if (mounted) {
         setState(() {
-          _errorMessage = 'Error al registrarse: $e';
+          _errorMessage = authProvider.errorMessage ?? 'Error al registrarse: $e';
         });
-      } finally {
-        if (mounted) {
-          setState(() {
-            _isLoading = false;
-          });
-        }
       }
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 
@@ -152,7 +125,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
       backgroundColor: AppColors.grey100,
       body: SafeArea(
         child: SingleChildScrollView(
-          padding: const EdgeInsets.all(24.0),
+          padding: const EdgeInsets.all(24),
           child: Column(
             children: [
               const SizedBox(height: 20),
@@ -172,12 +145,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                 ),
                 child: ClipRRect(
                   borderRadius: BorderRadius.circular(50),
-                  child: Image.asset(
-                    'assets/images/sena_logo.png',
-                    width: 80,
-                    height: 80,
-                    fit: BoxFit.contain,
-                  ),
+                  child: Image.asset('assets/images/sena_logo.png', fit: BoxFit.contain),
                 ),
               ),
               const SizedBox(height: 24),
@@ -192,16 +160,13 @@ class _RegisterScreenState extends State<RegisterScreen> {
               const SizedBox(height: 8),
               const Text(
                 'Crea tu cuenta en el sistema de inventario',
-                style: TextStyle(
-                  fontSize: 14,
-                  color: AppColors.grey600,
-                ),
+                style: TextStyle(fontSize: 14, color: AppColors.grey600),
                 textAlign: TextAlign.center,
               ),
               const SizedBox(height: 32),
               Card(
                 child: Padding(
-                  padding: const EdgeInsets.all(24.0),
+                  padding: const EdgeInsets.all(24),
                   child: Form(
                     key: _formKey,
                     child: Column(
@@ -223,60 +188,15 @@ class _RegisterScreenState extends State<RegisterScreen> {
                             prefixIcon: Icon(Icons.person),
                             border: OutlineInputBorder(),
                           ),
-                          validator: (value) {
-                            if (value == null || value.isEmpty) {
-                              return 'Por favor ingrese su nombre completo';
+                          validator: (v) {
+                            if (v == null || v.isEmpty) {
+                              return 'Ingrese su nombre completo';
                             }
-                            if (value.length < 3) {
+                            if (v.length < 3) {
                               return 'El nombre debe tener al menos 3 caracteres';
                             }
                             return null;
                           },
-                        ),
-                        const SizedBox(height: 16),
-                        Row(
-                          children: [
-                            Expanded(
-                              flex: 2,
-                              child: DropdownButtonFormField<String>(
-                                value: _selectedDocumentType,
-                                decoration: const InputDecoration(
-                                  labelText: 'Tipo de Documento',
-                                  prefixIcon: Icon(Icons.badge),
-                                  border: OutlineInputBorder(),
-                                ),
-                                items: _documentTypes.map((type) {
-                                  return DropdownMenuItem(
-                                    value: type,
-                                    child: Text(type, style: const TextStyle(fontSize: 12)),
-                                  );
-                                }).toList(),
-                                onChanged: (value) {
-                                  setState(() {
-                                    _selectedDocumentType = value!;
-                                  });
-                                },
-                              ),
-                            ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              flex: 1,
-                              child: TextFormField(
-                                controller: _documentController,
-                                decoration: const InputDecoration(
-                                  labelText: 'Número *',
-                                  border: OutlineInputBorder(),
-                                ),
-                                keyboardType: TextInputType.number,
-                                validator: (value) {
-                                  if (value == null || value.isEmpty) {
-                                    return 'Requerido';
-                                  }
-                                  return null;
-                                },
-                              ),
-                            ),
-                          ],
                         ),
                         const SizedBox(height: 16),
                         TextFormField(
@@ -288,11 +208,11 @@ class _RegisterScreenState extends State<RegisterScreen> {
                             helperText: 'Preferiblemente correo institucional @sena.edu.co',
                           ),
                           keyboardType: TextInputType.emailAddress,
-                          validator: (value) {
-                            if (value == null || value.isEmpty) {
-                              return 'Por favor ingrese su correo';
+                          validator: (v) {
+                            if (v == null || v.isEmpty) {
+                              return 'Ingrese su correo';
                             }
-                            if (!RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$').hasMatch(value)) {
+                            if (!RegExp(r'^[\w\.-]+@([\w-]+\.)+[\w-]{2,4}$').hasMatch(v)) {
                               return 'Ingrese un correo válido';
                             }
                             return null;
@@ -325,17 +245,11 @@ class _RegisterScreenState extends State<RegisterScreen> {
                             prefixIcon: Icon(Icons.work),
                             border: OutlineInputBorder(),
                           ),
-                          items: _roles.map((role) {
-                            return DropdownMenuItem(
-                              value: role,
-                              child: Text(role),
-                            );
-                          }).toList(),
-                          onChanged: (value) {
-                            setState(() {
-                              _selectedRole = value!;
-                            });
-                          },
+                          items: _roles.map((role) => DropdownMenuItem(
+                            value: role,
+                            child: Text(role),
+                          )).toList(),
+                          onChanged: (v) => setState(() => _selectedRole = v!),
                         ),
                         const SizedBox(height: 16),
                         DropdownButtonFormField<String>(
@@ -345,21 +259,11 @@ class _RegisterScreenState extends State<RegisterScreen> {
                             prefixIcon: Icon(Icons.school),
                             border: OutlineInputBorder(),
                           ),
-                          items: _programs.map((program) {
-                            return DropdownMenuItem(
-                              value: program,
-                              child: Text(
-                                program,
-                                style: const TextStyle(fontSize: 12),
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            );
-                          }).toList(),
-                          onChanged: (value) {
-                            setState(() {
-                              _selectedProgram = value!;
-                            });
-                          },
+                          items: _programs.map((p) => DropdownMenuItem(
+                            value: p,
+                            child: Text(p, style: const TextStyle(fontSize: 12), overflow: TextOverflow.ellipsis),
+                          )).toList(),
+                          onChanged: (v) => setState(() => _selectedProgram = v!),
                         ),
                         const SizedBox(height: 24),
                         const Text(
@@ -377,30 +281,22 @@ class _RegisterScreenState extends State<RegisterScreen> {
                             labelText: 'Contraseña *',
                             prefixIcon: const Icon(Icons.lock),
                             suffixIcon: IconButton(
-                              icon: Icon(
-                                _obscurePassword
-                                    ? Icons.visibility
-                                    : Icons.visibility_off,
-                              ),
-                              onPressed: () {
-                                setState(() {
-                                  _obscurePassword = !_obscurePassword;
-                                });
-                              },
+                              icon: Icon(_obscurePassword ? Icons.visibility : Icons.visibility_off),
+                              onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
                             ),
                             border: const OutlineInputBorder(),
                             helperText: 'Mínimo 8 caracteres, incluir mayúsculas y números',
                           ),
                           obscureText: _obscurePassword,
-                          validator: (value) {
-                            if (value == null || value.isEmpty) {
-                              return 'Por favor ingrese una contraseña';
+                          validator: (v) {
+                            if (v == null || v.isEmpty) {
+                              return 'Ingrese una contraseña';
                             }
-                            if (value.length < 8) {
-                              return 'La contraseña debe tener al menos 8 caracteres';
+                            if (v.length < 8) {
+                              return 'Debe tener al menos 8 caracteres';
                             }
-                            if (!RegExp(r'^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)').hasMatch(value)) {
-                              return 'Debe incluir mayúsculas, minúsculas y números';
+                            if (!RegExp(r'^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).{8,}$').hasMatch(v)) {
+                              return 'Incluya mayúsculas, minúsculas y números';
                             }
                             return null;
                           },
@@ -412,25 +308,17 @@ class _RegisterScreenState extends State<RegisterScreen> {
                             labelText: 'Confirmar Contraseña *',
                             prefixIcon: const Icon(Icons.lock_outline),
                             suffixIcon: IconButton(
-                              icon: Icon(
-                                _obscureConfirmPassword
-                                    ? Icons.visibility
-                                    : Icons.visibility_off,
-                              ),
-                              onPressed: () {
-                                setState(() {
-                                  _obscureConfirmPassword = !_obscureConfirmPassword;
-                                });
-                              },
+                              icon: Icon(_obscureConfirmPassword ? Icons.visibility : Icons.visibility_off),
+                              onPressed: () => setState(() => _obscureConfirmPassword = !_obscureConfirmPassword),
                             ),
                             border: const OutlineInputBorder(),
                           ),
                           obscureText: _obscureConfirmPassword,
-                          validator: (value) {
-                            if (value == null || value.isEmpty) {
-                              return 'Por favor confirme su contraseña';
+                          validator: (v) {
+                            if (v == null || v.isEmpty) {
+                              return 'Confirme su contraseña';
                             }
-                            if (value != _passwordController.text) {
+                            if (v != _passwordController.text) {
                               return 'Las contraseñas no coinciden';
                             }
                             return null;
@@ -438,11 +326,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
                         ),
                         if (_errorMessage != null)
                           Padding(
-                            padding: const EdgeInsets.only(top: 8.0),
-                            child: Text(
-                              _errorMessage!,
-                              style: const TextStyle(color: Colors.red),
-                            ),
+                            padding: const EdgeInsets.only(top: 8),
+                            child: Text(_errorMessage!, style: const TextStyle(color: Colors.red)),
                           ),
                         const SizedBox(height: 24),
                         Row(
@@ -450,20 +335,12 @@ class _RegisterScreenState extends State<RegisterScreen> {
                           children: [
                             Checkbox(
                               value: _acceptTerms,
-                              onChanged: (value) {
-                                setState(() {
-                                  _acceptTerms = value!;
-                                });
-                              },
                               activeColor: AppColors.primary,
+                              onChanged: (v) => setState(() => _acceptTerms = v!),
                             ),
                             Expanded(
                               child: GestureDetector(
-                                onTap: () {
-                                  setState(() {
-                                    _acceptTerms = !_acceptTerms;
-                                  });
-                                },
+                                onTap: () => setState(() => _acceptTerms = !_acceptTerms),
                                 child: const Text(
                                   'Acepto los términos y condiciones del uso del sistema de inventario SENA y autorizo el tratamiento de mis datos personales.',
                                   style: TextStyle(fontSize: 12),
@@ -483,23 +360,14 @@ class _RegisterScreenState extends State<RegisterScreen> {
                             ),
                             child: _isLoading
                                 ? const CircularProgressIndicator(color: Colors.white)
-                                : const Text(
-                                    'Crear Cuenta',
-                                    style: TextStyle(
-                                      fontSize: 16,
-                                      fontWeight: FontWeight.bold,
-                                    ),
-                                  ),
+                                : const Text('Crear Cuenta', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
                           ),
                         ),
                         const SizedBox(height: 16),
                         Center(
                           child: TextButton(
                             onPressed: () => context.go('/login'),
-                            child: const Text(
-                              '¿Ya tienes cuenta? Inicia sesión aquí',
-                              style: TextStyle(color: AppColors.primary),
-                            ),
+                            child: const Text('¿Ya tienes cuenta? Inicia sesión aquí', style: TextStyle(color: AppColors.primary)),
                           ),
                         ),
                       ],
