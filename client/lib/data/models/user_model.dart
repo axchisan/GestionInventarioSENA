@@ -7,7 +7,7 @@ class UserModel {
   final int id;
   final String email;
   final String firstName;
-  final String? lastName;
+  final String lastName; // Cambiado a required
   final String role;
   final String? phone;
   final String? program;
@@ -19,7 +19,7 @@ class UserModel {
     required this.id,
     required this.email,
     required this.firstName,
-    this.lastName,
+    required this.lastName,
     required this.role,
     this.phone,
     this.program,

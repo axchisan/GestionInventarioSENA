@@ -1,8 +1,8 @@
 import 'dart:convert';
+import 'package:client/core/constants/api_constants.dart' as APIConstants;
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import '../../core/constants/api_constants.dart';
-import '../../core/constants/api_constants.dart' as APIConstants;
 import '../../data/models/user_model.dart';
 
 class AuthProvider extends ChangeNotifier {
@@ -34,7 +34,7 @@ class AuthProvider extends ChangeNotifier {
         final data = jsonDecode(response.body);
         if (data.containsKey('access_token')) {
           _token = data['access_token'];
-          await _fetchCurrentUser(); // Obtener detalles del usuario
+          await _fetchCurrentUser();
           _isAuthenticated = true;
         } else {
           _errorMessage = 'Respuesta del servidor inválida';
@@ -66,7 +66,7 @@ class AuthProvider extends ChangeNotifier {
         final data = jsonDecode(response.body);
         _currentUser = UserModel.fromJson(data);
       } else {
-        _errorMessage = 'Error al obtener datos del usuario: ${response.statusCode}';
+        _errorMessage = 'Error al obtener datos del usuario: ${response.statusCode} - ${response.body}';
       }
     } catch (e) {
       _errorMessage = 'Error al obtener datos del usuario: $e';
@@ -77,7 +77,7 @@ class AuthProvider extends ChangeNotifier {
     required String email,
     required String password,
     required String firstName,
-    String? lastName,
+    required String lastName, // Cambiado a required
     String? phone,
     required String role,
     String? program,

@@ -7,9 +7,8 @@ from ..database import Base
 
 class Feedback(Base):
     __tablename__ = "feedback"
-
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    id = Column(Integer, primary_key=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
     type = Column(String(20), nullable=False)
     category = Column(String(50))
     title = Column(String(200), nullable=False)
@@ -24,7 +23,6 @@ class Feedback(Base):
     allow_follow_up = Column(Boolean, default=True)
     created_at = Column(TIMESTAMP, server_default=func.current_timestamp())
     updated_at = Column(TIMESTAMP, server_default=func.current_timestamp())
-
     __table_args__ = (
         CheckConstraint("type IN ('bug', 'suggestion', 'feature', 'compliment', 'complaint', 'other')", name="check_type"),
         CheckConstraint("priority IN ('low', 'medium', 'high')", name="check_priority"),

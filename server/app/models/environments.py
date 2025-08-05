@@ -7,8 +7,7 @@ from ..database import Base
 
 class Environment(Base):
     __tablename__ = "environments"
-
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    id = Column(Integer, primary_key=True)
     name = Column(String(100), nullable=False)
     location = Column(String(200), nullable=False)
     capacity = Column(Integer, nullable=False, default=30)
