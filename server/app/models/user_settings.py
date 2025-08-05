@@ -1,4 +1,4 @@
-from sqlalchemy import Column, String, Boolean, TIMESTAMP, ForeignKey
+from sqlalchemy import Column, Integer, String, Boolean, TIMESTAMP, ForeignKey
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.sql import func
 from sqlalchemy.sql.schema import UniqueConstraint
@@ -8,9 +8,8 @@ from ..database import Base
 
 class UserSetting(Base):
     __tablename__ = "user_settings"
-
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    id = Column(Integer, primary_key=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
     language = Column(String(10), default="es")
     theme = Column(String(20), default="light")
     timezone = Column(String(50), default="America/Bogota")
@@ -20,7 +19,6 @@ class UserSetting(Base):
     auto_save = Column(Boolean, default=True)
     created_at = Column(TIMESTAMP, server_default=func.current_timestamp())
     updated_at = Column(TIMESTAMP, server_default=func.current_timestamp())
-
     __table_args__ = (
         UniqueConstraint("user_id", name="uq_user_setting_user_id"),
     )

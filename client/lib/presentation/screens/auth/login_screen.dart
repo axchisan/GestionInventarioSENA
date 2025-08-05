@@ -14,12 +14,12 @@ class LoginScreen extends StatefulWidget {
 }
 
 class _LoginScreenState extends State<LoginScreen> {
-  final _formKey           = GlobalKey<FormState>();
-  final _emailController   = TextEditingController();
+  final _formKey = GlobalKey<FormState>();
+  final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
 
-  bool   _isLoading        = false;
-  bool   _obscurePassword  = true;
+  bool _isLoading = false;
+  bool _obscurePassword = true;
   String? _errorMessage;
 
   @override
@@ -33,11 +33,10 @@ class _LoginScreenState extends State<LoginScreen> {
     if (!_formKey.currentState!.validate()) return;
 
     setState(() {
-      _isLoading    = true;
+      _isLoading = true;
       _errorMessage = null;
     });
 
-    // 👉 Disponible en todo el método
     final authProvider = context.read<AuthProvider>();
 
     try {
@@ -46,7 +45,7 @@ class _LoginScreenState extends State<LoginScreen> {
         _passwordController.text,
       );
 
-      if (authProvider.currentUser != null && authProvider.isAuthenticated) {
+      if (authProvider.isAuthenticated) {
         if (!mounted) return;
         showDialog(
           context: context,
@@ -55,7 +54,10 @@ class _LoginScreenState extends State<LoginScreen> {
             content: const Text('Inicio de sesión exitoso.'),
             actions: [
               TextButton(
-                onPressed: () => Navigator.pop(context),
+                onPressed: () {
+                  Navigator.pop(context);
+                  context.go('/home'); // Navega a la pantalla principal
+                },
                 child: const Text('OK'),
               ),
             ],
@@ -67,8 +69,7 @@ class _LoginScreenState extends State<LoginScreen> {
     } catch (e) {
       if (mounted) {
         setState(() {
-          _errorMessage =
-              authProvider.errorMessage ?? 'Error al iniciar sesión: $e';
+          _errorMessage = authProvider.errorMessage ?? 'Error al iniciar sesión: $e';
         });
       }
     } finally {
@@ -87,7 +88,6 @@ class _LoginScreenState extends State<LoginScreen> {
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                // --- LOGO ---------------------------------------------------
                 Container(
                   width: 120,
                   height: 120,
@@ -125,8 +125,6 @@ class _LoginScreenState extends State<LoginScreen> {
                   style: TextStyle(fontSize: 16, color: AppColors.grey600),
                 ),
                 const SizedBox(height: 48),
-
-                // --- FORM ---------------------------------------------------
                 Card(
                   child: Padding(
                     padding: const EdgeInsets.all(24),
@@ -178,11 +176,19 @@ class _LoginScreenState extends State<LoginScreen> {
                             width: double.infinity,
                             child: ElevatedButton(
                               onPressed: _isLoading ? null : _login,
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: AppColors.primary,
+                                padding: const EdgeInsets.symmetric(vertical: 16),
+                              ),
                               child: _isLoading
                                   ? const CircularProgressIndicator(
                                       color: Colors.white,
                                     )
-                                  : const Text('Iniciar Sesión'),
+                                  : const Text('Iniciar Sesión',
+                                      style: TextStyle(
+                                        fontSize: 16,
+                                        fontWeight: FontWeight.bold,
+                                      )),
                             ),
                           ),
                           const SizedBox(height: 12),
@@ -194,7 +200,7 @@ class _LoginScreenState extends State<LoginScreen> {
                       ),
                     ),
                   ),
-                ),
+               ),
               ],
             ),
           ),

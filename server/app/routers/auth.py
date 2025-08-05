@@ -1,4 +1,3 @@
-import uuid
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy.orm import Session
@@ -14,7 +13,7 @@ from ..config import settings
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
 
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="api/auth/login")
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/login")
 
 @router.post("/login", response_model=TokenResponse)
 async def login(login_request: LoginRequest, db: Session = Depends(get_db)):
@@ -22,7 +21,6 @@ async def login(login_request: LoginRequest, db: Session = Depends(get_db)):
 
 @router.post("/register", response_model=UserResponse)
 async def register(user_create: UserCreate, db: Session = Depends(get_db)):
-    # Verificar si el email ya existe
     existing_user = db.query(User).filter(User.email == user_create.email).first()
     if existing_user:
         raise HTTPException(
@@ -30,10 +28,8 @@ async def register(user_create: UserCreate, db: Session = Depends(get_db)):
             detail="El correo electrónico ya está registrado",
         )
     
-    # Hashear la contraseña
     hashed_password = hash_password(user_create.password)
     
-    # Crear nuevo usuario
     new_user = User(
         email=user_create.email,
         password_hash=hashed_password,
@@ -56,7 +52,7 @@ async def register(user_create: UserCreate, db: Session = Depends(get_db)):
 async def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)):
     try:
         payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
-        user_id: str = payload.get("sub") # type: ignore
+        user_id: str = payload.get("sub")
         if user_id is None:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
@@ -70,7 +66,7 @@ async def get_current_user(token: str = Depends(oauth2_scheme), db: Session = De
             headers={"WWW-Authenticate": "Bearer"},
         )
 
-    user = db.query(User).filter(User.id == uuid.UUID(user_id)).first()
+    user = db.query(User).filter(User.id == int(user_id)).first()  # Cambiado a int
     if user is None:
         raise HTTPException(status_code=404, detail="Usuario no encontrado")
     return user

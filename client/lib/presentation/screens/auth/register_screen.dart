@@ -14,7 +14,8 @@ class RegisterScreen extends StatefulWidget {
 
 class _RegisterScreenState extends State<RegisterScreen> {
   final _formKey = GlobalKey<FormState>();
-  final _nameController = TextEditingController();
+  final _firstNameController = TextEditingController();
+  final _lastNameController = TextEditingController();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
@@ -50,7 +51,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
   @override
   void dispose() {
-    _nameController.dispose();
+    _firstNameController.dispose();
+    _lastNameController.dispose();
     _emailController.dispose();
     _passwordController.dispose();
     _confirmPasswordController.dispose();
@@ -79,15 +81,11 @@ class _RegisterScreenState extends State<RegisterScreen> {
     final authProvider = context.read<AuthProvider>();
 
     try {
-      final nameParts = _nameController.text.split(' ');
-      final firstName = nameParts[0];
-      final lastName = nameParts.length > 1 ? nameParts.sublist(1).join(' ') : null;
-
       await authProvider.register(
         email: _emailController.text,
         password: _passwordController.text,
-        firstName: firstName,
-        lastName: lastName,
+        firstName: _firstNameController.text,
+        lastName: _lastNameController.text,
         phone: _phoneController.text.isNotEmpty ? _phoneController.text : null,
         role: _roleMapping[_selectedRole]!,
         program: _selectedProgram,
@@ -182,18 +180,36 @@ class _RegisterScreenState extends State<RegisterScreen> {
                         ),
                         const SizedBox(height: 16),
                         TextFormField(
-                          controller: _nameController,
+                          controller: _firstNameController,
                           decoration: const InputDecoration(
-                            labelText: 'Nombre Completo *',
+                            labelText: 'Nombre *',
                             prefixIcon: Icon(Icons.person),
                             border: OutlineInputBorder(),
                           ),
                           validator: (v) {
                             if (v == null || v.isEmpty) {
-                              return 'Ingrese su nombre completo';
+                              return 'Ingrese su nombre';
                             }
                             if (v.length < 3) {
                               return 'El nombre debe tener al menos 3 caracteres';
+                            }
+                            return null;
+                          },
+                        ),
+                        const SizedBox(height: 16),
+                        TextFormField(
+                          controller: _lastNameController,
+                          decoration: const InputDecoration(
+                            labelText: 'Apellido *',
+                            prefixIcon: Icon(Icons.person_outline),
+                            border: OutlineInputBorder(),
+                          ),
+                          validator: (v) {
+                            if (v == null || v.isEmpty) {
+                              return 'Ingrese su apellido';
+                            }
+                            if (v.length < 3) {
+                              return 'El apellido debe tener al menos 3 caracteres';
                             }
                             return null;
                           },
