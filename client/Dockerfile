@@ -1,5 +1,5 @@
 # Etapa 1: Compilar la aplicación Flutter
-FROM cirrusci/flutter:stable AS build
+FROM flutter:3.22.2 AS build
 
 WORKDIR /app
 COPY . .
