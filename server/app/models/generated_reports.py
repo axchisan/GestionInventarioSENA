@@ -7,8 +7,9 @@ from ..database import Base
 
 class GeneratedReport(Base):
     __tablename__ = "generated_reports"
-    id = Column(Integer, primary_key=True)
-    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
     report_type = Column(String(50), nullable=False)
     title = Column(String(200), nullable=False)
     parameters = Column(JSONB)
@@ -20,6 +21,7 @@ class GeneratedReport(Base):
     expires_at = Column(TIMESTAMP)
     download_count = Column(Integer, default=0)
     created_at = Column(TIMESTAMP, server_default=func.current_timestamp())
+
     __table_args__ = (
         CheckConstraint("file_format IN ('pdf', 'excel', 'csv')", name="check_file_format"),
         CheckConstraint("status IN ('generating', 'completed', 'failed')", name="check_status"),

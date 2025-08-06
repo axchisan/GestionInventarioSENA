@@ -1,5 +1,6 @@
 from pydantic import BaseModel, EmailStr
 from typing import Optional
+from uuid import UUID
 from datetime import datetime
 
 class UserBase(BaseModel):
@@ -16,7 +17,7 @@ class UserCreate(UserBase):
     password: str
 
 class UserResponse(UserBase):
-    id: int  # Cambiado a int
+    id: UUID
     is_active: bool
     last_login: Optional[datetime] = None
     created_at: datetime
