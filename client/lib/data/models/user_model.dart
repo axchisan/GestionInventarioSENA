@@ -4,10 +4,10 @@ part 'user_model.g.dart';
 
 @JsonSerializable()
 class UserModel {
-  final int id;
+  final String id;  // Cambiado a String para UUID
   final String email;
   final String firstName;
-  final String lastName; // Cambiado a required
+  final String lastName;
   final String role;
   final String? phone;
   final String? program;
