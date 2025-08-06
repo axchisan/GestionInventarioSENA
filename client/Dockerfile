@@ -1,5 +1,5 @@
 # Etapa 1: Compilar la aplicación Flutter
-FROM flutter:3.22.2 AS build
+FROM ghcr.io/cirruslabs/flutter:3.35.0-0.1.pre AS build
 
 WORKDIR /app
 COPY . .
