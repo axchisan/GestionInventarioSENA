@@ -76,8 +76,8 @@ class AuthProvider extends ChangeNotifier {
   Future<void> register({
     required String email,
     required String password,
-    required String firstName,
-    required String lastName, // Cambiado a required
+    required String first_name,  // Cambiado a first_name
+    required String last_name,   // Cambiado a last_name
     String? phone,
     required String role,
     String? program,
@@ -93,8 +93,8 @@ class AuthProvider extends ChangeNotifier {
         body: jsonEncode({
           'email': email,
           'password': password,
-          'firstName': firstName,
-          'lastName': lastName,
+          'first_name': first_name,  // Cambiado a first_name
+          'last_name': last_name,    // Cambiado a last_name
           'role': role,
           'phone': phone,
           'program': program,
