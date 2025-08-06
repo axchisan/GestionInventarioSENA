@@ -19,4 +19,4 @@ app.include_router(auth.router, prefix="/api/auth", tags=["auth"])
 
 @app.get("/")
 async def root():
-    return {"message": "Sistema de Gestión de Inventarios SENA"}
+    return {"message": "Sistema de Gestión de Inventarios SENA.. ¡Bienvenido!"}
