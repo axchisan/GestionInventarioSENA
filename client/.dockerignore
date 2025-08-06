@@ -1,0 +1,11 @@
+.git
+.gitignore
+android
+ios
+macos
+linux
+windows
+lib
+test
+pubspec.lock
+pubspec.yaml
