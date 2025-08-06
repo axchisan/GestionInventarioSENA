@@ -7,10 +7,11 @@ from ..database import Base
 
 class InventoryCheck(Base):
     __tablename__ = "inventory_checks"
-    id = Column(Integer, primary_key=True)
-    environment_id = Column(Integer, ForeignKey("environments.id", ondelete="CASCADE"), nullable=False)
-    student_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
-    schedule_id = Column(Integer, ForeignKey("schedules.id", ondelete="SET NULL"))
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    environment_id = Column(UUID(as_uuid=True), ForeignKey("environments.id", ondelete="CASCADE"), nullable=False)
+    student_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    schedule_id = Column(UUID(as_uuid=True), ForeignKey("schedules.id", ondelete="SET NULL"))
     check_date = Column(Date, nullable=False)
     check_time = Column(Time, nullable=False)
     status = Column(String(20), nullable=False, default="pending")
@@ -21,6 +22,7 @@ class InventoryCheck(Base):
     comments = Column(Text)
     created_at = Column(TIMESTAMP, server_default=func.current_timestamp())
     updated_at = Column(TIMESTAMP, server_default=func.current_timestamp())
+
     __table_args__ = (
         CheckConstraint("status IN ('pending', 'complete', 'incomplete', 'issues')", name="check_status"),
     )

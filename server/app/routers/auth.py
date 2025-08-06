@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy.orm import Session
-from jose import JWTError, jwt # type: ignore
+from jose import JWTError, jwt
 from datetime import datetime
 from typing import cast
 from ..database import get_db
@@ -10,6 +10,7 @@ from ..services.auth_service import authenticate_user
 from ..utils.security import hash_password
 from ..models.users import User
 from ..config import settings
+import uuid
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
 
@@ -66,7 +67,7 @@ async def get_current_user(token: str = Depends(oauth2_scheme), db: Session = De
             headers={"WWW-Authenticate": "Bearer"},
         )
 
-    user = db.query(User).filter(User.id == int(user_id)).first()  # Cambiado a int
+    user = db.query(User).filter(User.id == uuid.UUID(user_id)).first()  # Revertido a UUID
     if user is None:
         raise HTTPException(status_code=404, detail="Usuario no encontrado")
     return user
