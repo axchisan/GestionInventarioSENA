@@ -2,6 +2,14 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../../presentation/screens/auth/login_screen.dart';
 import '../../presentation/screens/auth/register_screen.dart';
+import '../../presentation/screens/home/home_screen.dart';
+import '../../presentation/screens/admin/admin_dashboard.dart';
+import '../../presentation/screens/inventory/inventory_check_screen.dart';
+import '../../presentation/screens/notifications/notifications_screen.dart';
+import '../../presentation/screens/profile/profile_screen.dart';
+import '../../presentation/screens/qr/qr_scan_screen.dart';
+import '../../presentation/screens/statistics/statistics_dashboard.dart';
+import '../../presentation/screens/supervisor/supervisor_dashboard.dart';
 
 class NavigationService {
   static final GoRouter router = GoRouter(
@@ -17,17 +25,48 @@ class NavigationService {
         name: 'register',
         builder: (context, state) => const RegisterScreen(),
       ),
-      // Rutas desactivadas temporalmente
-      /*
-      GoRoute(path: '/home', name: 'home', builder: (context, state) => const HomeScreen()),
-      GoRoute(path: '/qr-scan', name: 'qr-scan', builder: (context, state) => const QRScanScreen()),
-      GoRoute(path: '/inventory-check', name: 'inventory-check', builder: (context, state) => const InventoryCheckScreen()),
-      GoRoute(path: '/supervisor-dashboard', name: 'supervisor-dashboard', builder: (context, state) => const SupervisorDashboard()),
-      GoRoute(path: '/admin-dashboard', name: 'admin-dashboard', builder: (context, state) => const AdminDashboard()),
-      GoRoute(path: '/statistics', name: 'statistics', builder: (context, state) => const StatisticsDashboard()),
-      GoRoute(path: '/notifications', name: 'notifications', builder: (context, state) => const NotificationsScreen()),
-      GoRoute(path: '/profile', name: 'profile', builder: (context, state) => const ProfileScreen()),
-      */
+      GoRoute(
+        path: '/home',
+        name: 'home',
+        builder: (context, state) => const HomeScreen(),
+      ),
+      GoRoute(
+        path: '/admin-dashboard',
+        name: 'admin-dashboard',
+        builder: (context, state) => const AdminDashboard(),
+      ),
+
+      GoRoute(
+        path: '/supervisor-dashboard',
+        name: 'supervisor-dashboard',
+        builder: (context, state) => const SupervisorDashboard(),
+      ),
+      GoRoute(
+        path: '/inventory-check',
+        name: 'inventory-check',
+        builder: (context, state) => const InventoryCheckScreen(),
+      ),
+      GoRoute(
+        path: '/qr-scan',
+        name: 'qr-scan',
+        builder: (context, state) => const QRScanScreen(),
+      ),
+      GoRoute(
+        path: '/statistics',
+        name: 'statistics',
+        builder: (context, state) => const StatisticsDashboard(),
+      ),
+      GoRoute(
+        path: '/notifications',
+        name: 'notifications',
+        builder: (context, state) => const NotificationsScreen(),
+      ),
+      GoRoute(
+        path: '/profile',
+        name: 'profile',
+        builder: (context, state) => const ProfileScreen(),
+      ),
+     
     ],
   );
 
