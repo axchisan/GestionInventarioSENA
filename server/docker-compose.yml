@@ -6,7 +6,7 @@ services:
     ports:
       - "8001:8001"  # Puerto externo:puerto interno
     environment:
-      - APP_PORT=8001
+      - APP_PORT=8001  
     volumes:
       - .:/app
     networks:
@@ -14,7 +14,6 @@ services:
     deploy:
       restart_policy:
         condition: on-failure
-    command: ["sh", "-c", "uvicorn app.main:app --host 0.0.0.0 --port ${APP_PORT:-8001} --reload"]
 
 networks:
   app-network:
