@@ -3,6 +3,7 @@ import 'package:client/presentation/screens/splash/splash_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../../core/services/role_navigation_service.dart';
+import '../../presentation/providers/auth_provider.dart';
 import '../../presentation/screens/admin/user_management_screen.dart';
 import '../../presentation/screens/audit/audit_log_screen.dart';
 import '../../presentation/screens/auth/login_screen.dart';
@@ -27,10 +28,26 @@ import '../../presentation/screens/reports/report_generator_screen.dart';
 import '../../presentation/screens/settings/settings_screen.dart';
 import '../../presentation/screens/statistics/statistics_dashboard.dart';
 import '../../presentation/screens/training/training_schedule_screen.dart';
+import '../../core/services/session_service.dart';
 
 class NavigationService {
   static final GoRouter router = GoRouter(
     initialLocation: '/splash',
+    redirect: (context, state) async {
+      final authProvider = AuthProvider();
+      final isAuthenticated = await authProvider.checkSession();
+      final role = await SessionService.getRole();
+      final currentPath = state.fullPath ?? '/';
+
+      if (!isAuthenticated) {
+        if (!['/login', '/register', '/splash'].contains(currentPath)) {
+          return '/login';
+        }
+      } else if (role != null && !RoleNavigationService.hasAccessToRoute(role, currentPath)) {
+        return RoleNavigationService.getDefaultRoute(role);
+      }
+      return null;
+    },
     routes: [
       GoRoute(
         path: '/splash',
@@ -130,10 +147,7 @@ class NavigationService {
       GoRoute(
         path: '/environment-overview',
         name: 'environment-overview',
-        builder: (context, state) => const EnvironmentOverviewScreen(
-          environmentId: '',
-          environmentName: '',
-        ),
+        builder: (context, state) => const EnvironmentOverviewScreen(environmentId: '', environmentName: ''),
       ),
       GoRoute(
         path: '/audit-log',

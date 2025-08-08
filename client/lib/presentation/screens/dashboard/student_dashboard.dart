@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:provider/provider.dart';
 import '../../../core/theme/app_colors.dart';
+import '../../providers/auth_provider.dart';
 import '../../widgets/common/sena_app_bar.dart';
 
 class StudentDashboard extends StatelessWidget {
@@ -18,7 +20,6 @@ class StudentDashboard extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Bienvenida con logo SENA
             Card(
               child: Padding(
                 padding: const EdgeInsets.all(20.0),
@@ -70,8 +71,6 @@ class StudentDashboard extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 24),
-
-            // Estadísticas rápidas
             const Text(
               'Resumen Rápido',
               style: TextStyle(
@@ -102,8 +101,6 @@ class StudentDashboard extends StatelessWidget {
               ],
             ),
             const SizedBox(height: 24),
-
-            // Acciones principales
             const Text(
               'Acciones Disponibles',
               style: TextStyle(
@@ -112,7 +109,6 @@ class StudentDashboard extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 12),
-            
             GridView.count(
               shrinkWrap: true,
               physics: const NeverScrollableScrollPhysics(),
@@ -172,8 +168,6 @@ class StudentDashboard extends StatelessWidget {
               ],
             ),
             const SizedBox(height: 24),
-
-            // Préstamos recientes
             Card(
               child: Padding(
                 padding: const EdgeInsets.all(16.0),
@@ -342,7 +336,7 @@ class StudentDashboard extends StatelessWidget {
                   child: ClipRRect(
                     borderRadius: BorderRadius.circular(30),
                     child: Image.asset(
-                      '/sena-logo.png',
+                      'assets/images/sena_logo.png',
                       width: 50,
                       height: 50,
                       fit: BoxFit.contain,
@@ -407,7 +401,11 @@ class StudentDashboard extends StatelessWidget {
           ListTile(
             leading: const Icon(Icons.logout),
             title: const Text('Cerrar Sesión'),
-            onTap: () => context.go('/login'),
+            onTap: () async {
+              final authProvider = Provider.of<AuthProvider>(context, listen: false);
+              await authProvider.logout();
+              context.go('/login');
+            },
           ),
         ],
       ),

@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
+import 'package:jwt_decoder/jwt_decoder.dart';
 import '../../core/constants/api_constants.dart';
 import '../../core/constants/api_constants.dart' as APIConstants;
 import '../../core/services/session_service.dart';
@@ -33,21 +34,17 @@ class AuthProvider extends ChangeNotifier {
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
-        print("Response data: $data"); // Depuración
         if (data.containsKey('access_token') && data.containsKey('user')) {
           _token = data['access_token'];
-          print("User data: ${data['user']}"); // Depuración
-          _currentUser = UserModel.fromJson(
-            data['user'] as Map<String, dynamic>,
-          );
+          _currentUser = UserModel.fromJson(data['user'] as Map<String, dynamic>);
           _isAuthenticated = true;
 
-          // Guardar en SessionService con manejo de null
+          final expiresAt = JwtDecoder.decode(_token!)['exp'] * 1000;
           await SessionService.saveSession(
             token: _token!,
-            role: _currentUser!.role ?? 'unknown', // Manejo de null
+            role: _currentUser!.role ?? 'unknown',
             user: data['user'] as Map<String, dynamic>,
-            expiresAt: DateTime.now().millisecondsSinceEpoch + (30 * 60 * 1000),
+            expiresAt: expiresAt,
           );
         } else {
           _errorMessage = 'Respuesta del servidor inválida: $data';
@@ -55,9 +52,8 @@ class AuthProvider extends ChangeNotifier {
       } else {
         _errorMessage = 'Credenciales inválidas: ${response.body}';
       }
-    } catch (e, stack) {
+    } catch (e) {
       _errorMessage = 'Error al iniciar sesión: $e';
-      print("Error details: $e\nStack trace: $stack"); // Depuración completa
     } finally {
       _isLoading = false;
       notifyListeners();
@@ -124,6 +120,8 @@ class AuthProvider extends ChangeNotifier {
         return true;
       }
     }
+    _isAuthenticated = false;
+    notifyListeners();
     return false;
   }
 }

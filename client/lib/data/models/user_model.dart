@@ -13,7 +13,7 @@ class UserModel {
   final String? program;
   final String? ficha;
   final String? avatarUrl;
-  final bool? isActive; // Temporalmente como bool?
+  final bool? isActive;
   final DateTime? lastLogin;
   final DateTime? createdAt;
   final DateTime? updatedAt;

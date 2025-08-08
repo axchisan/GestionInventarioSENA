@@ -1,5 +1,4 @@
 import 'dart:convert';
-
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:jwt_decoder/jwt_decoder.dart';
 
@@ -33,12 +32,14 @@ class SessionService {
   static Future<bool> hasValidSession() async {
     final prefs = await SharedPreferences.getInstance();
     final token = prefs.getString(_kTokenKey);
-    final expiresAt = prefs.getInt(_kExpiresAtKey);
+    if (token == null || token.isEmpty) return false;
 
-    if (token == null || token.isEmpty || expiresAt == null) return false;
-
-    final now = DateTime.now().millisecondsSinceEpoch;
-    return now + 5000 < expiresAt && !JwtDecoder.isExpired(token);
+    final isExpired = JwtDecoder.isExpired(token);
+    if (isExpired) {
+      await clear(); // Limpiar sesión si el token expiró
+      return false;
+    }
+    return true;
   }
 
   static Future<String?> getRole() async {
@@ -54,10 +55,7 @@ class SessionService {
   static Future<Map<String, dynamic>?> getUser() async {
     final prefs = await SharedPreferences.getInstance();
     final userJson = prefs.getString(_kUserKey);
-    if (userJson != null) {
-      return jsonDecode(userJson);
-    }
-    return null;
+    return userJson != null ? jsonDecode(userJson) : null;
   }
 
   static Future<int?> getExpiresAt() async {
