@@ -4,10 +4,10 @@ part 'user_model.g.dart';
 
 @JsonSerializable()
 class UserModel {
-  final String id;
-  final String email;
-  final String firstName;
-  final String lastName;
+  final String? id; 
+  final String? email;
+  final String? firstName;
+  final String? lastName;
   final String role;
   final String? phone;
   final String? program;
@@ -19,10 +19,10 @@ class UserModel {
   final DateTime updatedAt;
 
   UserModel({
-    required this.id,
-    required this.email,
-    required this.firstName,
-    required this.lastName,
+    this.id,
+    this.email,
+    this.firstName,
+    this.lastName,
     required this.role,
     this.phone,
     this.program,
