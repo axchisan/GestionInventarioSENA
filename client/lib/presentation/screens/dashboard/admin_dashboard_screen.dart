@@ -34,7 +34,7 @@ class AdminDashboardScreen extends StatelessWidget {
                       child: ClipRRect(
                         borderRadius: BorderRadius.circular(30),
                         child: Image.asset(
-                          '/sena-logo.png',
+                          'assets/images/sena_logo.png',
                           width: 50,
                           height: 50,
                           fit: BoxFit.contain,
