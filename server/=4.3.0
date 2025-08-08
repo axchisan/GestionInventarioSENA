@@ -1,0 +1,8 @@
+Collecting passlib
+  Using cached passlib-1.7.4-py2.py3-none-any.whl.metadata (1.7 kB)
+Collecting bcrypt
+  Using cached bcrypt-4.3.0-cp39-abi3-manylinux_2_34_x86_64.whl.metadata (10 kB)
+Using cached passlib-1.7.4-py2.py3-none-any.whl (525 kB)
+Using cached bcrypt-4.3.0-cp39-abi3-manylinux_2_34_x86_64.whl (284 kB)
+Installing collected packages: passlib, bcrypt
+Successfully installed bcrypt-4.3.0 passlib-1.7.4

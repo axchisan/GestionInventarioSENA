@@ -105,7 +105,7 @@ class RoleNavigationService {
           '/inventory-history',
           '/environment-overview',
           '/training-schedule',
-          '/admin-dashboard', // Acceso a todas las rutas de admin
+          '/admin-dashboard',
         ];
       default:
         return ['/login', '/register'];
@@ -132,5 +132,39 @@ class RoleNavigationService {
       default:
         return '/login';
     }
+  }
+
+  // Función personalizable para definir roles por vista
+  static Map<String, List<String>> defineRoutePermissions() {
+    return {
+      '/student-dashboard': ['student'],
+      '/instructor-dashboard': ['instructor'],
+      '/supervisor-dashboard': ['supervisor'],
+      '/admin-dashboard': ['admin'],
+      '/admin-general-dashboard': ['admin_general'],
+      '/user-management': ['supervisor', 'admin', 'admin_general'],
+      '/statistics-dashboard': ['supervisor', 'admin', 'admin_general'],
+      '/inventory-alerts': ['supervisor', 'admin', 'admin_general'],
+      '/audit-log': ['supervisor', 'admin', 'admin_general'],
+      '/report-generator': ['supervisor', 'admin', 'admin_general'],
+      '/feedback-form': ['admin', 'admin_general'],
+      '/qr-scan': ['student', 'instructor', 'admin', 'admin_general'],
+      '/inventory-check': ['student', 'instructor', 'admin', 'admin_general'],
+      '/loan-request': ['student', 'instructor', 'admin', 'admin_general'],
+      '/loan-history': ['student', 'instructor', 'admin', 'admin_general'],
+      '/maintenance-request': ['instructor', 'admin', 'admin_general'],
+      '/inventory-history': ['instructor', 'admin', 'admin_general'],
+      '/environment-overview': ['instructor', 'admin', 'admin_general'],
+      '/training-schedule': ['instructor', 'supervisor', 'admin', 'admin_general'],
+      '/notifications': ['student', 'instructor', 'supervisor', 'admin', 'admin_general'],
+      '/profile': ['student', 'instructor', 'supervisor', 'admin', 'admin_general'],
+      '/settings': ['student', 'instructor', 'supervisor', 'admin', 'admin_general'],
+    };
+  }
+
+  static bool checkRoutePermission(String role, String route) {
+    final permissions = defineRoutePermissions();
+    final allowedRoles = permissions[route] ?? [];
+    return allowedRoles.isEmpty || allowedRoles.contains(role.toLowerCase());
   }
 }
