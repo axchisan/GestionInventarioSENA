@@ -33,4 +33,4 @@ class LoginRequest(BaseModel):
 class TokenResponse(BaseModel):
     access_token: str
     token_type: str
-    role: str
+    user: UserResponse  # Incluimos la información completa del usuario

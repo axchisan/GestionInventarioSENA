@@ -17,6 +17,11 @@ UserModel _$UserModelFromJson(Map<String, dynamic> json) => UserModel(
   ficha: json['ficha'] as String?,
   avatarUrl: json['avatarUrl'] as String?,
   isActive: json['isActive'] as bool,
+  lastLogin: json['lastLogin'] == null
+      ? null
+      : DateTime.parse(json['lastLogin'] as String),
+  createdAt: DateTime.parse(json['createdAt'] as String),
+  updatedAt: DateTime.parse(json['updatedAt'] as String),
 );
 
 Map<String, dynamic> _$UserModelToJson(UserModel instance) => <String, dynamic>{
@@ -30,4 +35,7 @@ Map<String, dynamic> _$UserModelToJson(UserModel instance) => <String, dynamic>{
   'ficha': instance.ficha,
   'avatarUrl': instance.avatarUrl,
   'isActive': instance.isActive,
+  'lastLogin': instance.lastLogin?.toIso8601String(),
+  'createdAt': instance.createdAt.toIso8601String(),
+  'updatedAt': instance.updatedAt.toIso8601String(),
 };

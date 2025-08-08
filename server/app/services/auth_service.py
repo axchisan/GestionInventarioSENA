@@ -3,7 +3,7 @@ from sqlalchemy.orm import Session
 from datetime import datetime
 from typing import cast
 from ..models.users import User
-from ..schemas.user import LoginRequest, TokenResponse
+from ..schemas.user import LoginRequest, TokenResponse, UserResponse
 from ..utils.security import verify_password, create_access_token
 
 def authenticate_user(db: Session, login_request: LoginRequest) -> TokenResponse:
@@ -36,5 +36,19 @@ def authenticate_user(db: Session, login_request: LoginRequest) -> TokenResponse
     return TokenResponse(
         access_token=access_token,
         token_type="bearer",
-        role=cast(str, user.role)
+        user=UserResponse(
+            id=user.id,
+            email=user.email,
+            first_name=user.first_name,
+            last_name=user.last_name,
+            role=user.role,
+            phone=user.phone,
+            program=user.program,
+            ficha=user.ficha,
+            avatar_url=user.avatar_url,
+            is_active=user.is_active,
+            last_login=user.last_login,
+            created_at=user.created_at,
+            updated_at=user.updated_at
+        )
     )

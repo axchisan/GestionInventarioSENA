@@ -1,8 +1,9 @@
 import 'dart:convert';
-import 'package:client/core/constants/api_constants.dart' as APIConstants;
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import '../../core/constants/api_constants.dart';
+import '../../core/constants/api_constants.dart' as APIConstants;
+import '../../core/services/session_service.dart';
 import '../../data/models/user_model.dart';
 
 class AuthProvider extends ChangeNotifier {
@@ -32,15 +33,23 @@ class AuthProvider extends ChangeNotifier {
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
-        if (data.containsKey('access_token')) {
+        if (data.containsKey('access_token') && data.containsKey('user')) {
           _token = data['access_token'];
-          await _fetchCurrentUser();
+          _currentUser = UserModel.fromJson(data['user']);
           _isAuthenticated = true;
+
+          // Guardar en SessionService
+          await SessionService.saveSession(
+            token: _token!,
+            role: _currentUser!.role,
+            user: data['user'],
+            expiresAt: DateTime.now().millisecondsSinceEpoch + (30 * 60 * 1000), // 30 minutos
+          );
         } else {
           _errorMessage = 'Respuesta del servidor inválida';
         }
       } else {
-        _errorMessage = 'Credenciales inválidas. Código: ${response.statusCode}';
+        _errorMessage = 'Credenciales inválidas: ${response.body}';
       }
     } catch (e) {
       _errorMessage = 'Error al iniciar sesión: $e';
@@ -50,34 +59,11 @@ class AuthProvider extends ChangeNotifier {
     }
   }
 
-  Future<void> _fetchCurrentUser() async {
-    if (_token == null) return;
-
-    try {
-      final response = await http.get(
-        Uri.parse('${APIConstants.baseUrl}${APIConstants.getUserEndpoint}'),
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer $_token',
-        },
-      );
-
-      if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
-        _currentUser = UserModel.fromJson(data);
-      } else {
-        _errorMessage = 'Error al obtener datos del usuario: ${response.statusCode} - ${response.body}';
-      }
-    } catch (e) {
-      _errorMessage = 'Error al obtener datos del usuario: $e';
-    }
-  }
-
   Future<void> register({
     required String email,
     required String password,
-    required String first_name,  // Cambiado a first_name
-    required String last_name,   // Cambiado a last_name
+    required String firstName,
+    required String lastName,
     String? phone,
     required String role,
     String? program,
@@ -93,8 +79,8 @@ class AuthProvider extends ChangeNotifier {
         body: jsonEncode({
           'email': email,
           'password': password,
-          'first_name': first_name,  // Cambiado a first_name
-          'last_name': last_name,    // Cambiado a last_name
+          'first_name': firstName,
+          'last_name': lastName,
           'role': role,
           'phone': phone,
           'program': program,
@@ -102,9 +88,9 @@ class AuthProvider extends ChangeNotifier {
       );
 
       if (response.statusCode == 201) {
-        _errorMessage = 'Registro exitoso. Espera la aprobación del administrador.';
+        _errorMessage = 'Registro exitoso. Por favor, inicia sesión.';
       } else {
-        _errorMessage = 'Error en el registro: ${response.statusCode} - ${response.body}';
+        _errorMessage = 'Error en el registro: ${response.body}';
       }
     } catch (e) {
       _errorMessage = 'Error al registrarse: $e';
@@ -115,9 +101,24 @@ class AuthProvider extends ChangeNotifier {
   }
 
   Future<void> logout() async {
+    await SessionService.clear();
     _currentUser = null;
     _token = null;
     _isAuthenticated = false;
     notifyListeners();
+  }
+
+  Future<bool> checkSession() async {
+    if (await SessionService.hasValidSession()) {
+      final userData = await SessionService.getUser();
+      if (userData != null) {
+        _currentUser = UserModel.fromJson(userData);
+        _token = await SessionService.getAccessToken();
+        _isAuthenticated = true;
+        notifyListeners();
+        return true;
+      }
+    }
+    return false;
   }
 }
