@@ -46,7 +46,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
       if (authProvider.isAuthenticated && authProvider.currentUser != null) {
         if (!mounted) return;
-        RoleNavigationService.navigateByRole(context, authProvider.currentUser!.role);
+        RoleNavigationService.navigateByRole(context, authProvider.currentUser!.role!);
       } else {
         setState(() => _errorMessage = authProvider.errorMessage ?? 'Error desconocido');
       }

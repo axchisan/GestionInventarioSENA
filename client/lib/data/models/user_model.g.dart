@@ -11,17 +11,21 @@ UserModel _$UserModelFromJson(Map<String, dynamic> json) => UserModel(
   email: json['email'] as String?,
   firstName: json['firstName'] as String?,
   lastName: json['lastName'] as String?,
-  role: json['role'] as String,
+  role: json['role'] as String?,
   phone: json['phone'] as String?,
   program: json['program'] as String?,
   ficha: json['ficha'] as String?,
   avatarUrl: json['avatarUrl'] as String?,
-  isActive: json['isActive'] as bool,
+  isActive: json['isActive'] as bool?,
   lastLogin: json['lastLogin'] == null
       ? null
       : DateTime.parse(json['lastLogin'] as String),
-  createdAt: DateTime.parse(json['createdAt'] as String),
-  updatedAt: DateTime.parse(json['updatedAt'] as String),
+  createdAt: json['createdAt'] == null
+      ? null
+      : DateTime.parse(json['createdAt'] as String),
+  updatedAt: json['updatedAt'] == null
+      ? null
+      : DateTime.parse(json['updatedAt'] as String),
 );
 
 Map<String, dynamic> _$UserModelToJson(UserModel instance) => <String, dynamic>{
@@ -36,6 +40,6 @@ Map<String, dynamic> _$UserModelToJson(UserModel instance) => <String, dynamic>{
   'avatarUrl': instance.avatarUrl,
   'isActive': instance.isActive,
   'lastLogin': instance.lastLogin?.toIso8601String(),
-  'createdAt': instance.createdAt.toIso8601String(),
-  'updatedAt': instance.updatedAt.toIso8601String(),
+  'createdAt': instance.createdAt?.toIso8601String(),
+  'updatedAt': instance.updatedAt?.toIso8601String(),
 };

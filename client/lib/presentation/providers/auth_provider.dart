@@ -33,26 +33,31 @@ class AuthProvider extends ChangeNotifier {
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
+        print("Response data: $data"); // Depuración
         if (data.containsKey('access_token') && data.containsKey('user')) {
           _token = data['access_token'];
-          _currentUser = UserModel.fromJson(data['user']);
+          print("User data: ${data['user']}"); // Depuración
+          _currentUser = UserModel.fromJson(
+            data['user'] as Map<String, dynamic>,
+          );
           _isAuthenticated = true;
 
-          // Guardar en SessionService
+          // Guardar en SessionService con manejo de null
           await SessionService.saveSession(
             token: _token!,
-            role: _currentUser!.role,
-            user: data['user'],
-            expiresAt: DateTime.now().millisecondsSinceEpoch + (30 * 60 * 1000), // 30 minutos
+            role: _currentUser!.role ?? 'unknown', // Manejo de null
+            user: data['user'] as Map<String, dynamic>,
+            expiresAt: DateTime.now().millisecondsSinceEpoch + (30 * 60 * 1000),
           );
         } else {
-          _errorMessage = 'Respuesta del servidor inválida';
+          _errorMessage = 'Respuesta del servidor inválida: $data';
         }
       } else {
         _errorMessage = 'Credenciales inválidas: ${response.body}';
       }
-    } catch (e) {
+    } catch (e, stack) {
       _errorMessage = 'Error al iniciar sesión: $e';
+      print("Error details: $e\nStack trace: $stack"); // Depuración completa
     } finally {
       _isLoading = false;
       notifyListeners();
