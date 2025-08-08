@@ -18,7 +18,9 @@ oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/login")
 
 @router.post("/login", response_model=TokenResponse)
 async def login(login_request: LoginRequest, db: Session = Depends(get_db)):
-    return authenticate_user(db, login_request)
+    result = authenticate_user(db, login_request)
+    print(f"Response from authenticate_user: {result.dict()}")  # Depuración
+    return result
 
 @router.post("/register", response_model=UserResponse)
 async def register(user_create: UserCreate, db: Session = Depends(get_db)):
