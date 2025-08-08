@@ -3,23 +3,18 @@ import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:google_fonts/google_fonts.dart';
-
-import 'app.dart';
 import 'core/services/navigation_service.dart';
 import 'core/services/theme_service.dart';
 import 'core/services/language_service.dart';
 import 'presentation/providers/auth_provider.dart';
-import 'presentation/screens/auth/login_screen.dart';
-import 'presentation/screens/auth/register_screen.dart';
+import 'presentation/screens/splash/splash_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // Initialize services
   await ThemeService.instance.init();
   await LanguageService.instance.init();
 
-  // Set system UI overlay style (compatible with web and mobile)
   SystemChrome.setSystemUIOverlayStyle(const SystemUiOverlayStyle(
     statusBarColor: Colors.transparent,
     statusBarIconBrightness: Brightness.dark,

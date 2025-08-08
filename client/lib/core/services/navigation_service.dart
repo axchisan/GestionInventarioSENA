@@ -1,17 +1,19 @@
-import 'package:client/presentation/screens/dashboard/instructor_dashboard.dart';
-import 'package:client/presentation/screens/dashboard/student_dashboard.dart';
+import 'package:client/presentation/screens/dashboard/general_admin_dashboard_screen.dart';
+import 'package:client/presentation/screens/splash/splash_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import '../../core/services/role_navigation_service.dart';
 import '../../presentation/screens/admin/user_management_screen.dart';
 import '../../presentation/screens/audit/audit_log_screen.dart';
 import '../../presentation/screens/auth/login_screen.dart';
 import '../../presentation/screens/auth/register_screen.dart';
 import '../../presentation/screens/dashboard/admin_dashboard_screen.dart';
+import '../../presentation/screens/dashboard/instructor_dashboard.dart';
+import '../../presentation/screens/dashboard/student_dashboard.dart';
 import '../../presentation/screens/dashboard/supervisor_dashboard_screen.dart';
 import '../../presentation/screens/environment/environment_overview_screen.dart';
 import '../../presentation/screens/feedback/feedback_form_screen.dart';
 import '../../presentation/screens/home/home_screen.dart';
-import '../../presentation/screens/admin/admin_dashboard.dart';
 import '../../presentation/screens/inventory/inventory_alerts_screen.dart';
 import '../../presentation/screens/inventory/inventory_check_screen.dart';
 import '../../presentation/screens/inventory/inventory_history_screen.dart';
@@ -24,14 +26,17 @@ import '../../presentation/screens/qr/qr_scan_screen.dart';
 import '../../presentation/screens/reports/report_generator_screen.dart';
 import '../../presentation/screens/settings/settings_screen.dart';
 import '../../presentation/screens/statistics/statistics_dashboard.dart';
-import '../../presentation/screens/supervisor/supervisor_dashboard.dart';
 import '../../presentation/screens/training/training_schedule_screen.dart';
 
 class NavigationService {
   static final GoRouter router = GoRouter(
-    initialLocation: '/login',
+    initialLocation: '/splash',
     routes: [
-      // Auth Routes
+      GoRoute(
+        path: '/splash',
+        name: 'splash',
+        builder: (context, state) => const SplashScreen(),
+      ),
       GoRoute(
         path: '/login',
         name: 'login',
@@ -42,15 +47,11 @@ class NavigationService {
         name: 'register',
         builder: (context, state) => const RegisterScreen(),
       ),
-
-      // Main App Routes
       GoRoute(
         path: '/home',
         name: 'home',
         builder: (context, state) => const HomeScreen(),
       ),
-
-      // Core Functionality Routes
       GoRoute(
         path: '/qr-scan',
         name: 'qr-scan',
@@ -71,12 +72,15 @@ class NavigationService {
         name: 'maintenance-request',
         builder: (context, state) => const MaintenanceRequestScreen(),
       ),
-
-      // Dashboard Routes
       GoRoute(
         path: '/admin-dashboard',
         name: 'admin-dashboard',
         builder: (context, state) => const AdminDashboardScreen(),
+      ),
+      GoRoute(
+        path: '/admin-general-dashboard',
+        name: 'admin-general-dashboard',
+        builder: (context, state) => const GeneralAdminDashboardScreen(),
       ),
       GoRoute(
         path: '/instructor-dashboard',
@@ -98,8 +102,6 @@ class NavigationService {
         name: 'statistics-dashboard',
         builder: (context, state) => const StatisticsDashboard(),
       ),
-
-      // User Routes
       GoRoute(
         path: '/notifications',
         name: 'notifications',
@@ -115,21 +117,16 @@ class NavigationService {
         name: 'settings',
         builder: (context, state) => const SettingsScreen(),
       ),
-
-      // History Routes
       GoRoute(
         path: '/inventory-history',
         name: 'inventory-history',
-        builder: (context, state) =>
-            const InventoryHistoryScreen(itemId: '', itemName: ''),
+        builder: (context, state) => const InventoryHistoryScreen(itemId: '', itemName: ''),
       ),
       GoRoute(
         path: '/loan-history',
         name: 'loan-history',
         builder: (context, state) => const LoanHistoryScreen(),
       ),
-
-      // Environment Routes
       GoRoute(
         path: '/environment-overview',
         name: 'environment-overview',
@@ -138,8 +135,6 @@ class NavigationService {
           environmentName: '',
         ),
       ),
-
-      // Admin Routes
       GoRoute(
         path: '/audit-log',
         name: 'audit-log',
@@ -174,17 +169,6 @@ class NavigationService {
   );
 
   static void navigateToRole(String role) {
-    // Placeholder: Redirige según el rol (implementar rutas reales más adelante)
-    switch (role.toLowerCase()) {
-      case 'student':
-      case 'instructor':
-      case 'supervisor':
-        // Por ahora, redirige a una pantalla de bienvenida genérica (a implementar)
-        // Ejemplo: context.push('/home');
-        break;
-      default:
-        // Redirige a login si el rol no es válido
-        router.go('/login');
-    }
+    router.go(RoleNavigationService.getDefaultRoute(role));
   }
 }

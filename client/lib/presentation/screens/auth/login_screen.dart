@@ -1,8 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
-
-import '../../../core/services/navigation_service.dart';
+import '../../../core/services/role_navigation_service.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../providers/auth_provider.dart';
 
@@ -45,26 +44,11 @@ class _LoginScreenState extends State<LoginScreen> {
         _passwordController.text,
       );
 
-      if (authProvider.isAuthenticated) {
+      if (authProvider.isAuthenticated && authProvider.currentUser != null) {
         if (!mounted) return;
-        showDialog(
-          context: context,
-          builder: (context) => AlertDialog(
-            title: const Text('Éxito'),
-            content: const Text('Inicio de sesión exitoso.'),
-            actions: [
-              TextButton(
-                onPressed: () {
-                  Navigator.pop(context);
-                  context.go('/home'); // Navega a la pantalla principal
-                },
-                child: const Text('OK'),
-              ),
-            ],
-          ),
-        );
-      } else if (authProvider.errorMessage != null) {
-        setState(() => _errorMessage = authProvider.errorMessage);
+        RoleNavigationService.navigateByRole(context, authProvider.currentUser!.role);
+      } else {
+        setState(() => _errorMessage = authProvider.errorMessage ?? 'Error desconocido');
       }
     } catch (e) {
       if (mounted) {
@@ -184,11 +168,13 @@ class _LoginScreenState extends State<LoginScreen> {
                                   ? const CircularProgressIndicator(
                                       color: Colors.white,
                                     )
-                                  : const Text('Iniciar Sesión',
+                                  : const Text(
+                                      'Iniciar Sesión',
                                       style: TextStyle(
                                         fontSize: 16,
                                         fontWeight: FontWeight.bold,
-                                      )),
+                                      ),
+                                    ),
                             ),
                           ),
                           const SizedBox(height: 12),
@@ -200,7 +186,7 @@ class _LoginScreenState extends State<LoginScreen> {
                       ),
                     ),
                   ),
-               ),
+                ),
               ],
             ),
           ),

@@ -84,8 +84,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
       await authProvider.register(
         email: _emailController.text,
         password: _passwordController.text,
-        first_name: _firstNameController.text,  // Cambiado a first_name
-        last_name: _lastNameController.text,    // Cambiado a last_name
+        firstName: _firstNameController.text,  // Cambiado a first_name
+        lastName: _lastNameController.text,    // Cambiado a last_name
         phone: _phoneController.text.isNotEmpty ? _phoneController.text : null,
         role: _roleMapping[_selectedRole]!,
         program: _selectedProgram,
