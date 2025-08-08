@@ -121,7 +121,7 @@ class _ReportGeneratorScreenState extends State<ReportGeneratorScreen> {
                     borderRadius: BorderRadius.circular(8),
                   ),
                   child: Image.asset(
-                    'assets/images/sena-logo.png',
+                    'assets/images/sena_logo.png',
                     width: 24,
                     height: 24,
                   ),
