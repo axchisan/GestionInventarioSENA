@@ -37,6 +37,11 @@ class NavigationService {
         name: 'login',
         builder: (context, state) => const LoginScreen(),
       ),
+      GoRoute(
+        path: '/register',
+        name: 'register',
+        builder: (context, state) => const RegisterScreen(),
+      ),
 
       // Main App Routes
       GoRoute(

@@ -24,5 +24,5 @@ class User(Base):
     updated_at = Column(TIMESTAMP, server_default=func.current_timestamp())
 
     __table_args__ = (
-        CheckConstraint("role IN ('student', 'instructor', 'supervisor', 'admin')", name="check_role"),
+        CheckConstraint("role IN ('student', 'instructor', 'supervisor', 'admin', 'admin_general')", name="check_role"),
     )

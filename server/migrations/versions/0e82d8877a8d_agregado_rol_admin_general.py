@@ -1,8 +1,8 @@
-"""Initial migration corrected
+"""agregado rol admin general
 
-Revision ID: 510eefc5d282
+Revision ID: 0e82d8877a8d
 Revises: 
-Create Date: 2025-08-05 19:34:26.813599
+Create Date: 2025-08-08 11:28:51.615452
 
 """
 from typing import Sequence, Union
@@ -12,7 +12,7 @@ import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql
 
 # revision identifiers, used by Alembic.
-revision: str = '510eefc5d282'
+revision: str = '0e82d8877a8d'
 down_revision: Union[str, Sequence[str], None] = None
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
@@ -49,7 +49,7 @@ def upgrade() -> None:
     sa.Column('last_login', sa.TIMESTAMP(), nullable=True),
     sa.Column('created_at', sa.TIMESTAMP(), server_default=sa.text('CURRENT_TIMESTAMP'), nullable=True),
     sa.Column('updated_at', sa.TIMESTAMP(), server_default=sa.text('CURRENT_TIMESTAMP'), nullable=True),
-    sa.CheckConstraint("role IN ('student', 'instructor', 'supervisor', 'admin')", name='check_role'),
+    sa.CheckConstraint("role IN ('student', 'instructor', 'supervisor', 'admin', 'admin_general')", name='check_role'),
     sa.PrimaryKeyConstraint('id'),
     sa.UniqueConstraint('email')
     )
