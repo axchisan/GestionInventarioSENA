@@ -63,17 +63,14 @@ class HomeScreen extends StatelessWidget {
               ],
             ),
             const SizedBox(height: 32),
-            
+
             // Acciones rápidas
             const Text(
               'Acciones Rápidas',
-              style: TextStyle(
-                fontSize: 20,
-                fontWeight: FontWeight.bold,
-              ),
+              style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 16),
-            
+
             GridView.count(
               shrinkWrap: true,
               physics: const NeverScrollableScrollPhysics(),
@@ -114,7 +111,7 @@ class HomeScreen extends StatelessWidget {
                   'Estadísticas',
                   Icons.analytics,
                   AppColors.info,
-                  '/statistics',
+                  '/statistics-dashboard',
                 ),
                 _buildActionCard(
                   context,
@@ -132,7 +129,12 @@ class HomeScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildStatCard(String title, String value, IconData icon, Color color) {
+  Widget _buildStatCard(
+    String title,
+    String value,
+    IconData icon,
+    Color color,
+  ) {
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(16.0),
@@ -142,17 +144,11 @@ class HomeScreen extends StatelessWidget {
             const SizedBox(height: 8),
             Text(
               value,
-              style: const TextStyle(
-                fontSize: 24,
-                fontWeight: FontWeight.bold,
-              ),
+              style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
             ),
             Text(
               title,
-              style: const TextStyle(
-                fontSize: 12,
-                color: AppColors.grey600,
-              ),
+              style: const TextStyle(fontSize: 12, color: AppColors.grey600),
             ),
           ],
         ),
@@ -199,9 +195,7 @@ class HomeScreen extends StatelessWidget {
         padding: EdgeInsets.zero,
         children: [
           DrawerHeader(
-            decoration: const BoxDecoration(
-              color: AppColors.primary,
-            ),
+            decoration: const BoxDecoration(color: AppColors.primary),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -233,10 +227,7 @@ class HomeScreen extends StatelessWidget {
                 ),
                 const Text(
                   'usuario@sena.edu.co',
-                  style: TextStyle(
-                    color: Colors.white70,
-                    fontSize: 14,
-                  ),
+                  style: TextStyle(color: Colors.white70, fontSize: 14),
                 ),
               ],
             ),
@@ -250,6 +241,16 @@ class HomeScreen extends StatelessWidget {
             leading: const Icon(Icons.admin_panel_settings),
             title: const Text('Panel Admin'),
             onTap: () => context.push('/admin-dashboard'),
+          ),
+          ListTile(
+            leading: const Icon(Icons.admin_panel_settings),
+            title: const Text('Panel instructor'),
+            onTap: () => context.push('/instructor-dashboard'),
+          ),
+          ListTile(
+            leading: const Icon(Icons.admin_panel_settings),
+            title: const Text('Panel aprendiz'),
+            onTap: () => context.push('/student-dashboard'),
           ),
           ListTile(
             leading: const Icon(Icons.supervisor_account),
