@@ -1,4 +1,4 @@
-from sqlalchemy import Column, String, Boolean, TIMESTAMP, CheckConstraint
+from sqlalchemy import Column, ForeignKey, String, Boolean, TIMESTAMP, CheckConstraint
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.sql import func
 import uuid
@@ -17,6 +17,7 @@ class User(Base):
     phone = Column(String(20))
     program = Column(String(100))
     ficha = Column(String(20))
+    environment_id = Column(UUID(as_uuid=True), ForeignKey("environments.id", ondelete="SET NULL"))
     avatar_url = Column(String(500))
     is_active = Column(Boolean, default=True)
     last_login = Column(TIMESTAMP)
