@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
+import '../../../core/services/role_navigation_service.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../providers/auth_provider.dart';
 
@@ -20,32 +21,30 @@ class _RegisterScreenState extends State<RegisterScreen> {
   final _passwordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
   final _phoneController = TextEditingController();
+  final _fichaController = TextEditingController();
+  final _customProgramController = TextEditingController();
 
   bool _isLoading = false;
   bool _obscurePassword = true;
   bool _obscureConfirmPassword = true;
   bool _acceptTerms = false;
+  bool _showCustomProgramField = false;
 
-  String _selectedRole = 'Aprendiz';
   String _selectedProgram = 'Análisis y Desarrollo de Software';
 
-  final List<String> _roles = ['Aprendiz', 'Instructor', 'Supervisor'];
   final List<String> _programs = [
     'Análisis y Desarrollo de Software',
-    'Diseño Gráfico',
-    'Administración de Empresas',
-    'Mecánica Industrial',
-    'Electricidad Industrial',
-    'Soldadura',
-    'Cocina',
+    'Dibujo y modelado Arquitectónico',
     'Contabilidad y Finanzas',
+    'Servicios Farmacéuticos',
+    'Seguridad y Salud en el Trabajo',
+    'Entrenamiento Deportivo',
+    'Cocina',
+    'Técnologias de la Información y la Comunicación',
+    'Producción ganadera',
+    'Producción agrícola',
+    'Otro',  // Nueva opción para programa personalizado
   ];
-
-  final Map<String, String> _roleMapping = {
-    'Aprendiz': 'student',
-    'Instructor': 'instructor',
-    'Supervisor': 'supervisor',
-  };
 
   String? _errorMessage;
 
@@ -57,6 +56,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
     _passwordController.dispose();
     _confirmPasswordController.dispose();
     _phoneController.dispose();
+    _fichaController.dispose();
+    _customProgramController.dispose();
     super.dispose();
   }
 
@@ -80,32 +81,37 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
     final authProvider = context.read<AuthProvider>();
 
+    String program = _selectedProgram;
+    if (_selectedProgram == 'Otro') {
+      program = _customProgramController.text;
+    }
+
     try {
       await authProvider.register(
         email: _emailController.text,
         password: _passwordController.text,
-        firstName: _firstNameController.text,  // Cambiado a first_name
-        lastName: _lastNameController.text,    // Cambiado a last_name
+        firstName: _firstNameController.text,
+        lastName: _lastNameController.text,
         phone: _phoneController.text.isNotEmpty ? _phoneController.text : null,
-        role: _roleMapping[_selectedRole]!,
-        program: _selectedProgram,
+        role: 'student',  // Fijado a 'student' para aprendices
+        program: program,
       );
 
+      // Iniciar sesión automáticamente después del registro exitoso
+      await authProvider.login(_emailController.text, _passwordController.text);
+
       if (!mounted) return;
-      showDialog(
-        context: context,
-        barrierDismissible: false,
-        builder: (_) => AlertDialog(
-          title: const Text('Éxito'),
-          content: const Text('Registro exitoso. Espera la aprobación del administrador.'),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('OK'),
-            ),
-          ],
+      
+      // Mostrar mensaje de éxito breve
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Registro exitoso'),
+          duration: Duration(seconds: 2),
         ),
       );
+
+      // Redirigir al dashboard de aprendiz
+      RoleNavigationService.navigateByRole(context, 'student');
     } catch (e) {
       if (mounted) {
         setState(() {
@@ -254,18 +260,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
                           ),
                         ),
                         const SizedBox(height: 16),
-                        DropdownButtonFormField<String>(
-                          value: _selectedRole,
-                          decoration: const InputDecoration(
-                            labelText: 'Rol en el SENA *',
-                            prefixIcon: Icon(Icons.work),
-                            border: OutlineInputBorder(),
-                          ),
-                          items: _roles.map((role) => DropdownMenuItem(
-                            value: role,
-                            child: Text(role),
-                          )).toList(),
-                          onChanged: (v) => setState(() => _selectedRole = v!),
+                        const Text(
+                          'Rol: Aprendiz',  // Mostrar rol fijo
+                          style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
                         ),
                         const SizedBox(height: 16),
                         DropdownButtonFormField<String>(
@@ -279,7 +276,48 @@ class _RegisterScreenState extends State<RegisterScreen> {
                             value: p,
                             child: Text(p, style: const TextStyle(fontSize: 12), overflow: TextOverflow.ellipsis),
                           )).toList(),
-                          onChanged: (v) => setState(() => _selectedProgram = v!),
+                          onChanged: (v) {
+                            setState(() {
+                              _selectedProgram = v!;
+                              _showCustomProgramField = v == 'Otro';
+                              if (!_showCustomProgramField) {
+                                _customProgramController.clear();
+                              }
+                            });
+                          },
+                        ),
+                        if (_showCustomProgramField)
+                          Padding(
+                            padding: const EdgeInsets.only(top: 16),
+                            child: TextFormField(
+                              controller: _customProgramController,
+                              decoration: const InputDecoration(
+                                labelText: 'Especifica tu Programa *',
+                                prefixIcon: Icon(Icons.school),
+                                border: OutlineInputBorder(),
+                              ),
+                              validator: (v) {
+                                if (_showCustomProgramField && (v == null || v.isEmpty)) {
+                                  return 'Especifica el nombre del programa';
+                                }
+                                return null;
+                              },
+                            ),
+                          ),
+                        const SizedBox(height: 16),
+                        TextFormField(
+                          controller: _fichaController,
+                          decoration: const InputDecoration(
+                            labelText: 'Número de Ficha *',
+                            prefixIcon: Icon(Icons.numbers),
+                            border: OutlineInputBorder(),
+                          ),
+                          validator: (v) {
+                            if (v == null || v.isEmpty) {
+                              return 'Ingrese su número de ficha';
+                            }
+                            return null;
+                          },
                         ),
                         const SizedBox(height: 24),
                         const Text(
