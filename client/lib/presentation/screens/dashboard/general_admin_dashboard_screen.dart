@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:provider/provider.dart';
 import '../../../core/theme/app_colors.dart';
+import '../../providers/auth_provider.dart';
 import '../../widgets/common/sena_app_bar.dart';
 
 class GeneralAdminDashboardScreen extends StatelessWidget {
@@ -18,7 +20,6 @@ class GeneralAdminDashboardScreen extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Bienvenida con logo SENA
             Card(
               child: Padding(
                 padding: const EdgeInsets.all(20.0),
@@ -34,7 +35,7 @@ class GeneralAdminDashboardScreen extends StatelessWidget {
                       child: ClipRRect(
                         borderRadius: BorderRadius.circular(33),
                         child: Image.asset(
-                          '/sena-logo.png',
+                          'assets/images/sena_logo.png',
                           width: 56,
                           height: 56,
                           fit: BoxFit.contain,
@@ -71,7 +72,6 @@ class GeneralAdminDashboardScreen extends StatelessWidget {
             ),
             const SizedBox(height: 20),
 
-            // Métricas clave del sistema
             const Text(
               'Métricas Globales',
               style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
@@ -91,7 +91,6 @@ class GeneralAdminDashboardScreen extends StatelessWidget {
             ),
             const SizedBox(height: 24),
 
-            // Acciones rápidas y navegación
             const Text(
               'Acciones Rápidas',
               style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
@@ -181,7 +180,6 @@ class GeneralAdminDashboardScreen extends StatelessWidget {
             ),
             const SizedBox(height: 24),
 
-            // Actividad reciente
             const Text(
               'Actividad Reciente',
               style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
@@ -298,7 +296,6 @@ class GeneralAdminDashboardScreen extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Logo SENA
                 SizedBox(
                   width: 60,
                   height: 60,
@@ -307,7 +304,7 @@ class GeneralAdminDashboardScreen extends StatelessWidget {
                     child: Padding(
                       padding: EdgeInsets.all(6.0),
                       child: Image(
-                        image: AssetImage('/sena-logo.png'),
+                        image: AssetImage('assets/images/sena_logo.png'),
                         fit: BoxFit.contain,
                       ),
                     ),
@@ -391,7 +388,11 @@ class GeneralAdminDashboardScreen extends StatelessWidget {
           ListTile(
             leading: const Icon(Icons.logout),
             title: const Text('Cerrar Sesión'),
-            onTap: () => context.go('/login'),
+            onTap: () async {
+              final authProvider = Provider.of<AuthProvider>(context, listen: false);
+              await authProvider.logout();
+              context.go('/login');
+            },
           ),
         ],
       ),

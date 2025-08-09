@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:provider/provider.dart';
 import '../../../core/theme/app_colors.dart';
+import '../../providers/auth_provider.dart';
 import '../../widgets/common/sena_app_bar.dart';
 
 class AdminDashboardScreen extends StatelessWidget {
@@ -18,7 +20,6 @@ class AdminDashboardScreen extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Bienvenida con logo SENA
             Card(
               child: Padding(
                 padding: const EdgeInsets.all(20.0),
@@ -71,7 +72,6 @@ class AdminDashboardScreen extends StatelessWidget {
             ),
             const SizedBox(height: 24),
 
-            // Métricas del sistema
             const Text(
               'Métricas del Sistema',
               style: TextStyle(
@@ -125,7 +125,6 @@ class AdminDashboardScreen extends StatelessWidget {
             ),
             const SizedBox(height: 24),
 
-            // Panel de administración
             const Text(
               'Panel de Administración',
               style: TextStyle(
@@ -211,7 +210,6 @@ class AdminDashboardScreen extends StatelessWidget {
             ),
             const SizedBox(height: 24),
 
-            // Estado del sistema
             Card(
               child: Padding(
                 padding: const EdgeInsets.all(16.0),
@@ -392,7 +390,7 @@ class AdminDashboardScreen extends StatelessWidget {
                   child: ClipRRect(
                     borderRadius: BorderRadius.circular(30),
                     child: Image.asset(
-                      '/sena-logo.png',
+                      'assets/images/sena_logo.png',
                       width: 50,
                       height: 50,
                       fit: BoxFit.contain,
@@ -467,7 +465,11 @@ class AdminDashboardScreen extends StatelessWidget {
           ListTile(
             leading: const Icon(Icons.logout),
             title: const Text('Cerrar Sesión'),
-            onTap: () => context.go('/login'),
+            onTap: () async {
+              final authProvider = Provider.of<AuthProvider>(context, listen: false);
+              await authProvider.logout();
+              context.go('/login');
+            },
           ),
         ],
       ),
