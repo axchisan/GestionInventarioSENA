@@ -1,4 +1,4 @@
-from sqlalchemy import CheckConstraint, Column, String, Text, Date, Numeric, ForeignKey, TIMESTAMP
+from sqlalchemy import Column, Integer, String, Text, Date, Numeric, ForeignKey, CheckConstraint, TIMESTAMP
 from sqlalchemy.dialects.postgresql import UUID, ARRAY
 from sqlalchemy.sql import func
 import uuid
@@ -21,6 +21,7 @@ class MaintenanceRequest(Base):
     cost = Column(Numeric(10, 2))
     notes = Column(Text)
     images_urls = Column(ARRAY(String))
+    quantity_affected = Column(Integer, default=1)  # Nuevo: Para mantenimiento en grupos
     created_at = Column(TIMESTAMP, server_default=func.current_timestamp())
     updated_at = Column(TIMESTAMP, server_default=func.current_timestamp())
 

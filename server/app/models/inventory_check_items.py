@@ -1,4 +1,4 @@
-from sqlalchemy import CheckConstraint, Column, String, Integer, Text, ForeignKey, TIMESTAMP
+from sqlalchemy import Column, String, Integer, Text, ForeignKey, CheckConstraint, TIMESTAMP
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.sql import func
 import uuid
@@ -14,6 +14,8 @@ class InventoryCheckItem(Base):
     status = Column(String(20), nullable=False)
     quantity_expected = Column(Integer, default=1)
     quantity_found = Column(Integer, default=0)
+    quantity_damaged = Column(Integer, default=0)  # Nuevo
+    quantity_missing = Column(Integer, default=0)  # Nuevo
     notes = Column(Text)
     created_at = Column(TIMESTAMP, server_default=func.current_timestamp())
 
