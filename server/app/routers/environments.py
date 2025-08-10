@@ -7,7 +7,7 @@ from ..database import get_db
 from ..models.environments import Environment
 from ..schemas.environment import EnvironmentResponse  # Necesitaremos crear este esquema
 
-router = APIRouter(prefix="/api/environments", tags=["environments"])
+router = APIRouter(tags=["environments"])
 
 @router.get("/", response_model=List[EnvironmentResponse])
 def get_environments(db: Session = Depends(get_db), search: str = ""):

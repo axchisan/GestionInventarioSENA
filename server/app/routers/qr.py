@@ -11,7 +11,7 @@ from ..models.environments import Environment
 from ..models.inventory_items import InventoryItem
 from ..config import settings
 
-router = APIRouter(prefix="/api/qr", tags=["qr"])
+router = APIRouter(tags=["qr"])
 
 def compute_signature(type: str, id: str, code: str, ts: int) -> str:
     raw = f"{type}:{id}:{code}:{ts}:{settings.SECRET_KEY}"
