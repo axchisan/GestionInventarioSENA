@@ -11,6 +11,31 @@ class ApiService {
       headers: {'Content-Type': 'application/json'},
       body: json.encode(data),
     );
+    if (response.statusCode == 200 || response.statusCode == 201) {
+      return json.decode(response.body);
+    } else {
+      throw Exception('Error: ${response.statusCode} - ${response.body}');
+    }
+  }
+
+  Future<List<dynamic>> get(String endpoint, {Map<String, String>? queryParams}) async {
+    final uri = Uri.parse('$baseUrl$endpoint').replace(queryParameters: queryParams);
+    final response = await _client.get(
+      uri,
+      headers: {'Content-Type': 'application/json'},
+    );
+    if (response.statusCode == 200) {
+      return json.decode(response.body);
+    } else {
+      throw Exception('Error: ${response.statusCode} - ${response.body}');
+    }
+  }
+
+  Future<Map<String, dynamic>> getSingle(String endpoint) async {
+    final response = await _client.get(
+      Uri.parse('$baseUrl$endpoint'),
+      headers: {'Content-Type': 'application/json'},
+    );
     if (response.statusCode == 200) {
       return json.decode(response.body);
     } else {
