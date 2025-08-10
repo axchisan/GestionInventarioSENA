@@ -1,4 +1,5 @@
 import 'package:client/presentation/screens/dashboard/general_admin_dashboard_screen.dart';
+import 'package:client/presentation/screens/qr/qr_code_generator_screen.dart';
 import 'package:client/presentation/screens/splash/splash_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
@@ -73,6 +74,11 @@ class NavigationService {
         path: '/qr-scan',
         name: 'qr-scan',
         builder: (context, state) => const QRScanScreen(),
+      ),
+      GoRoute(
+        path: '/qr-generate',
+        name: 'qr-generate',
+        builder: (context, state) => const QrCodeGeneratorScreen(),
       ),
       GoRoute(
         path: '/inventory-check',
