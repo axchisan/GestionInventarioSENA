@@ -12,7 +12,7 @@ from ..models.users import User
 from ..config import settings
 import uuid
 
-router = APIRouter(prefix="/api/auth", tags=["auth"])
+router = APIRouter(tags=["auth"])
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/login")
 
