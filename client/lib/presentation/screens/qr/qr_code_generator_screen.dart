@@ -45,7 +45,10 @@ class _QrCodeGeneratorScreenState extends State<QrCodeGeneratorScreen> {
 
   Future<void> _fetchEnvironments() async {
     try {
-      final environments = await _apiService.get(environmentsEndpoint, queryParams: {'search': _searchQuery});
+      final environments = await _apiService.get(
+        environmentsEndpoint,
+        queryParams: {'search': _searchQuery},
+      );
       setState(() {
         _environments = environments;
       });
@@ -56,7 +59,10 @@ class _QrCodeGeneratorScreenState extends State<QrCodeGeneratorScreen> {
 
   Future<void> _fetchItems() async {
     try {
-      final items = await _apiService.get(inventoryEndpoint, queryParams: {'search': _searchQuery});
+      final items = await _apiService.get(
+        inventoryEndpoint,
+        queryParams: {'search': _searchQuery},
+      );
       setState(() {
         _items = items;
       });
@@ -77,13 +83,20 @@ class _QrCodeGeneratorScreenState extends State<QrCodeGeneratorScreen> {
 
     try {
       final entityType = _selectedType == 'ambiente' ? 'environment' : 'item';
-      final entityId = _selectedType == 'ambiente' ? _selectedEnvironmentId : _selectedItemId;
-      final response = await _apiService.getSingle('$qrGenerateEndpoint/$entityType/$entityId');
+      final entityId = _selectedType == 'ambiente'
+          ? _selectedEnvironmentId
+          : _selectedItemId;
+      final response = await _apiService.getSingle(
+        '$qrGenerateEndpoint/$entityType/$entityId',
+      );
       setState(() {
-        _qrData = response['qr_data']; // JSON completo por ahora
-        _qrPayload = json.decode(_qrData!);
-        // Usamos el 'id' como dato para el QR para simplificar
-        _qrData = _qrPayload!['id']?.toString() ?? 'Invalid QR Data';
+        _qrData = response['qr_data']; // Usamos la cadena JSON tal cual
+        try {
+          _qrPayload = json.decode(_qrData!); // Decodificamos para los detalles
+        } catch (e) {
+          _notify('Error al decodificar el payload: $e');
+          _qrPayload = null;
+        }
       });
     } catch (e) {
       _notify('Error al generar QR: $e');
@@ -92,7 +105,8 @@ class _QrCodeGeneratorScreenState extends State<QrCodeGeneratorScreen> {
 
   Future<Uint8List?> _captureQrPngBytes() async {
     try {
-      final boundary = _qrBoundaryKey.currentContext?.findRenderObject() as RenderRepaintBoundary?;
+      final boundary =
+          _qrBoundaryKey.currentContext?.findRenderObject() as RenderRepaintBoundary?;
       if (boundary == null) {
         _notify('No se pudo capturar el widget QR.');
         return null;
@@ -115,7 +129,9 @@ class _QrCodeGeneratorScreenState extends State<QrCodeGeneratorScreen> {
     }
     try {
       final dir = await getApplicationDocumentsDirectory();
-      final file = File('${dir.path}/qr_${DateTime.now().millisecondsSinceEpoch}.png');
+      final file = File(
+        '${dir.path}/qr_${DateTime.now().millisecondsSinceEpoch}.png',
+      );
       await file.writeAsBytes(bytes);
       if (!mounted) return;
       _notify('QR guardado: ${file.path}');
@@ -133,7 +149,9 @@ class _QrCodeGeneratorScreenState extends State<QrCodeGeneratorScreen> {
     }
     try {
       final tmp = await getTemporaryDirectory();
-      final file = File('${tmp.path}/qr_${DateTime.now().millisecondsSinceEpoch}.png');
+      final file = File(
+        '${tmp.path}/qr_${DateTime.now().millisecondsSinceEpoch}.png',
+      );
       await file.writeAsBytes(bytes);
       await Share.shareXFiles([XFile(file.path)], text: 'Código QR generado');
     } catch (e) {
@@ -154,12 +172,18 @@ class _QrCodeGeneratorScreenState extends State<QrCodeGeneratorScreen> {
             return pw.Column(
               crossAxisAlignment: pw.CrossAxisAlignment.center,
               children: [
-                pw.Text('Código QR - SENA', style: const pw.TextStyle(fontSize: 18)),
+                pw.Text(
+                  'Código QR - SENA',
+                  style: const pw.TextStyle(fontSize: 18),
+                ),
                 pw.SizedBox(height: 16),
                 pw.Image(image, width: 240, height: 240),
                 pw.SizedBox(height: 16),
                 if (_qrPayload != null)
-                  pw.Text(_qrPayload!['id']?.toString() ?? '', style: const pw.TextStyle(fontSize: 12)),
+                  pw.Text(
+                    _qrPayload!['name'] ?? '',
+                    style: const pw.TextStyle(fontSize: 12),
+                  ),
               ],
             );
           },
@@ -180,8 +204,7 @@ class _QrCodeGeneratorScreenState extends State<QrCodeGeneratorScreen> {
     if (_searchQuery.trim().isEmpty) return _environments;
     final q = _searchQuery.toLowerCase();
     return _environments.where((e) {
-      return (e['id']?.toString().toLowerCase().contains(q) ?? false) ||
-          (e['name']?.toLowerCase().contains(q) ?? false) ||
+      return (e['name']?.toLowerCase().contains(q) ?? false) ||
           (e['location']?.toLowerCase().contains(q) ?? false);
     }).toList();
   }
@@ -190,8 +213,7 @@ class _QrCodeGeneratorScreenState extends State<QrCodeGeneratorScreen> {
     if (_searchQuery.trim().isEmpty) return _items;
     final q = _searchQuery.toLowerCase();
     return _items.where((i) {
-      return (i['id']?.toString().toLowerCase().contains(q) ?? false) ||
-          (i['name']?.toLowerCase().contains(q) ?? false) ||
+      return (i['name']?.toLowerCase().contains(q) ?? false) ||
           (i['category']?.toLowerCase().contains(q) ?? false);
     }).toList();
   }
@@ -212,13 +234,21 @@ class _QrCodeGeneratorScreenState extends State<QrCodeGeneratorScreen> {
         elevation: 0,
         title: Row(
           children: [
-            Image.asset(
-              'assets/images/sena_logo.png',
-              height: 28,
-              errorBuilder: (ctx, err, st) => const Icon(Icons.business, color: Colors.white),
+            CircleAvatar(
+              backgroundColor: Colors.white,
+              radius: 16,
+              child: Image.asset(
+                'assets/images/sena_logo.png',
+                height: 24,
+                errorBuilder: (ctx, err, st) =>
+                    const Icon(Icons.business, color: Colors.black),
+              ),
             ),
             const SizedBox(width: 8),
-            const Text('Generador de Códigos QR'),
+            const Text(
+              'Generador de Códigos QR',
+              style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+            ),
           ],
         ),
       ),
@@ -231,7 +261,9 @@ class _QrCodeGeneratorScreenState extends State<QrCodeGeneratorScreen> {
             _buildSearchBox(),
             const SizedBox(height: 8),
             Card(
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
               elevation: 2,
               child: Padding(
                 padding: const EdgeInsets.all(16),
@@ -245,6 +277,10 @@ class _QrCodeGeneratorScreenState extends State<QrCodeGeneratorScreen> {
                 onPressed: _generateQr,
                 icon: const Icon(Icons.qr_code_2),
                 label: const Text('Previsualizar QR'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.primary,
+                  foregroundColor: Colors.white,
+                ),
               ),
             ),
             const SizedBox(height: 16),
@@ -297,10 +333,12 @@ class _QrCodeGeneratorScreenState extends State<QrCodeGeneratorScreen> {
     return TextField(
       decoration: InputDecoration(
         hintText: _selectedType == 'ambiente'
-            ? 'Buscar ambiente por ID, nombre o ubicación'
-            : 'Buscar ítem por ID, nombre o categoría',
+            ? 'Buscar por nombre o ubicación'
+            : 'Buscar por nombre o categoría',
         prefixIcon: const Icon(Icons.search),
         border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+        filled: true,
+        fillColor: AppColors.grey100,
       ),
       onChanged: (v) {
         setState(() {
@@ -335,8 +373,8 @@ class _QrCodeGeneratorScreenState extends State<QrCodeGeneratorScreen> {
                   value: e['id']?.toString(),
                   child: Text(
                     isAmbiente
-                        ? '${e['id']} · ${e['name']} · ${e['location']}'
-                        : '${e['id']} · ${e['name']} · ${e['category']}',
+                        ? '${e['name']} · ${e['location']}'
+                        : '${e['name']} · ${e['category']}',
                     overflow: TextOverflow.ellipsis,
                   ),
                 ),
@@ -344,7 +382,12 @@ class _QrCodeGeneratorScreenState extends State<QrCodeGeneratorScreen> {
               .toList(),
           decoration: InputDecoration(
             border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-            contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            contentPadding: const EdgeInsets.symmetric(
+              horizontal: 12,
+              vertical: 10,
+            ),
+            filled: true,
+            fillColor: AppColors.grey100,
           ),
           onChanged: (val) {
             setState(() {
@@ -364,8 +407,8 @@ class _QrCodeGeneratorScreenState extends State<QrCodeGeneratorScreen> {
             Expanded(
               child: Text(
                 isAmbiente
-                    ? 'Los QR para ambientes codifican: id, nombre, ubicación, timestamp y firma.'
-                    : 'Los QR para ítems codifican: id, nombre, categoría, timestamp y firma.',
+                    ? 'Los QR para ambientes codifican: nombre, ubicación, y más.'
+                    : 'Los QR para ítems codifican: nombre, categoría, y más.',
                 style: const TextStyle(color: Colors.grey),
               ),
             ),
@@ -390,7 +433,7 @@ class _QrCodeGeneratorScreenState extends State<QrCodeGeneratorScreen> {
             SizedBox(width: 12),
             Expanded(
               child: Text(
-                'Genera una previsualización del código QR para mostrarlo aquí.',
+                'Genera una previsualización del código QR.',
                 style: TextStyle(color: Colors.grey),
               ),
             ),
@@ -410,15 +453,27 @@ class _QrCodeGeneratorScreenState extends State<QrCodeGeneratorScreen> {
                 color: Colors.white,
                 border: Border.all(color: AppColors.grey300),
                 borderRadius: BorderRadius.circular(12),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.grey.withOpacity(0.2),
+                    spreadRadius: 2,
+                    blurRadius: 5,
+                    offset: const Offset(0, 3),
+                  ),
+                ],
               ),
               child: QrImageView(
-                data: _qrData!,
+                data: _qrData!.trim(),
                 size: 240,
                 backgroundColor: Colors.white,
                 version: QrVersions.auto,
-                eyeStyle: const QrEyeStyle(eyeShape: QrEyeShape.square),
+                eyeStyle: const QrEyeStyle(
+                  eyeShape: QrEyeShape.square,
+                  color: Colors.black,
+                ),
                 dataModuleStyle: const QrDataModuleStyle(
                   dataModuleShape: QrDataModuleShape.square,
+                  color: Colors.black,
                 ),
                 errorStateBuilder: (cxt, err) {
                   return Container(
@@ -437,8 +492,12 @@ class _QrCodeGeneratorScreenState extends State<QrCodeGeneratorScreen> {
         ),
         const SizedBox(height: 8),
         Text(
-          _qrPayload?['id']?.toString() ?? '',
-          style: const TextStyle(fontWeight: FontWeight.w600),
+          _qrPayload?['name'] ?? '',
+          style: const TextStyle(
+            fontWeight: FontWeight.w600,
+            fontSize: 16,
+            color: Colors.black87,
+          ),
         ),
       ],
     );
@@ -447,12 +506,16 @@ class _QrCodeGeneratorScreenState extends State<QrCodeGeneratorScreen> {
   Widget _buildActionsRow() {
     final enabled = _qrData != null;
     return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
       children: [
         Expanded(
           child: OutlinedButton.icon(
             onPressed: enabled && !kIsWeb ? _savePng : null,
             icon: const Icon(Icons.download),
-            label: const Text('Guardar PNG'),
+            label: const Text('Guardar'),
+            style: OutlinedButton.styleFrom(
+              side: BorderSide(color: AppColors.primary),
+            ),
           ),
         ),
         const SizedBox(width: 8),
@@ -461,6 +524,9 @@ class _QrCodeGeneratorScreenState extends State<QrCodeGeneratorScreen> {
             onPressed: enabled ? _printPng : null,
             icon: const Icon(Icons.print),
             label: const Text('Imprimir'),
+            style: OutlinedButton.styleFrom(
+              side: BorderSide(color: AppColors.primary),
+            ),
           ),
         ),
         const SizedBox(width: 8),
@@ -469,6 +535,10 @@ class _QrCodeGeneratorScreenState extends State<QrCodeGeneratorScreen> {
             onPressed: enabled && !kIsWeb ? _sharePng : null,
             icon: const Icon(Icons.share),
             label: const Text('Compartir'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.primary,
+              foregroundColor: Colors.white,
+            ),
           ),
         ),
       ],
@@ -477,24 +547,28 @@ class _QrCodeGeneratorScreenState extends State<QrCodeGeneratorScreen> {
 
   Widget _buildPayloadDetails() {
     if (_qrPayload == null) return const SizedBox.shrink();
-    return ExpansionTile(
-      title: const Text('Detalles del payload QR'),
-      childrenPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-      children: [
-        _kv('Versión', _qrPayload!['v']?.toString()),
-        _kv('Tipo', _qrPayload!['type']),
-        _kv('ID', _qrPayload!['id']),
-        _kv('Código', _qrPayload!['code']),
-        if (_qrPayload!['location'] != null) _kv('Ubicación', _qrPayload!['location']),
-        if (_qrPayload!['category'] != null) _kv('Categoría', _qrPayload!['category']),
-        _kv('Timestamp (seg)', _qrPayload!['ts']?.toString()),
-        _kv('Firma (sha256)', _qrPayload!['sig']),
-        const SizedBox(height: 8),
-        SelectableText(
-          _qrData!,
-          style: const TextStyle(fontFamily: 'monospace', fontSize: 12),
-        ),
-      ],
+    return Card(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      elevation: 2,
+      child: ExpansionTile(
+        title: const Text('Detalles del QR'),
+        childrenPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+        children: [
+          _kv('Versión', _qrPayload!['v']?.toString()),
+          _kv('Tipo', _qrPayload!['type']),
+          _kv('ID', _qrPayload!['id']),
+          _kv('Código', _qrPayload!['code']),
+          if (_qrPayload!['location'] != null) _kv('Ubicación', _qrPayload!['location']),
+          if (_qrPayload!['category'] != null) _kv('Categoría', _qrPayload!['category']),
+          _kv('Timestamp (seg)', _qrPayload!['ts']?.toString()),
+          _kv('Firma (sha256)', _qrPayload!['sig']),
+          const SizedBox(height: 8),
+          SelectableText(
+            _qrData!,
+            style: const TextStyle(fontFamily: 'monospace', fontSize: 12),
+          ),
+        ],
+      ),
     );
   }
 
@@ -504,15 +578,10 @@ class _QrCodeGeneratorScreenState extends State<QrCodeGeneratorScreen> {
       child: Row(
         children: [
           SizedBox(
-            width: 160,
-            child: Text(
-              k,
-              style: const TextStyle(fontWeight: FontWeight.w600),
-            ),
+            width: 120,
+            child: Text(k, style: const TextStyle(fontWeight: FontWeight.w600)),
           ),
-          Expanded(
-            child: Text(v ?? '-'),
-          ),
+          Expanded(child: Text(v ?? '-')),
         ],
       ),
     );
