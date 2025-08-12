@@ -11,6 +11,7 @@ from ..database import get_db
 from ..models.inventory_items import InventoryItem
 from ..models.environments import Environment
 from ..models.users import User
+from ..schemas.user import UserResponse  # Importar UserResponse
 from ..routers.auth import get_current_user
 from ..config import settings
 
@@ -119,7 +120,7 @@ async def scan_qr(
         current_user.environment_id = environment.id
         current_user.updated_at = datetime.utcnow()
         db.commit()
-        db.refresh(current_user)
+        db.refresh(current_user)  # Ahora funciona porque current_user es un modelo User
 
         # Devolver información del ambiente
         return {
@@ -130,12 +131,7 @@ async def scan_qr(
                 "location": environment.location,
                 "qr_code": environment.qr_code
             },
-            "user": {
-                "id": str(current_user.id),
-                "role": current_user.role,
-                "first_name": current_user.first_name,
-                "last_name": current_user.last_name
-            }
+            "user": UserResponse.from_orm(current_user)  # Convertir a Pydantic para la respuesta
         }
 
     except json.JSONDecodeError:
