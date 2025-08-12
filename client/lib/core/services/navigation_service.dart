@@ -3,6 +3,7 @@ import 'package:client/presentation/screens/qr/qr_code_generator_screen.dart';
 import 'package:client/presentation/screens/splash/splash_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:provider/provider.dart';
 import '../../core/services/role_navigation_service.dart';
 import '../../presentation/providers/auth_provider.dart';
 import '../../presentation/screens/admin/user_management_screen.dart';
@@ -35,16 +36,24 @@ class NavigationService {
   static final GoRouter router = GoRouter(
     initialLocation: '/splash',
     redirect: (context, state) async {
-      final authProvider = AuthProvider();
+      final authProvider = Provider.of<AuthProvider>(
+        context,
+        listen: false,
+      ); // Usar Provider
       final isAuthenticated = await authProvider.checkSession();
       final role = await SessionService.getRole();
       final currentPath = state.fullPath ?? '/';
+
+      print(
+        'Redirect: isAuthenticated=$isAuthenticated, role=$role, path=$currentPath',
+      ); // Log para depuración
 
       if (!isAuthenticated) {
         if (!['/login', '/register', '/splash'].contains(currentPath)) {
           return '/login';
         }
-      } else if (role != null && !RoleNavigationService.hasAccessToRoute(role, currentPath)) {
+      } else if (role != null &&
+          !RoleNavigationService.hasAccessToRoute(role, currentPath)) {
         return RoleNavigationService.getDefaultRoute(role);
       }
       return null;
@@ -143,7 +152,8 @@ class NavigationService {
       GoRoute(
         path: '/inventory-history',
         name: 'inventory-history',
-        builder: (context, state) => const InventoryHistoryScreen(itemId: '', itemName: ''),
+        builder: (context, state) =>
+            const InventoryHistoryScreen(itemId: '', itemName: ''),
       ),
       GoRoute(
         path: '/loan-history',
@@ -153,7 +163,10 @@ class NavigationService {
       GoRoute(
         path: '/environment-overview',
         name: 'environment-overview',
-        builder: (context, state) => const EnvironmentOverviewScreen(environmentId: '', environmentName: ''),
+        builder: (context, state) => const EnvironmentOverviewScreen(
+          environmentId: '',
+          environmentName: '',
+        ),
       ),
       GoRoute(
         path: '/audit-log',

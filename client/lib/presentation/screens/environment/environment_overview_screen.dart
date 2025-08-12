@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import '../../../core/services/api_service.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/constants/api_constants.dart';
+import '../../providers/auth_provider.dart';
 import '../../widgets/common/sena_app_bar.dart';
 import '../../widgets/common/sena_card.dart';
 import '../../widgets/common/status_badge.dart';
@@ -23,7 +25,7 @@ class EnvironmentOverviewScreen extends StatefulWidget {
 
 class _EnvironmentOverviewScreenState extends State<EnvironmentOverviewScreen>
     with SingleTickerProviderStateMixin {
-  final ApiService _apiService = ApiService();
+  late final ApiService _apiService; // Cambiar a late
   late TabController _tabController;
   List<dynamic> _inventory = [];
   List<dynamic> _schedule = [];
@@ -32,18 +34,27 @@ class _EnvironmentOverviewScreenState extends State<EnvironmentOverviewScreen>
   @override
   void initState() {
     super.initState();
+    // Inicializar ApiService con AuthProvider
+    _apiService = ApiService(
+      authProvider: Provider.of<AuthProvider>(context, listen: false),
+    );
     _tabController = TabController(length: 3, vsync: this);
     _fetchData();
   }
 
   Future<void> _fetchData() async {
     try {
+      final authProvider = Provider.of<AuthProvider>(context, listen: false);
+      print(
+        'Fetching data for environment: ${widget.environmentId}, Token: ${authProvider.token}',
+      ); // Log para depuración
+
       final inventory = await _apiService.get(
         inventoryEndpoint,
         queryParams: {'environment_id': widget.environmentId},
       );
       final schedule = await _apiService.get(
-        '/api/schedules',
+        '/api/schedules/', // Asegurarse de usar la barra final
         queryParams: {'environment_id': widget.environmentId},
       );
       setState(() {
@@ -54,8 +65,7 @@ class _EnvironmentOverviewScreenState extends State<EnvironmentOverviewScreen>
                 'time': '${s['start_time']} - ${s['end_time']}',
                 'program': s['program'],
                 'activity': s['topic'] ?? 'N/A',
-                'instructor':
-                    s['instructor_id'], // Podrías hacer una llamada adicional para obtener el nombre del instructor
+                'instructor': s['instructor_id'],
                 'students': s['student_count'],
               },
             )
@@ -63,6 +73,7 @@ class _EnvironmentOverviewScreenState extends State<EnvironmentOverviewScreen>
         _isLoading = false;
       });
     } catch (e) {
+      print('Error fetching data: $e'); // Log para depuración
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(SnackBar(content: Text('Error al cargar datos: $e')));

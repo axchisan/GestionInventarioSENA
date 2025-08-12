@@ -20,6 +20,10 @@ class AuthProvider extends ChangeNotifier {
   bool get isLoading => _isLoading;
   String? get errorMessage => _errorMessage;
 
+  AuthProvider() {
+    checkSession();
+  }
+
   Future<void> login(String email, String password) async {
     _isLoading = true;
     _errorMessage = null;
@@ -27,7 +31,7 @@ class AuthProvider extends ChangeNotifier {
 
     try {
       final response = await http.post(
-        Uri.parse('${APIConstants.baseUrl}${APIConstants.loginEndpoint}'),
+        Uri.parse('$baseUrl$loginEndpoint'),
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({'email': email, 'password': password}),
       );
@@ -47,10 +51,10 @@ class AuthProvider extends ChangeNotifier {
             expiresAt: expiresAt,
           );
         } else {
-          _errorMessage = 'Respuesta del servidor inválida: $data';
+          _errorMessage = 'Respuesta del servidor inválida.';
         }
       } else {
-        _errorMessage = 'Credenciales inválidas: ${response.body}';
+        _errorMessage = 'Credenciales inválidas.';
       }
     } catch (e) {
       _errorMessage = 'Error al iniciar sesión: $e';
@@ -75,7 +79,7 @@ class AuthProvider extends ChangeNotifier {
 
     try {
       final response = await http.post(
-        Uri.parse('${APIConstants.baseUrl}${APIConstants.registerEndpoint}'),
+        Uri.parse('$baseUrl$registerEndpoint'),
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({
           'email': email,
@@ -91,7 +95,7 @@ class AuthProvider extends ChangeNotifier {
       if (response.statusCode == 201) {
         _errorMessage = 'Registro exitoso. Por favor, inicia sesión.';
       } else {
-        _errorMessage = 'Error en el registro: ${response.body}';
+        _errorMessage = 'Error en el registro.';
       }
     } catch (e) {
       _errorMessage = 'Error al registrarse: $e';
@@ -110,18 +114,30 @@ class AuthProvider extends ChangeNotifier {
   }
 
   Future<bool> checkSession() async {
-    if (await SessionService.hasValidSession()) {
-      final userData = await SessionService.getUser();
-      if (userData != null) {
-        _currentUser = UserModel.fromJson(userData);
-        _token = await SessionService.getAccessToken();
-        _isAuthenticated = true;
-        notifyListeners();
-        return true;
+    try {
+      final hasValidSession = await SessionService.hasValidSession();
+      if (hasValidSession) {
+        final userData = await SessionService.getUser();
+        final token = await SessionService.getAccessToken();
+        if (userData != null && token != null) {
+          _currentUser = UserModel.fromJson(userData);
+          _token = token;
+          _isAuthenticated = true;
+          notifyListeners();
+          return true;
+        }
       }
+      _currentUser = null;
+      _token = null;
+      _isAuthenticated = false;
+      notifyListeners();
+      return false;
+    } catch (_) {
+      _currentUser = null;
+      _token = null;
+      _isAuthenticated = false;
+      notifyListeners();
+      return false;
     }
-    _isAuthenticated = false;
-    notifyListeners();
-    return false;
   }
 }
