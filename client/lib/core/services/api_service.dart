@@ -3,10 +3,9 @@ import 'package:http/http.dart' as http;
 import '../../presentation/providers/auth_provider.dart';
 import '../constants/api_constants.dart';
 
-
 class ApiService {
   final http.Client _client = http.Client();
-  final AuthProvider? _authProvider; // Inyectar AuthProvider
+  final AuthProvider? _authProvider;
 
   ApiService({AuthProvider? authProvider}) : _authProvider = authProvider;
 
@@ -15,16 +14,23 @@ class ApiService {
       'Content-Type': 'application/json',
     };
 
-    // Agregar el token de autorización si está disponible
     if (_authProvider?.token != null) {
       headers['Authorization'] = 'Bearer ${_authProvider!.token}';
     }
 
+    final uri = Uri.parse('$baseUrl$endpoint');
     final response = await _client.post(
-      Uri.parse('$baseUrl$endpoint'),
+      uri,
       headers: headers,
       body: json.encode(data),
     );
+
+    if (response.statusCode == 307 || response.statusCode == 301 || response.statusCode == 302) {
+      final redirectUrl = response.headers['location'];
+      if (redirectUrl != null) {
+        return await post(redirectUrl.replaceFirst(baseUrl, ''), data);
+      }
+    }
 
     if (response.statusCode == 200 || response.statusCode == 201) {
       return json.decode(response.body);
@@ -38,7 +44,6 @@ class ApiService {
       'Content-Type': 'application/json',
     };
 
-    // Agregar el token de autorización si está disponible
     if (_authProvider?.token != null) {
       headers['Authorization'] = 'Bearer ${_authProvider!.token}';
     }
@@ -48,6 +53,13 @@ class ApiService {
       uri,
       headers: headers,
     );
+
+    if (response.statusCode == 307 || response.statusCode == 301 || response.statusCode == 302) {
+      final redirectUrl = response.headers['location'];
+      if (redirectUrl != null) {
+        return await get(redirectUrl.replaceFirst(baseUrl, ''), queryParams: queryParams);
+      }
+    }
 
     if (response.statusCode == 200) {
       return json.decode(response.body);
@@ -61,7 +73,6 @@ class ApiService {
       'Content-Type': 'application/json',
     };
 
-    // Agregar el token de autorización si está disponible
     if (_authProvider?.token != null) {
       headers['Authorization'] = 'Bearer ${_authProvider!.token}';
     }
@@ -70,6 +81,13 @@ class ApiService {
       Uri.parse('$baseUrl$endpoint'),
       headers: headers,
     );
+
+    if (response.statusCode == 307 || response.statusCode == 301 || response.statusCode == 302) {
+      final redirectUrl = response.headers['location'];
+      if (redirectUrl != null) {
+        return await getSingle(redirectUrl.replaceFirst(baseUrl, ''));
+      }
+    }
 
     if (response.statusCode == 200) {
       return json.decode(response.body);

@@ -15,7 +15,7 @@ class InventoryCheckScreen extends StatefulWidget {
 
 class _InventoryCheckScreenState extends State<InventoryCheckScreen> {
   final TextEditingController _searchController = TextEditingController();
-  final ApiService _apiService = ApiService();
+  late final ApiService _apiService; // Cambiar a late
   String _selectedCategory = 'Todos';
   String _selectedStatus = 'Todos';
   List<dynamic> _items = [];
@@ -24,6 +24,9 @@ class _InventoryCheckScreenState extends State<InventoryCheckScreen> {
   @override
   void initState() {
     super.initState();
+    _apiService = ApiService(
+      authProvider: Provider.of<AuthProvider>(context, listen: false),
+    );
     _fetchItems();
   }
 
@@ -34,13 +37,16 @@ class _InventoryCheckScreenState extends State<InventoryCheckScreen> {
       try {
         final items = await _apiService.get(
           inventoryEndpoint,
-          queryParams: {'environment_id': ?user!.environmentId},
+          queryParams: {
+            'environment_id': ?user!.environmentId,
+          }, // Corregir sintaxis
         );
         setState(() {
           _items = items;
           _isLoading = false;
         });
       } catch (e) {
+        print('Error fetching items: $e'); // Log para depuración
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Error al cargar inventario: $e')),
         );
@@ -53,23 +59,26 @@ class _InventoryCheckScreenState extends State<InventoryCheckScreen> {
         _isLoading = false;
       });
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Vincula un ambiente para verificar el inventario')),
+        const SnackBar(
+          content: Text('Vincula un ambiente para verificar el inventario'),
+        ),
       );
     }
   }
 
   List<dynamic> get _filteredItems {
     return _items.where((item) {
-      final matchesSearch = item['name']
-              .toString()
-              .toLowerCase()
-              .contains(_searchController.text.toLowerCase()) ||
-          item['id']
-              .toString()
-              .toLowerCase()
-              .contains(_searchController.text.toLowerCase());
-      final matchesCategory = _selectedCategory == 'Todos' || item['category'] == _selectedCategory;
-      final matchesStatus = _selectedStatus == 'Todos' || item['status'] == _selectedStatus;
+      final matchesSearch =
+          item['name'].toString().toLowerCase().contains(
+            _searchController.text.toLowerCase(),
+          ) ||
+          item['id'].toString().toLowerCase().contains(
+            _searchController.text.toLowerCase(),
+          );
+      final matchesCategory =
+          _selectedCategory == 'Todos' || item['category'] == _selectedCategory;
+      final matchesStatus =
+          _selectedStatus == 'Todos' || item['status'] == _selectedStatus;
       return matchesSearch && matchesCategory && matchesStatus;
     }).toList();
   }
@@ -110,23 +119,24 @@ class _InventoryCheckScreenState extends State<InventoryCheckScreen> {
                                 filled: true,
                                 fillColor: Colors.white,
                               ),
-                              items: [
-                                'Todos',
-                                'computer',
-                                'projector',
-                                'keyboard',
-                                'mouse',
-                                'tv',
-                                'camera',
-                                'microphone',
-                                'tablet',
-                                'other',
-                              ].map((category) {
-                                return DropdownMenuItem(
-                                  value: category,
-                                  child: Text(category),
-                                );
-                              }).toList(),
+                              items:
+                                  [
+                                    'Todos',
+                                    'computer',
+                                    'projector',
+                                    'keyboard',
+                                    'mouse',
+                                    'tv',
+                                    'camera',
+                                    'microphone',
+                                    'tablet',
+                                    'other',
+                                  ].map((category) {
+                                    return DropdownMenuItem(
+                                      value: category,
+                                      child: Text(category),
+                                    );
+                                  }).toList(),
                               onChanged: (value) {
                                 setState(() {
                                   _selectedCategory = value!;
@@ -144,19 +154,20 @@ class _InventoryCheckScreenState extends State<InventoryCheckScreen> {
                                 filled: true,
                                 fillColor: Colors.white,
                               ),
-                              items: [
-                                'Todos',
-                                'available',
-                                'in_use',
-                                'maintenance',
-                                'damaged',
-                                'lost',
-                              ].map((status) {
-                                return DropdownMenuItem(
-                                  value: status,
-                                  child: Text(status),
-                                );
-                              }).toList(),
+                              items:
+                                  [
+                                    'Todos',
+                                    'available',
+                                    'in_use',
+                                    'maintenance',
+                                    'damaged',
+                                    'lost',
+                                  ].map((status) {
+                                    return DropdownMenuItem(
+                                      value: status,
+                                      child: Text(status),
+                                    );
+                                  }).toList(),
                               onChanged: (value) {
                                 setState(() {
                                   _selectedStatus = value!;
@@ -222,7 +233,10 @@ class _InventoryCheckScreenState extends State<InventoryCheckScreen> {
                   ),
                 ),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 6,
+                  ),
                   decoration: BoxDecoration(
                     color: statusColor.withOpacity(0.1),
                     borderRadius: BorderRadius.circular(20),
@@ -329,10 +343,7 @@ class _InventoryCheckScreenState extends State<InventoryCheckScreen> {
             children: [
               Text(
                 label,
-                style: const TextStyle(
-                  fontSize: 10,
-                  color: AppColors.grey600,
-                ),
+                style: const TextStyle(fontSize: 10, color: AppColors.grey600),
               ),
               Text(
                 value,
@@ -396,10 +407,7 @@ class _InventoryCheckScreenState extends State<InventoryCheckScreen> {
                 ),
                 value: item['status'],
                 items: ['good', 'damaged', 'missing'].map((status) {
-                  return DropdownMenuItem(
-                    value: status,
-                    child: Text(status),
-                  );
+                  return DropdownMenuItem(value: status, child: Text(status));
                 }).toList(),
                 onChanged: (value) {
                   newStatus = value;
@@ -460,12 +468,17 @@ class _InventoryCheckScreenState extends State<InventoryCheckScreen> {
           ElevatedButton(
             onPressed: () async {
               try {
-                final authProvider = Provider.of<AuthProvider>(context, listen: false);
+                final authProvider = Provider.of<AuthProvider>(
+                  context,
+                  listen: false,
+                );
                 final response = await _apiService.post(
                   '/api/inventory-checks',
                   {
                     'environment_id': authProvider.currentUser!.environmentId,
-                    'student_id': authProvider.currentUser!.id, // O instructor_id según el rol
+                    'student_id': authProvider
+                        .currentUser!
+                        .id, // O instructor_id según el rol
                     'items': [
                       {
                         'item_id': item['id'],
@@ -475,12 +488,14 @@ class _InventoryCheckScreenState extends State<InventoryCheckScreen> {
                         'quantity_damaged': quantityDamaged,
                         'quantity_missing': quantityMissing,
                         'notes': notes,
-                      }
+                      },
                     ],
                   },
                 );
                 ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text('Estado actualizado: ${response['status']}')),
+                  SnackBar(
+                    content: Text('Estado actualizado: ${response['status']}'),
+                  ),
                 );
                 Navigator.pop(context);
                 _fetchItems(); // Refrescar la lista
@@ -500,7 +515,9 @@ class _InventoryCheckScreenState extends State<InventoryCheckScreen> {
   void _showCheckDialog() {
     // Implementar diálogo para verificación masiva si es necesario
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Funcionalidad de verificación masiva en desarrollo')),
+      const SnackBar(
+        content: Text('Funcionalidad de verificación masiva en desarrollo'),
+      ),
     );
   }
 

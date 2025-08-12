@@ -18,7 +18,8 @@ class QRScanScreen extends StatefulWidget {
   State<QRScanScreen> createState() => _QRScanScreenState();
 }
 
-class _QRScanScreenState extends State<QRScanScreen> with TickerProviderStateMixin {
+class _QRScanScreenState extends State<QRScanScreen>
+    with TickerProviderStateMixin {
   bool _isScanning = false;
   String? _scannedData;
   Map<String, dynamic>? _scannedPayload;
@@ -29,8 +30,11 @@ class _QRScanScreenState extends State<QRScanScreen> with TickerProviderStateMix
   @override
   void initState() {
     super.initState();
-    _fetchEnvironments();
-    _apiService = ApiService(authProvider: Provider.of<AuthProvider>(context, listen: false));
+    // Inicializar ApiService primero
+    _apiService = ApiService(
+      authProvider: Provider.of<AuthProvider>(context, listen: false),
+    );
+    // Luego llamar a _fetchEnvironments
     _fetchEnvironments();
   }
 
@@ -57,10 +61,9 @@ class _QRScanScreenState extends State<QRScanScreen> with TickerProviderStateMix
     });
 
     try {
-      final response = await _apiService.post(
-        '/api/qr/scan',
-        {'qr_data': _scannedData},
-      );
+      final response = await _apiService.post('/api/qr/scan', {
+        'qr_data': _scannedData,
+      });
       setState(() {
         _scannedPayload = response;
       });
@@ -89,13 +92,14 @@ class _QRScanScreenState extends State<QRScanScreen> with TickerProviderStateMix
     }
 
     try {
-      final response = await _apiService.post(
-        '/api/users/link-environment',
-        {'environment_id': _selectedEnvironmentId},
-      );
+      final response = await _apiService.post('/api/users/link-environment', {
+        'environment_id': _selectedEnvironmentId,
+      });
       final authProvider = Provider.of<AuthProvider>(context, listen: false);
       await authProvider.checkSession(); // Refrescar datos del usuario
-      _showSnackBar('Ambiente vinculado manualmente: ${response['environment']['name']}');
+      _showSnackBar(
+        'Ambiente vinculado manualmente: ${response['environment']['name']}',
+      );
       setState(() {
         _scannedPayload = response;
       });
@@ -105,9 +109,9 @@ class _QRScanScreenState extends State<QRScanScreen> with TickerProviderStateMix
   }
 
   void _showSnackBar(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(message)),
-    );
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
   }
 
   void _resetScan() {
@@ -184,7 +188,10 @@ class _QRScanScreenState extends State<QRScanScreen> with TickerProviderStateMix
                             ),
                             Text(
                               'Código: ${_scannedPayload!['environment']['qr_code']}',
-                              style: const TextStyle(fontSize: 14, fontFamily: 'monospace'),
+                              style: const TextStyle(
+                                fontSize: 14,
+                                fontFamily: 'monospace',
+                              ),
                             ),
                           ],
                         ),
@@ -198,8 +205,10 @@ class _QRScanScreenState extends State<QRScanScreen> with TickerProviderStateMix
                             onPressed: () => context.push(
                               '/environment-overview',
                               extra: {
-                                'environmentId': _scannedPayload!['environment']['id'],
-                                'environmentName': _scannedPayload!['environment']['name'],
+                                'environmentId':
+                                    _scannedPayload!['environment']['id'],
+                                'environmentName':
+                                    _scannedPayload!['environment']['name'],
                               },
                             ),
                             icon: const Icon(Icons.location_on),
@@ -226,16 +235,20 @@ class _QRScanScreenState extends State<QRScanScreen> with TickerProviderStateMix
                     DropdownButtonFormField<String>(
                       decoration: InputDecoration(
                         labelText: 'Seleccionar Ambiente Manualmente',
-                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
                         filled: true,
                         fillColor: AppColors.grey100,
                       ),
                       value: _selectedEnvironmentId,
                       items: _environments
-                          .map((e) => DropdownMenuItem<String>(
-                                value: e['id'],
-                                child: Text('${e['name']} · ${e['location']}'),
-                              ))
+                          .map(
+                            (e) => DropdownMenuItem<String>(
+                              value: e['id'],
+                              child: Text('${e['name']} · ${e['location']}'),
+                            ),
+                          )
                           .toList(),
                       onChanged: (value) {
                         setState(() {
@@ -247,7 +260,9 @@ class _QRScanScreenState extends State<QRScanScreen> with TickerProviderStateMix
                     SizedBox(
                       width: double.infinity,
                       child: ElevatedButton.icon(
-                        onPressed: _selectedEnvironmentId != null ? _linkManually : null,
+                        onPressed: _selectedEnvironmentId != null
+                            ? _linkManually
+                            : null,
                         icon: const Icon(Icons.link),
                         label: const Text('Vincular Manualmente'),
                       ),
