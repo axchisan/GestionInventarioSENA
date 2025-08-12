@@ -156,7 +156,7 @@ class InstructorDashboard extends StatelessWidget {
                   'Identifica equipos rápidamente',
                   Icons.qr_code_scanner,
                   AppColors.primary,
-                  '/qr-generate',
+                  '/qr-scan',
                 ),
                 _buildActionCard(
                   context,
