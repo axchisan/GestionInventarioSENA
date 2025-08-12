@@ -11,7 +11,7 @@ from ..models.inventory_check_items import InventoryCheckItem
 from ..models.environments import Environment
 from ..models.inventory_items import InventoryItem
 from ..models.users import User
-from ..utils.security import get_current_user
+from ..routers.auth import get_current_user
 
 router = APIRouter(tags=["inventory-checks"])
 

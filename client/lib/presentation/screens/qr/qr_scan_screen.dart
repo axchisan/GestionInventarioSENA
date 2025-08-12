@@ -24,11 +24,13 @@ class _QRScanScreenState extends State<QRScanScreen> with TickerProviderStateMix
   Map<String, dynamic>? _scannedPayload;
   List<dynamic> _environments = [];
   String? _selectedEnvironmentId;
-  final ApiService _apiService = ApiService();
+  late final ApiService _apiService;
 
   @override
   void initState() {
     super.initState();
+    _fetchEnvironments();
+    _apiService = ApiService(authProvider: Provider.of<AuthProvider>(context, listen: false));
     _fetchEnvironments();
   }
 
