@@ -1,4 +1,7 @@
 import 'package:flutter/material.dart';
+import '../../../core/services/api_service.dart';
+import '../../../core/theme/app_colors.dart';
+import '../../../core/constants/api_constants.dart';
 import '../../widgets/common/sena_app_bar.dart';
 import '../../widgets/common/sena_card.dart';
 import '../../widgets/common/status_badge.dart';
@@ -14,122 +17,77 @@ class EnvironmentOverviewScreen extends StatefulWidget {
   }) : super(key: key);
 
   @override
-  State<EnvironmentOverviewScreen> createState() => _EnvironmentOverviewScreenState();
+  State<EnvironmentOverviewScreen> createState() =>
+      _EnvironmentOverviewScreenState();
 }
 
 class _EnvironmentOverviewScreenState extends State<EnvironmentOverviewScreen>
     with SingleTickerProviderStateMixin {
+  final ApiService _apiService = ApiService();
   late TabController _tabController;
-
-  final List<Map<String, dynamic>> inventory = [
-    {
-      'id': 'PC001',
-      'name': 'Computador Dell OptiPlex',
-      'status': 'Disponible',
-      'condition': 'Bueno',
-      'lastMaintenance': '2024-01-10',
-      'assignedTo': null,
-    },
-    {
-      'id': 'PC002',
-      'name': 'Computador HP ProDesk',
-      'status': 'En uso',
-      'condition': 'Excelente',
-      'lastMaintenance': '2024-01-08',
-      'assignedTo': 'Juan Pérez',
-    },
-    {
-      'id': 'MON001',
-      'name': 'Monitor Samsung 24"',
-      'status': 'Disponible',
-      'condition': 'Bueno',
-      'lastMaintenance': '2024-01-05',
-      'assignedTo': null,
-    },
-    {
-      'id': 'PRJ001',
-      'name': 'Proyector Epson',
-      'status': 'Mantenimiento',
-      'condition': 'Regular',
-      'lastMaintenance': '2024-01-15',
-      'assignedTo': null,
-    },
-  ];
-
-  final List<Map<String, dynamic>> schedule = [
-    {
-      'time': '07:00 - 09:00',
-      'program': 'Técnico en Sistemas',
-      'instructor': 'Carlos Rodríguez',
-      'students': 25,
-      'activity': 'Programación Web',
-    },
-    {
-      'time': '09:00 - 11:00',
-      'program': 'Análisis y Desarrollo',
-      'instructor': 'Ana García',
-      'students': 30,
-      'activity': 'Base de Datos',
-    },
-    {
-      'time': '11:00 - 13:00',
-      'program': 'Técnico en Sistemas',
-      'instructor': 'Luis Martínez',
-      'students': 28,
-      'activity': 'Redes de Computadores',
-    },
-    {
-      'time': '14:00 - 16:00',
-      'program': 'Análisis y Desarrollo',
-      'instructor': 'María López',
-      'students': 22,
-      'activity': 'Desarrollo Móvil',
-    },
-    {
-      'time': '16:00 - 18:00',
-      'program': 'Técnico en Sistemas',
-      'instructor': 'Pedro Sánchez',
-      'students': 26,
-      'activity': 'Soporte Técnico',
-    },
-  ];
+  List<dynamic> _inventory = [];
+  List<dynamic> _schedule = [];
+  bool _isLoading = true;
 
   @override
   void initState() {
     super.initState();
     _tabController = TabController(length: 3, vsync: this);
+    _fetchData();
+  }
+
+  Future<void> _fetchData() async {
+    try {
+      final inventory = await _apiService.get(
+        inventoryEndpoint,
+        queryParams: {'environment_id': widget.environmentId},
+      );
+      final schedule = await _apiService.get(
+        '/api/schedules',
+        queryParams: {'environment_id': widget.environmentId},
+      );
+      setState(() {
+        _inventory = inventory;
+        _schedule = schedule
+            .map(
+              (s) => {
+                'time': '${s['start_time']} - ${s['end_time']}',
+                'program': s['program'],
+                'activity': s['topic'] ?? 'N/A',
+                'instructor':
+                    s['instructor_id'], // Podrías hacer una llamada adicional para obtener el nombre del instructor
+                'students': s['student_count'],
+              },
+            )
+            .toList();
+        _isLoading = false;
+      });
+    } catch (e) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Error al cargar datos: $e')));
+      setState(() {
+        _isLoading = false;
+      });
+    }
   }
 
   @override
   void dispose() {
     _tabController.dispose();
+    _apiService.dispose();
     super.dispose();
   }
 
   Color getStatusColor(String status) {
     switch (status.toLowerCase()) {
-      case 'disponible':
+      case 'available':
         return Colors.green;
-      case 'en uso':
+      case 'in_use':
         return Colors.blue;
-      case 'mantenimiento':
+      case 'maintenance':
         return Colors.orange;
-      case 'dañado':
-        return Colors.red;
-      default:
-        return Colors.grey;
-    }
-  }
-
-  Color getConditionColor(String condition) {
-    switch (condition.toLowerCase()) {
-      case 'excelente':
-        return Colors.green;
-      case 'bueno':
-        return Colors.blue;
-      case 'regular':
-        return Colors.orange;
-      case 'malo':
+      case 'damaged':
         return Colors.red;
       default:
         return Colors.grey;
@@ -138,28 +96,13 @@ class _EnvironmentOverviewScreenState extends State<EnvironmentOverviewScreen>
 
   StatusType _getStatusType(String? status) {
     switch (status?.toLowerCase()) {
-      case 'disponible':
+      case 'available':
         return StatusType.success;
-      case 'en uso':
+      case 'in_use':
         return StatusType.info;
-      case 'mantenimiento':
+      case 'maintenance':
         return StatusType.warning;
-      case 'dañado':
-        return StatusType.error;
-      default:
-        return StatusType.info;
-    }
-  }
-
-  StatusType _getConditionType(String? condition) {
-    switch (condition?.toLowerCase()) {
-      case 'excelente':
-        return StatusType.success;
-      case 'bueno':
-        return StatusType.info;
-      case 'regular':
-        return StatusType.warning;
-      case 'malo':
+      case 'damaged':
         return StatusType.error;
       default:
         return StatusType.info;
@@ -169,114 +112,120 @@ class _EnvironmentOverviewScreenState extends State<EnvironmentOverviewScreen>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: SenaAppBar(
-        title: widget.environmentName,
-        showBackButton: true,
-      ),
-      body: Column(
-        children: [
-          // Información del ambiente
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: const Color(0xFF00324D),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withOpacity(0.1),
-                  blurRadius: 4,
-                  offset: const Offset(0, 2),
-                ),
-              ],
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+      appBar: SenaAppBar(title: widget.environmentName, showBackButton: true),
+      body: _isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : Column(
               children: [
-                Row(
-                  children: [
-                    Container(
-                      width: 60,
-                      height: 60,
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(8),
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF00324D),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.1),
+                        blurRadius: 4,
+                        offset: const Offset(0, 2),
                       ),
-                      child: ClipRRect(
-                        borderRadius: BorderRadius.circular(8),
-                        child: Image.asset(
-                          'assets/images/sena-logo.png',
-                          fit: BoxFit.contain,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 16),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
+                    ],
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
                         children: [
-                          Text(
-                            widget.environmentName,
-                            style: const TextStyle(
+                          Container(
+                            width: 60,
+                            height: 60,
+                            decoration: BoxDecoration(
                               color: Colors.white,
-                              fontSize: 18,
-                              fontWeight: FontWeight.bold,
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: ClipRRect(
+                              borderRadius: BorderRadius.circular(8),
+                              child: Image.asset(
+                                'assets/images/sena-logo.png',
+                                fit: BoxFit.contain,
+                              ),
                             ),
                           ),
-                          Text(
-                            'ID: ${widget.environmentId}',
-                            style: const TextStyle(
-                              color: Colors.white70,
-                              fontSize: 14,
+                          const SizedBox(width: 16),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  widget.environmentName,
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 18,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                                Text(
+                                  'ID: ${widget.environmentId}',
+                                  style: const TextStyle(
+                                    color: Colors.white70,
+                                    fontSize: 14,
+                                  ),
+                                ),
+                                const SizedBox(height: 8),
+                                Row(
+                                  children: [
+                                    _buildStatChip(
+                                      'Equipos',
+                                      '${_inventory.length}',
+                                      Colors.blue,
+                                    ),
+                                    const SizedBox(width: 8),
+                                    _buildStatChip(
+                                      'Disponibles',
+                                      '${_inventory.where((item) => item['status'] == 'available').length}',
+                                      Colors.green,
+                                    ),
+                                    const SizedBox(width: 8),
+                                    _buildStatChip(
+                                      'En uso',
+                                      '${_inventory.where((item) => item['status'] == 'in_use').length}',
+                                      Colors.orange,
+                                    ),
+                                  ],
+                                ),
+                              ],
                             ),
-                          ),
-                          const SizedBox(height: 8),
-                          Row(
-                            children: [
-                              _buildStatChip('Equipos', '${inventory.length}', Colors.blue),
-                              const SizedBox(width: 8),
-                              _buildStatChip('Disponibles', '${inventory.where((item) => item['status'] == 'Disponible').length}', Colors.green),
-                              const SizedBox(width: 8),
-                              _buildStatChip('En uso', '${inventory.where((item) => item['status'] == 'En uso').length}', Colors.orange),
-                            ],
                           ),
                         ],
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
+                ),
+                Container(
+                  color: Colors.white,
+                  child: TabBar(
+                    controller: _tabController,
+                    labelColor: const Color(0xFF00324D),
+                    unselectedLabelColor: Colors.grey,
+                    indicatorColor: const Color(0xFF00324D),
+                    tabs: const [
+                      Tab(text: 'Inventario'),
+                      Tab(text: 'Horarios'),
+                      Tab(text: 'Estadísticas'),
+                    ],
+                  ),
+                ),
+                Expanded(
+                  child: TabBarView(
+                    controller: _tabController,
+                    children: [
+                      _buildInventoryTab(),
+                      _buildScheduleTab(),
+                      _buildStatsTab(),
+                    ],
+                  ),
                 ),
               ],
             ),
-          ),
-
-          // Tabs
-          Container(
-            color: Colors.white,
-            child: TabBar(
-              controller: _tabController,
-              labelColor: const Color(0xFF00324D),
-              unselectedLabelColor: Colors.grey,
-              indicatorColor: const Color(0xFF00324D),
-              tabs: const [
-                Tab(text: 'Inventario'),
-                Tab(text: 'Horarios'),
-                Tab(text: 'Estadísticas'),
-              ],
-            ),
-          ),
-
-          // Tab content
-          Expanded(
-            child: TabBarView(
-              controller: _tabController,
-              children: [
-                _buildInventoryTab(),
-                _buildScheduleTab(),
-                _buildStatsTab(),
-              ],
-            ),
-          ),
-        ],
-      ),
     );
   }
 
@@ -293,7 +242,7 @@ class _EnvironmentOverviewScreenState extends State<EnvironmentOverviewScreen>
         children: [
           Text(
             value,
-            style: TextStyle(
+            style: const TextStyle(
               color: Colors.white,
               fontWeight: FontWeight.bold,
               fontSize: 12,
@@ -302,10 +251,7 @@ class _EnvironmentOverviewScreenState extends State<EnvironmentOverviewScreen>
           const SizedBox(width: 4),
           Text(
             label,
-            style: const TextStyle(
-              color: Colors.white70,
-              fontSize: 12,
-            ),
+            style: const TextStyle(color: Colors.white70, fontSize: 12),
           ),
         ],
       ),
@@ -315,9 +261,9 @@ class _EnvironmentOverviewScreenState extends State<EnvironmentOverviewScreen>
   Widget _buildInventoryTab() {
     return ListView.builder(
       padding: const EdgeInsets.all(16),
-      itemCount: inventory.length,
+      itemCount: _inventory.length,
       itemBuilder: (context, index) {
-        final item = inventory[index];
+        final item = _inventory[index];
         return Padding(
           padding: const EdgeInsets.only(bottom: 12),
           child: SenaCard(
@@ -362,15 +308,18 @@ class _EnvironmentOverviewScreenState extends State<EnvironmentOverviewScreen>
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            'Condición',
+                            'Categoría',
                             style: TextStyle(
                               color: Colors.grey[600],
                               fontSize: 12,
                             ),
                           ),
-                          StatusBadge(
-                            text: item['condition'],
-                            type: _getConditionType(item['condition']),
+                          Text(
+                            item['category'],
+                            style: const TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w500,
+                            ),
                           ),
                         ],
                       ),
@@ -387,7 +336,7 @@ class _EnvironmentOverviewScreenState extends State<EnvironmentOverviewScreen>
                             ),
                           ),
                           Text(
-                            item['lastMaintenance'],
+                            item['last_maintenance'] ?? 'N/A',
                             style: const TextStyle(
                               fontSize: 14,
                               fontWeight: FontWeight.w500,
@@ -398,26 +347,6 @@ class _EnvironmentOverviewScreenState extends State<EnvironmentOverviewScreen>
                     ),
                   ],
                 ),
-                if (item['assignedTo'] != null) ...[
-                  const SizedBox(height: 8),
-                  Row(
-                    children: [
-                      Icon(
-                        Icons.person_outline,
-                        size: 16,
-                        color: Colors.grey[600],
-                      ),
-                      const SizedBox(width: 4),
-                      Text(
-                        'Asignado a: ${item['assignedTo']}',
-                        style: TextStyle(
-                          color: Colors.grey[600],
-                          fontSize: 12,
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
               ],
             ),
           ),
@@ -429,9 +358,9 @@ class _EnvironmentOverviewScreenState extends State<EnvironmentOverviewScreen>
   Widget _buildScheduleTab() {
     return ListView.builder(
       padding: const EdgeInsets.all(16),
-      itemCount: schedule.length,
+      itemCount: _schedule.length,
       itemBuilder: (context, index) {
-        final item = schedule[index];
+        final item = _schedule[index];
         return Padding(
           padding: const EdgeInsets.only(bottom: 12),
           child: SenaCard(
@@ -442,7 +371,7 @@ class _EnvironmentOverviewScreenState extends State<EnvironmentOverviewScreen>
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     Text(
-                      item['time'],
+                      item['time'] ?? 'N/A',
                       style: const TextStyle(
                         fontWeight: FontWeight.bold,
                         fontSize: 16,
@@ -450,13 +379,16 @@ class _EnvironmentOverviewScreenState extends State<EnvironmentOverviewScreen>
                       ),
                     ),
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 4,
+                      ),
                       decoration: BoxDecoration(
                         color: Colors.blue.withOpacity(0.1),
                         borderRadius: BorderRadius.circular(12),
                       ),
                       child: Text(
-                        '${item['students']} estudiantes',
+                        '${item['students'] ?? 0} estudiantes',
                         style: const TextStyle(
                           color: Colors.blue,
                           fontSize: 12,
@@ -468,7 +400,7 @@ class _EnvironmentOverviewScreenState extends State<EnvironmentOverviewScreen>
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  item['program'],
+                  item['program'] ?? 'N/A',
                   style: const TextStyle(
                     fontWeight: FontWeight.w600,
                     fontSize: 15,
@@ -476,11 +408,8 @@ class _EnvironmentOverviewScreenState extends State<EnvironmentOverviewScreen>
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  item['activity'],
-                  style: TextStyle(
-                    color: Colors.grey[700],
-                    fontSize: 14,
-                  ),
+                  item['activity'] ?? 'N/A',
+                  style: TextStyle(color: Colors.grey[700], fontSize: 14),
                 ),
                 const SizedBox(height: 8),
                 Row(
@@ -492,11 +421,8 @@ class _EnvironmentOverviewScreenState extends State<EnvironmentOverviewScreen>
                     ),
                     const SizedBox(width: 4),
                     Text(
-                      item['instructor'],
-                      style: TextStyle(
-                        color: Colors.grey[600],
-                        fontSize: 12,
-                      ),
+                      item['instructor'] ?? 'N/A',
+                      style: TextStyle(color: Colors.grey[600], fontSize: 12),
                     ),
                   ],
                 ),
@@ -509,10 +435,14 @@ class _EnvironmentOverviewScreenState extends State<EnvironmentOverviewScreen>
   }
 
   Widget _buildStatsTab() {
-    final totalEquipment = inventory.length;
-    final available = inventory.where((item) => item['status'] == 'Disponible').length;
-    final inUse = inventory.where((item) => item['status'] == 'En uso').length;
-    final maintenance = inventory.where((item) => item['status'] == 'Mantenimiento').length;
+    final totalEquipment = _inventory.length;
+    final available = _inventory
+        .where((item) => item['status'] == 'available')
+        .length;
+    final inUse = _inventory.where((item) => item['status'] == 'in_use').length;
+    final maintenance = _inventory
+        .where((item) => item['status'] == 'maintenance')
+        .length;
 
     return Padding(
       padding: const EdgeInsets.all(16),
@@ -521,22 +451,27 @@ class _EnvironmentOverviewScreenState extends State<EnvironmentOverviewScreen>
         children: [
           const Text(
             'Resumen de Equipos',
-            style: TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
-            ),
+            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
           ),
           const SizedBox(height: 16),
-          
-          // Stats cards
           Row(
             children: [
               Expanded(
-                child: _buildStatCard('Total', totalEquipment.toString(), Colors.blue, Icons.devices),
+                child: _buildStatCard(
+                  'Total',
+                  totalEquipment.toString(),
+                  Colors.blue,
+                  Icons.devices,
+                ),
               ),
               const SizedBox(width: 12),
               Expanded(
-                child: _buildStatCard('Disponibles', available.toString(), Colors.green, Icons.check_circle_outline),
+                child: _buildStatCard(
+                  'Disponibles',
+                  available.toString(),
+                  Colors.green,
+                  Icons.check_circle_outline,
+                ),
               ),
             ],
           ),
@@ -544,33 +479,56 @@ class _EnvironmentOverviewScreenState extends State<EnvironmentOverviewScreen>
           Row(
             children: [
               Expanded(
-                child: _buildStatCard('En Uso', inUse.toString(), Colors.orange, Icons.person_outline),
+                child: _buildStatCard(
+                  'En Uso',
+                  inUse.toString(),
+                  Colors.orange,
+                  Icons.person_outline,
+                ),
               ),
               const SizedBox(width: 12),
               Expanded(
-                child: _buildStatCard('Mantenimiento', maintenance.toString(), Colors.red, Icons.build_outlined),
+                child: _buildStatCard(
+                  'Mantenimiento',
+                  maintenance.toString(),
+                  Colors.red,
+                  Icons.build_outlined,
+                ),
               ),
             ],
           ),
-          
           const SizedBox(height: 24),
           const Text(
             'Utilización del Ambiente',
-            style: TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
-            ),
+            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
           ),
           const SizedBox(height: 16),
-          
           SenaCard(
             child: Column(
               children: [
-                _buildUtilizationRow('Disponibilidad', '${((available / totalEquipment) * 100).toInt()}%', Colors.green),
+                _buildUtilizationRow(
+                  'Disponibilidad',
+                  totalEquipment > 0
+                      ? '${((available / totalEquipment) * 100).toInt()}%'
+                      : '0%',
+                  Colors.green,
+                ),
                 const Divider(),
-                _buildUtilizationRow('En Uso', '${((inUse / totalEquipment) * 100).toInt()}%', Colors.orange),
+                _buildUtilizationRow(
+                  'En Uso',
+                  totalEquipment > 0
+                      ? '${((inUse / totalEquipment) * 100).toInt()}%'
+                      : '0%',
+                  Colors.orange,
+                ),
                 const Divider(),
-                _buildUtilizationRow('Mantenimiento', '${((maintenance / totalEquipment) * 100).toInt()}%', Colors.red),
+                _buildUtilizationRow(
+                  'Mantenimiento',
+                  totalEquipment > 0
+                      ? '${((maintenance / totalEquipment) * 100).toInt()}%'
+                      : '0%',
+                  Colors.red,
+                ),
               ],
             ),
           ),
@@ -579,15 +537,16 @@ class _EnvironmentOverviewScreenState extends State<EnvironmentOverviewScreen>
     );
   }
 
-  Widget _buildStatCard(String title, String value, Color color, IconData icon) {
+  Widget _buildStatCard(
+    String title,
+    String value,
+    Color color,
+    IconData icon,
+  ) {
     return SenaCard(
       child: Column(
         children: [
-          Icon(
-            icon,
-            size: 32,
-            color: color,
-          ),
+          Icon(icon, size: 32, color: color),
           const SizedBox(height: 8),
           Text(
             value,
@@ -597,13 +556,7 @@ class _EnvironmentOverviewScreenState extends State<EnvironmentOverviewScreen>
               color: color,
             ),
           ),
-          Text(
-            title,
-            style: TextStyle(
-              fontSize: 14,
-              color: Colors.grey[600],
-            ),
-          ),
+          Text(title, style: TextStyle(fontSize: 14, color: Colors.grey[600])),
         ],
       ),
     );
@@ -617,10 +570,7 @@ class _EnvironmentOverviewScreenState extends State<EnvironmentOverviewScreen>
         children: [
           Text(
             label,
-            style: const TextStyle(
-              fontSize: 14,
-              fontWeight: FontWeight.w500,
-            ),
+            style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
           ),
           Text(
             percentage,

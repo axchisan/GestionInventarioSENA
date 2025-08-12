@@ -1,6 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from .routers import auth, environments, inventory, qr
+from .routers import auth, environments, inventory, qr, schedules
 from .config import settings
 
 app = FastAPI(title="Sistema de Gestión de Inventarios SENA")
@@ -19,6 +19,7 @@ app.include_router(auth.router, prefix="/api/auth", tags=["auth"])
 app.include_router(environments.router, prefix="/api/environments", tags=["environments"])
 app.include_router(inventory.router, prefix="/api/inventory", tags=["inventory"])
 app.include_router(qr.router, prefix="/api/qr", tags=["qr"])
+app.include_router(schedules.router, prefix="/api/schedules")
 
 @app.get("/")
 async def root():

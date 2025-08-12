@@ -26,6 +26,7 @@ UserModel _$UserModelFromJson(Map<String, dynamic> json) => UserModel(
   updatedAt: json['updatedAt'] == null
       ? null
       : DateTime.parse(json['updatedAt'] as String),
+  environmentId: json['environmentId'] as String?,
 );
 
 Map<String, dynamic> _$UserModelToJson(UserModel instance) => <String, dynamic>{
@@ -42,4 +43,5 @@ Map<String, dynamic> _$UserModelToJson(UserModel instance) => <String, dynamic>{
   'lastLogin': instance.lastLogin?.toIso8601String(),
   'createdAt': instance.createdAt?.toIso8601String(),
   'updatedAt': instance.updatedAt?.toIso8601String(),
+  'environmentId': instance.environmentId,
 };

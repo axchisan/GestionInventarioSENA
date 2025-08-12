@@ -17,6 +17,7 @@ class UserModel {
   final DateTime? lastLogin;
   final DateTime? createdAt;
   final DateTime? updatedAt;
+  final String? environmentId; // Nuevo campo
 
   UserModel({
     this.id,
@@ -32,6 +33,7 @@ class UserModel {
     this.lastLogin,
     this.createdAt,
     this.updatedAt,
+    this.environmentId,
   });
 
   factory UserModel.fromJson(Map<String, dynamic> json) => _$UserModelFromJson(json);

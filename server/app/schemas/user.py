@@ -22,6 +22,7 @@ class UserResponse(UserBase):
     last_login: Optional[datetime] = None
     created_at: datetime
     updated_at: datetime
+    environment_id: Optional[UUID] = None
 
     class Config:
         from_attributes = True
@@ -34,3 +35,6 @@ class TokenResponse(BaseModel):
     access_token: str
     token_type: str
     user: UserResponse  # Incluimos la información completa del usuario
+
+class LinkEnvironmentRequest(BaseModel):
+    environment_id: UUID
