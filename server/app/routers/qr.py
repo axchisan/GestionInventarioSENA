@@ -6,20 +6,28 @@ from datetime import datetime
 from uuid import UUID
 import hashlib
 import json
+import logging
 
 from ..database import get_db
 from ..models.inventory_items import InventoryItem
 from ..models.environments import Environment
 from ..models.users import User
-from ..schemas.user import UserResponse  # Importar UserResponse
+from ..schemas.user import UserResponse
 from ..routers.auth import get_current_user
 from ..config import settings
 
 router = APIRouter(tags=["qr"])
 
+# Configurar logging
+logging.basicConfig(level=logging.DEBUG)
+logger = logging.getLogger(__name__)
+
 def compute_signature(type: str, id: str, code: str, ts: int) -> str:
     raw = f"{type}:{id}:{code}:{ts}:{settings.SECRET_KEY}"
-    return hashlib.sha256(raw.encode()).hexdigest()
+    logger.debug(f"Computing signature with raw string: {raw}")
+    signature = hashlib.sha256(raw.encode()).hexdigest()
+    logger.debug(f"Generated signature: {signature}")
+    return signature
 
 @router.get("/generate/{entity_type}/{entity_id}")
 def generate_qr(
@@ -60,15 +68,14 @@ def generate_qr(
 
     return {"qr_data": json.dumps(payload)}
 
-# Esquema para el payload del QR
 class QRScanRequest(BaseModel):
     qr_data: str
 
-# Función para validar la firma del QR
 def validate_signature(type: str, id: str, code: str, ts: int, sig: str) -> bool:
-    expected_sig = hashlib.sha256(
-        f"{type}:{id}:{code}:{ts}:{settings.SECRET_KEY}".encode()
-    ).hexdigest()
+    raw = f"{type}:{id}:{code}:{ts}:{settings.SECRET_KEY}"
+    logger.debug(f"Validating signature with raw string: {raw}")
+    expected_sig = hashlib.sha256(raw.encode()).hexdigest()
+    logger.debug(f"Expected signature: {expected_sig}, Received signature: {sig}")
     return sig == expected_sig
 
 @router.post("/scan")
@@ -78,12 +85,11 @@ async def scan_qr(
     current_user: User = Depends(get_current_user)
 ):
     try:
-        # Decodificar el JSON del QR
         qr_payload = json.loads(request.qr_data)
+        logger.debug(f"QR payload received: {qr_payload}")
         if qr_payload.get("v") != 1:
             raise HTTPException(status_code=400, detail="Versión de QR no soportada")
 
-        # Extraer datos del payload
         qr_type = qr_payload.get("type")
         entity_id = qr_payload.get("id")
         code = qr_payload.get("code")
@@ -93,15 +99,12 @@ async def scan_qr(
         if not all([qr_type, entity_id, code, ts, sig]):
             raise HTTPException(status_code=400, detail="Datos del QR incompletos")
 
-        # Validar la firma
         if not validate_signature(qr_type, entity_id, code, ts, sig):
             raise HTTPException(status_code=400, detail="Firma del QR inválida")
 
-        # Verificar tipo de QR
         if qr_type != "environment":
             raise HTTPException(status_code=400, detail="Solo se soportan QR de ambientes")
 
-        # Buscar el ambiente en la base de datos
         environment = db.query(Environment).filter(
             Environment.id == UUID(entity_id),
             Environment.is_active == True
@@ -109,20 +112,17 @@ async def scan_qr(
         if not environment:
             raise HTTPException(status_code=404, detail="Ambiente no encontrado")
 
-        # Verificar permisos según el rol del usuario
         if current_user.role not in ["instructor", "student", "supervisor"]:
             raise HTTPException(
                 status_code=403,
                 detail="Rol no autorizado para vincular ambientes"
             )
 
-        # Actualizar el environment_id del usuario
         current_user.environment_id = environment.id
         current_user.updated_at = datetime.utcnow()
         db.commit()
-        db.refresh(current_user)  # Ahora funciona porque current_user es un modelo User
+        db.refresh(current_user)
 
-        # Devolver información del ambiente
         return {
             "status": "success",
             "environment": {
@@ -131,7 +131,7 @@ async def scan_qr(
                 "location": environment.location,
                 "qr_code": environment.qr_code
             },
-            "user": UserResponse.from_orm(current_user)  # Convertir a Pydantic para la respuesta
+            "user": UserResponse.from_orm(current_user)
         }
 
     except json.JSONDecodeError:
