@@ -47,9 +47,9 @@ async def register(user_create: UserCreate, db: Session = Depends(get_db)):
     db.commit()
     db.refresh(new_user)
     
-    return new_user
+    return UserResponse.from_orm(new_user)
 
-@router.get("/me", response_model=UserResponse)
+@router.get("/me")
 async def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)):
     try:
         payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
@@ -72,18 +72,4 @@ async def get_current_user(token: str = Depends(oauth2_scheme), db: Session = De
     if user is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Usuario no encontrado")
     
-    return UserResponse(
-        id=user.id,
-        email=user.email,
-        first_name=user.first_name,
-        last_name=user.last_name,
-        role=user.role,
-        phone=user.phone,
-        program=user.program,
-        ficha=user.ficha,
-        avatar_url=user.avatar_url,
-        is_active=user.is_active,
-        last_login=user.last_login,
-        created_at=user.created_at,
-        updated_at=user.updated_at
-    )
+    return user
