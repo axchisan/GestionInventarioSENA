@@ -463,7 +463,7 @@ class _QrCodeGeneratorScreenState extends State<QrCodeGeneratorScreen> {
                 ],
               ),
               child: QrImageView(
-                data: _qrData!.trim(),
+                data: _qrData!,
                 size: 240,
                 backgroundColor: Colors.white,
                 version: QrVersions.auto,
