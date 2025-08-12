@@ -4,7 +4,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
-import 'package:qr_code_scanner/qr_code_scanner.dart';
+import 'package:mobile_scanner/mobile_scanner.dart';
 import '../../../core/services/api_service.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/constants/api_constants.dart';
@@ -19,8 +19,6 @@ class QRScanScreen extends StatefulWidget {
 }
 
 class _QRScanScreenState extends State<QRScanScreen> with TickerProviderStateMixin {
-  final GlobalKey qrKey = GlobalKey(debugLabel: 'QR');
-  QRViewController? controller;
   bool _isScanning = false;
   String? _scannedData;
   Map<String, dynamic>? _scannedPayload;
@@ -45,41 +43,41 @@ class _QRScanScreenState extends State<QRScanScreen> with TickerProviderStateMix
     }
   }
 
-  void _onQRViewCreated(QRViewController controller) {
-    this.controller = controller;
-    controller.scannedDataStream.listen((scanData) async {
-      if (_isScanning || _scannedData != null) return;
+  void _onDetect(BarcodeCapture barcodeCapture) async {
+    if (_isScanning || _scannedData != null) return;
 
+    final barcode = barcodeCapture.barcodes.first;
+    if (barcode.rawValue == null) return;
+
+    setState(() {
+      _isScanning = true;
+      _scannedData = barcode.rawValue;
+    });
+
+    try {
+      final response = await _apiService.post(
+        '/api/qr/scan',
+        {'qr_data': _scannedData},
+      );
       setState(() {
-        _isScanning = true;
-        _scannedData = scanData.code;
+        _scannedPayload = response;
       });
 
-      try {
-        final response = await _apiService.post(
-          '/api/qr/scan',
-          {'qr_data': _scannedData},
-        );
-        setState(() {
-          _scannedPayload = response;
-        });
-
-        // Actualizar el usuario en AuthProvider
-        final authProvider = Provider.of<AuthProvider>(context, listen: false);
-        await authProvider.checkSession(); // Refrescar datos del usuario
-        _showSnackBar('Ambiente vinculado: ${response['environment']['name']}');
-      } catch (e) {
-        setState(() {
-          _scannedData = null;
-          _scannedPayload = null;
-        });
-        _showSnackBar('Error al procesar QR: $e');
-      } finally {
-        setState(() {
-          _isScanning = false;
-        });
-      }
-    });
+      // Actualizar el usuario en AuthProvider
+      final authProvider = Provider.of<AuthProvider>(context, listen: false);
+      await authProvider.checkSession(); // Refrescar datos del usuario
+      _showSnackBar('Ambiente vinculado: ${response['environment']['name']}');
+    } catch (e) {
+      setState(() {
+        _scannedData = null;
+        _scannedPayload = null;
+      });
+      _showSnackBar('Error al procesar QR: $e');
+    } finally {
+      setState(() {
+        _isScanning = false;
+      });
+    }
   }
 
   Future<void> _linkManually() async {
@@ -116,12 +114,10 @@ class _QRScanScreenState extends State<QRScanScreen> with TickerProviderStateMix
       _scannedPayload = null;
       _selectedEnvironmentId = null;
     });
-    controller?.resumeCamera();
   }
 
   @override
   void dispose() {
-    controller?.dispose();
     _apiService.dispose();
     super.dispose();
   }
@@ -143,15 +139,12 @@ class _QRScanScreenState extends State<QRScanScreen> with TickerProviderStateMix
                 borderRadius: BorderRadius.circular(12),
                 border: Border.all(color: AppColors.primary, width: 2),
               ),
-              child: QRView(
-                key: qrKey,
-                onQRViewCreated: _onQRViewCreated,
-                overlay: QrScannerOverlayShape(
-                  borderColor: AppColors.primary,
-                  borderRadius: 12,
-                  borderLength: 30,
-                  borderWidth: 6,
-                  cutOutSize: 250,
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(12),
+                child: MobileScanner(
+                  onDetect: _onDetect,
+                  // Opcional: Configura el área de escaneo para imitar QrScannerOverlayShape
+                  fit: BoxFit.cover,
                 ),
               ),
             ),
