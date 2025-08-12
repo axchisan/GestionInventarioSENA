@@ -1,6 +1,14 @@
+// ignore_for_file: unused_local_variable
+
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:provider/provider.dart';
+import 'package:qr_code_scanner/qr_code_scanner.dart';
+import '../../../core/services/api_service.dart';
 import '../../../core/theme/app_colors.dart';
+import '../../../core/constants/api_constants.dart';
+import '../../../presentation/providers/auth_provider.dart';
 import '../../widgets/common/sena_app_bar.dart';
 
 class QRScanScreen extends StatefulWidget {
@@ -10,28 +18,119 @@ class QRScanScreen extends StatefulWidget {
   State<QRScanScreen> createState() => _QRScanScreenState();
 }
 
-class _QRScanScreenState extends State<QRScanScreen>
-    with TickerProviderStateMixin {
-  late AnimationController _animationController;
-  late Animation<double> _animation;
+class _QRScanScreenState extends State<QRScanScreen> with TickerProviderStateMixin {
+  final GlobalKey qrKey = GlobalKey(debugLabel: 'QR');
+  QRViewController? controller;
   bool _isScanning = false;
   String? _scannedData;
+  Map<String, dynamic>? _scannedPayload;
+  List<dynamic> _environments = [];
+  String? _selectedEnvironmentId;
+  final ApiService _apiService = ApiService();
 
   @override
   void initState() {
     super.initState();
-    _animationController = AnimationController(
-      duration: const Duration(seconds: 2),
-      vsync: this,
+    _fetchEnvironments();
+  }
+
+  Future<void> _fetchEnvironments() async {
+    try {
+      final environments = await _apiService.get(environmentsEndpoint);
+      setState(() {
+        _environments = environments;
+      });
+    } catch (e) {
+      _showSnackBar('Error al cargar ambientes: $e');
+    }
+  }
+
+  void _onQRViewCreated(QRViewController controller) {
+    this.controller = controller;
+    controller.scannedDataStream.listen((scanData) async {
+      if (_isScanning || _scannedData != null) return;
+
+      setState(() {
+        _isScanning = true;
+        _scannedData = scanData.code;
+      });
+
+      try {
+        final response = await _apiService.post(
+          '/api/qr/scan',
+          {'qr_data': _scannedData},
+        );
+        setState(() {
+          _scannedPayload = response;
+        });
+
+        // Actualizar el usuario en AuthProvider
+        final authProvider = Provider.of<AuthProvider>(context, listen: false);
+        await authProvider.checkSession(); // Refrescar datos del usuario
+        _showSnackBar('Ambiente vinculado: ${response['environment']['name']}');
+      } catch (e) {
+        setState(() {
+          _scannedData = null;
+          _scannedPayload = null;
+        });
+        _showSnackBar('Error al procesar QR: $e');
+      } finally {
+        setState(() {
+          _isScanning = false;
+        });
+      }
+    });
+  }
+
+  Future<void> _linkManually() async {
+    if (_selectedEnvironmentId == null) {
+      _showSnackBar('Selecciona un ambiente.');
+      return;
+    }
+
+    try {
+      final response = await _apiService.post(
+        '/api/users/link-environment',
+        {'environment_id': _selectedEnvironmentId},
+      );
+      final authProvider = Provider.of<AuthProvider>(context, listen: false);
+      await authProvider.checkSession(); // Refrescar datos del usuario
+      _showSnackBar('Ambiente vinculado manualmente: ${response['environment']['name']}');
+      setState(() {
+        _scannedPayload = response;
+      });
+    } catch (e) {
+      _showSnackBar('Error al vincular ambiente: $e');
+    }
+  }
+
+  void _showSnackBar(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message)),
     );
-    _animation = Tween<double>(begin: 0.0, end: 1.0).animate(
-      CurvedAnimation(parent: _animationController, curve: Curves.easeInOut),
-    );
-    _animationController.repeat(reverse: true);
+  }
+
+  void _resetScan() {
+    setState(() {
+      _scannedData = null;
+      _scannedPayload = null;
+      _selectedEnvironmentId = null;
+    });
+    controller?.resumeCamera();
+  }
+
+  @override
+  void dispose() {
+    controller?.dispose();
+    _apiService.dispose();
+    super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
+    final authProvider = Provider.of<AuthProvider>(context);
+    final role = authProvider.currentUser?.role ?? '';
+
     return Scaffold(
       appBar: const SenaAppBar(title: 'Escanear Código QR'),
       body: Column(
@@ -39,119 +138,31 @@ class _QRScanScreenState extends State<QRScanScreen>
           Expanded(
             flex: 3,
             child: Container(
-              width: double.infinity,
               margin: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                color: Colors.black,
                 borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: AppColors.primary, width: 2),
               ),
-              child: Stack(
-                children: [
-                  // Simulación de cámara
-                  Container(
-                    width: double.infinity,
-                    height: double.infinity,
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(12),
-                      gradient: const LinearGradient(
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                        colors: [
-                          Color(0xFF1a1a1a),
-                          Color(0xFF2d2d2d),
-                        ],
-                      ),
-                    ),
-                    child: const Center(
-                      child: Text(
-                        'Vista de Cámara\n(Simulación)',
-                        textAlign: TextAlign.center,
-                        style: TextStyle(
-                          color: Colors.white54,
-                          fontSize: 16,
-                        ),
-                      ),
-                    ),
-                  ),
-                  
-                  // Marco de escaneo
-                  Center(
-                    child: Container(
-                      width: 250,
-                      height: 250,
-                      decoration: BoxDecoration(
-                        border: Border.all(
-                          color: AppColors.primary,
-                          width: 2,
-                        ),
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: Stack(
-                        children: [
-                          // Esquinas del marco
-                          ...List.generate(4, (index) {
-                            return Positioned(
-                              top: index < 2 ? 0 : null,
-                              bottom: index >= 2 ? 0 : null,
-                              left: index % 2 == 0 ? 0 : null,
-                              right: index % 2 == 1 ? 0 : null,
-                              child: Container(
-                                width: 20,
-                                height: 20,
-                                decoration: BoxDecoration(
-                                  color: AppColors.primary,
-                                  borderRadius: BorderRadius.only(
-                                    topLeft: index == 0 ? const Radius.circular(10) : Radius.zero,
-                                    topRight: index == 1 ? const Radius.circular(10) : Radius.zero,
-                                    bottomLeft: index == 2 ? const Radius.circular(10) : Radius.zero,
-                                    bottomRight: index == 3 ? const Radius.circular(10) : Radius.zero,
-                                  ),
-                                ),
-                              ),
-                            );
-                          }),
-                          
-                          // Línea de escaneo animada
-                          AnimatedBuilder(
-                            animation: _animation,
-                            builder: (context, child) {
-                              return Positioned(
-                                top: _animation.value * 220,
-                                left: 10,
-                                right: 10,
-                                child: Container(
-                                  height: 2,
-                                  decoration: BoxDecoration(
-                                    color: AppColors.primary,
-                                    boxShadow: [
-                                      BoxShadow(
-                                        color: AppColors.primary.withOpacity(0.5),
-                                        blurRadius: 10,
-                                        spreadRadius: 2,
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              );
-                            },
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ],
+              child: QRView(
+                key: qrKey,
+                onQRViewCreated: _onQRViewCreated,
+                overlay: QrScannerOverlayShape(
+                  borderColor: AppColors.primary,
+                  borderRadius: 12,
+                  borderLength: 30,
+                  borderWidth: 6,
+                  cutOutSize: 250,
+                ),
               ),
             ),
           ),
-          
-          // Información y controles
           Expanded(
             flex: 2,
             child: Padding(
               padding: const EdgeInsets.all(16.0),
               child: Column(
                 children: [
-                  if (_scannedData != null) ...[
+                  if (_scannedPayload != null) ...[
                     Card(
                       color: AppColors.success.withOpacity(0.1),
                       child: Padding(
@@ -164,20 +175,21 @@ class _QRScanScreenState extends State<QRScanScreen>
                               size: 48,
                             ),
                             const SizedBox(height: 8),
-                            const Text(
-                              'Código Escaneado',
-                              style: TextStyle(
+                            Text(
+                              'Ambiente Vinculado: ${_scannedPayload!['environment']['name']}',
+                              style: const TextStyle(
                                 fontSize: 18,
                                 fontWeight: FontWeight.bold,
                               ),
                             ),
                             const SizedBox(height: 8),
                             Text(
-                              _scannedData!,
-                              style: const TextStyle(
-                                fontSize: 16,
-                                fontFamily: 'monospace',
-                              ),
+                              'Ubicación: ${_scannedPayload!['environment']['location']}',
+                              style: const TextStyle(fontSize: 14),
+                            ),
+                            Text(
+                              'Código: ${_scannedPayload!['environment']['qr_code']}',
+                              style: const TextStyle(fontSize: 14, fontFamily: 'monospace'),
                             ),
                           ],
                         ),
@@ -188,9 +200,15 @@ class _QRScanScreenState extends State<QRScanScreen>
                       children: [
                         Expanded(
                           child: ElevatedButton.icon(
-                            onPressed: () => context.push('/inventory-check'),
-                            icon: const Icon(Icons.search),
-                            label: const Text('Ver Detalles'),
+                            onPressed: () => context.push(
+                              '/environment-overview',
+                              extra: {
+                                'environmentId': _scannedPayload!['environment']['id'],
+                                'environmentName': _scannedPayload!['environment']['name'],
+                              },
+                            ),
+                            icon: const Icon(Icons.location_on),
+                            label: const Text('Ver Ambiente'),
                           ),
                         ),
                         const SizedBox(width: 16),
@@ -207,27 +225,36 @@ class _QRScanScreenState extends State<QRScanScreen>
                     const Text(
                       'Posiciona el código QR dentro del marco',
                       textAlign: TextAlign.center,
-                      style: TextStyle(
-                        fontSize: 16,
-                        color: AppColors.grey600,
-                      ),
+                      style: TextStyle(fontSize: 16, color: AppColors.grey600),
                     ),
-                    const SizedBox(height: 24),
+                    const SizedBox(height: 16),
+                    DropdownButtonFormField<String>(
+                      decoration: InputDecoration(
+                        labelText: 'Seleccionar Ambiente Manualmente',
+                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                        filled: true,
+                        fillColor: AppColors.grey100,
+                      ),
+                      value: _selectedEnvironmentId,
+                      items: _environments
+                          .map((e) => DropdownMenuItem<String>(
+                                value: e['id'],
+                                child: Text('${e['name']} · ${e['location']}'),
+                              ))
+                          .toList(),
+                      onChanged: (value) {
+                        setState(() {
+                          _selectedEnvironmentId = value;
+                        });
+                      },
+                    ),
+                    const SizedBox(height: 16),
                     SizedBox(
                       width: double.infinity,
                       child: ElevatedButton.icon(
-                        onPressed: _isScanning ? null : _simulateScan,
-                        icon: _isScanning
-                            ? const SizedBox(
-                                width: 20,
-                                height: 20,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                  color: Colors.white,
-                                ),
-                              )
-                            : const Icon(Icons.qr_code_scanner),
-                        label: Text(_isScanning ? 'Escaneando...' : 'Simular Escaneo'),
+                        onPressed: _selectedEnvironmentId != null ? _linkManually : null,
+                        icon: const Icon(Icons.link),
+                        label: const Text('Vincular Manualmente'),
                       ),
                     ),
                   ],
@@ -238,31 +265,5 @@ class _QRScanScreenState extends State<QRScanScreen>
         ],
       ),
     );
-  }
-
-  void _simulateScan() async {
-    setState(() {
-      _isScanning = true;
-    });
-
-    // Simular escaneo
-    await Future.delayed(const Duration(seconds: 3));
-
-    setState(() {
-      _isScanning = false;
-      _scannedData = 'SENA-INV-${DateTime.now().millisecondsSinceEpoch.toString().substring(8)}';
-    });
-  }
-
-  void _resetScan() {
-    setState(() {
-      _scannedData = null;
-    });
-  }
-
-  @override
-  void dispose() {
-    _animationController.dispose();
-    super.dispose();
   }
 }

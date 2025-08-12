@@ -1,5 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import '../../../core/services/api_service.dart';
 import '../../../core/theme/app_colors.dart';
+import '../../../core/constants/api_constants.dart';
+import '../../../presentation/providers/auth_provider.dart';
 import '../../widgets/common/sena_app_bar.dart';
 
 class InventoryCheckScreen extends StatefulWidget {
@@ -11,65 +15,61 @@ class InventoryCheckScreen extends StatefulWidget {
 
 class _InventoryCheckScreenState extends State<InventoryCheckScreen> {
   final TextEditingController _searchController = TextEditingController();
+  final ApiService _apiService = ApiService();
   String _selectedCategory = 'Todos';
   String _selectedStatus = 'Todos';
+  List<dynamic> _items = [];
+  bool _isLoading = true;
 
-  final List<Map<String, dynamic>> _mockItems = [
-    {
-      'id': 'SENA-001',
-      'name': 'Laptop Dell Inspiron 15',
-      'category': 'Equipos de Cómputo',
-      'status': 'Disponible',
-      'location': 'Aula 101',
-      'lastCheck': '2024-01-15',
-      'condition': 'Excelente',
-    },
-    {
-      'id': 'SENA-002',
-      'name': 'Proyector Epson',
-      'category': 'Audiovisuales',
-      'status': 'En Préstamo',
-      'location': 'Aula 205',
-      'lastCheck': '2024-01-14',
-      'condition': 'Bueno',
-    },
-    {
-      'id': 'SENA-003',
-      'name': 'Taladro Industrial',
-      'category': 'Herramientas',
-      'status': 'Mantenimiento',
-      'location': 'Taller A',
-      'lastCheck': '2024-01-10',
-      'condition': 'Regular',
-    },
-    {
-      'id': 'SENA-004',
-      'name': 'Microscopio Óptico',
-      'category': 'Laboratorio',
-      'status': 'Disponible',
-      'location': 'Lab. Ciencias',
-      'lastCheck': '2024-01-16',
-      'condition': 'Excelente',
-    },
-  ];
+  @override
+  void initState() {
+    super.initState();
+    _fetchItems();
+  }
 
-  List<Map<String, dynamic>> get _filteredItems {
-    return _mockItems.where((item) {
+  Future<void> _fetchItems() async {
+    final authProvider = Provider.of<AuthProvider>(context, listen: false);
+    final user = authProvider.currentUser;
+    if (user?.environmentId != null) {
+      try {
+        final items = await _apiService.get(
+          inventoryEndpoint,
+          queryParams: {'environment_id': ?user!.environmentId},
+        );
+        setState(() {
+          _items = items;
+          _isLoading = false;
+        });
+      } catch (e) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error al cargar inventario: $e')),
+        );
+        setState(() {
+          _isLoading = false;
+        });
+      }
+    } else {
+      setState(() {
+        _isLoading = false;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Vincula un ambiente para verificar el inventario')),
+      );
+    }
+  }
+
+  List<dynamic> get _filteredItems {
+    return _items.where((item) {
       final matchesSearch = item['name']
-          .toString()
-          .toLowerCase()
-          .contains(_searchController.text.toLowerCase()) ||
+              .toString()
+              .toLowerCase()
+              .contains(_searchController.text.toLowerCase()) ||
           item['id']
               .toString()
               .toLowerCase()
               .contains(_searchController.text.toLowerCase());
-      
-      final matchesCategory = _selectedCategory == 'Todos' || 
-          item['category'] == _selectedCategory;
-      
-      final matchesStatus = _selectedStatus == 'Todos' || 
-          item['status'] == _selectedStatus;
-
+      final matchesCategory = _selectedCategory == 'Todos' || item['category'] == _selectedCategory;
+      final matchesStatus = _selectedStatus == 'Todos' || item['status'] == _selectedStatus;
       return matchesSearch && matchesCategory && matchesStatus;
     }).toList();
   }
@@ -78,132 +78,119 @@ class _InventoryCheckScreenState extends State<InventoryCheckScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: const SenaAppBar(title: 'Verificación de Inventario'),
-      body: Column(
-        children: [
-          // Filtros
-          Container(
-            padding: const EdgeInsets.all(16.0),
-            color: AppColors.grey100,
-            child: Column(
+      body: _isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : Column(
               children: [
-                // Barra de búsqueda
-                TextField(
-                  controller: _searchController,
-                  decoration: const InputDecoration(
-                    hintText: 'Buscar por nombre o código...',
-                    prefixIcon: Icon(Icons.search),
-                    border: OutlineInputBorder(),
-                    filled: true,
-                    fillColor: Colors.white,
+                Container(
+                  padding: const EdgeInsets.all(16.0),
+                  color: AppColors.grey100,
+                  child: Column(
+                    children: [
+                      TextField(
+                        controller: _searchController,
+                        decoration: const InputDecoration(
+                          hintText: 'Buscar por nombre o código...',
+                          prefixIcon: Icon(Icons.search),
+                          border: OutlineInputBorder(),
+                          filled: true,
+                          fillColor: Colors.white,
+                        ),
+                        onChanged: (value) => setState(() {}),
+                      ),
+                      const SizedBox(height: 16),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: DropdownButtonFormField<String>(
+                              value: _selectedCategory,
+                              decoration: const InputDecoration(
+                                labelText: 'Categoría',
+                                border: OutlineInputBorder(),
+                                filled: true,
+                                fillColor: Colors.white,
+                              ),
+                              items: [
+                                'Todos',
+                                'computer',
+                                'projector',
+                                'keyboard',
+                                'mouse',
+                                'tv',
+                                'camera',
+                                'microphone',
+                                'tablet',
+                                'other',
+                              ].map((category) {
+                                return DropdownMenuItem(
+                                  value: category,
+                                  child: Text(category),
+                                );
+                              }).toList(),
+                              onChanged: (value) {
+                                setState(() {
+                                  _selectedCategory = value!;
+                                });
+                              },
+                            ),
+                          ),
+                          const SizedBox(width: 16),
+                          Expanded(
+                            child: DropdownButtonFormField<String>(
+                              value: _selectedStatus,
+                              decoration: const InputDecoration(
+                                labelText: 'Estado',
+                                border: OutlineInputBorder(),
+                                filled: true,
+                                fillColor: Colors.white,
+                              ),
+                              items: [
+                                'Todos',
+                                'available',
+                                'in_use',
+                                'maintenance',
+                                'damaged',
+                                'lost',
+                              ].map((status) {
+                                return DropdownMenuItem(
+                                  value: status,
+                                  child: Text(status),
+                                );
+                              }).toList(),
+                              onChanged: (value) {
+                                setState(() {
+                                  _selectedStatus = value!;
+                                });
+                              },
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
                   ),
-                  onChanged: (value) => setState(() {}),
                 ),
-                const SizedBox(height: 16),
-                
-                // Filtros por categoría y estado
-                Row(
-                  children: [
-                    Expanded(
-                      child: DropdownButtonFormField<String>(
-                        value: _selectedCategory,
-                        decoration: const InputDecoration(
-                          labelText: 'Categoría',
-                          border: OutlineInputBorder(),
-                          filled: true,
-                          fillColor: Colors.white,
-                        ),
-                        items: [
-                          'Todos',
-                          'Equipos de Cómputo',
-                          'Audiovisuales',
-                          'Herramientas',
-                          'Laboratorio',
-                        ].map((category) {
-                          return DropdownMenuItem(
-                            value: category,
-                            child: Text(category),
-                          );
-                        }).toList(),
-                        onChanged: (value) {
-                          setState(() {
-                            _selectedCategory = value!;
-                          });
-                        },
-                      ),
-                    ),
-                    const SizedBox(width: 16),
-                    Expanded(
-                      child: DropdownButtonFormField<String>(
-                        value: _selectedStatus,
-                        decoration: const InputDecoration(
-                          labelText: 'Estado',
-                          border: OutlineInputBorder(),
-                          filled: true,
-                          fillColor: Colors.white,
-                        ),
-                        items: [
-                          'Todos',
-                          'Disponible',
-                          'En Préstamo',
-                          'Mantenimiento',
-                        ].map((status) {
-                          return DropdownMenuItem(
-                            value: status,
-                            child: Text(status),
-                          );
-                        }).toList(),
-                        onChanged: (value) {
-                          setState(() {
-                            _selectedStatus = value!;
-                          });
-                        },
-                      ),
-                    ),
-                  ],
+                Expanded(
+                  child: ListView.builder(
+                    padding: const EdgeInsets.all(16.0),
+                    itemCount: _filteredItems.length,
+                    itemBuilder: (context, index) {
+                      final item = _filteredItems[index];
+                      return _buildItemCard(item);
+                    },
+                  ),
                 ),
               ],
             ),
-          ),
-          
-          // Lista de items
-          Expanded(
-            child: ListView.builder(
-              padding: const EdgeInsets.all(16.0),
-              itemCount: _filteredItems.length,
-              itemBuilder: (context, index) {
-                final item = _filteredItems[index];
-                return _buildItemCard(item);
-              },
-            ),
-          ),
-        ],
-      ),
       floatingActionButton: FloatingActionButton(
-        onPressed: () {
-          _showAddItemDialog(context);
-        },
+        onPressed: _showCheckDialog,
         backgroundColor: AppColors.primary,
-        child: const Icon(Icons.add, color: Colors.white),
+        child: const Icon(Icons.check, color: Colors.white),
       ),
     );
   }
 
   Widget _buildItemCard(Map<String, dynamic> item) {
-    Color statusColor;
-    switch (item['status']) {
-      case 'Disponible':
-        statusColor = AppColors.success;
-        break;
-      case 'En Préstamo':
-        statusColor = AppColors.warning;
-        break;
-      case 'Mantenimiento':
-        statusColor = AppColors.error;
-        break;
-      default:
-        statusColor = AppColors.grey500;
-    }
-
+    Color statusColor = getStatusColor(item['status']);
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
       child: Padding(
@@ -224,7 +211,6 @@ class _InventoryCheckScreenState extends State<InventoryCheckScreen> {
                           fontWeight: FontWeight.bold,
                         ),
                       ),
-                      const SizedBox(height: 4),
                       Text(
                         'ID: ${item['id']}',
                         style: const TextStyle(
@@ -236,10 +222,7 @@ class _InventoryCheckScreenState extends State<InventoryCheckScreen> {
                   ),
                 ),
                 Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 12,
-                    vertical: 6,
-                  ),
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                   decoration: BoxDecoration(
                     color: statusColor.withOpacity(0.1),
                     borderRadius: BorderRadius.circular(20),
@@ -257,7 +240,6 @@ class _InventoryCheckScreenState extends State<InventoryCheckScreen> {
               ],
             ),
             const SizedBox(height: 12),
-            
             Row(
               children: [
                 Expanded(
@@ -271,33 +253,31 @@ class _InventoryCheckScreenState extends State<InventoryCheckScreen> {
                   child: _buildInfoItem(
                     Icons.location_on,
                     'Ubicación',
-                    item['location'],
+                    item['environment_id'] ?? 'N/A',
                   ),
                 ),
               ],
             ),
             const SizedBox(height: 8),
-            
             Row(
               children: [
                 Expanded(
                   child: _buildInfoItem(
                     Icons.calendar_today,
                     'Última Verificación',
-                    item['lastCheck'],
+                    item['updated_at'] ?? 'N/A',
                   ),
                 ),
                 Expanded(
                   child: _buildInfoItem(
                     Icons.star,
                     'Condición',
-                    item['condition'],
+                    item['status'],
                   ),
                 ),
               ],
             ),
             const SizedBox(height: 16),
-            
             Row(
               children: [
                 Expanded(
@@ -321,6 +301,21 @@ class _InventoryCheckScreenState extends State<InventoryCheckScreen> {
         ),
       ),
     );
+  }
+
+  Color getStatusColor(String status) {
+    switch (status.toLowerCase()) {
+      case 'available':
+        return AppColors.success;
+      case 'in_use':
+        return AppColors.warning;
+      case 'maintenance':
+        return AppColors.error;
+      case 'damaged':
+        return AppColors.error;
+      default:
+        return AppColors.grey500;
+    }
   }
 
   Widget _buildInfoItem(IconData icon, String label, String value) {
@@ -365,9 +360,7 @@ class _InventoryCheckScreenState extends State<InventoryCheckScreen> {
             Text('ID: ${item['id']}'),
             Text('Categoría: ${item['category']}'),
             Text('Estado: ${item['status']}'),
-            Text('Ubicación: ${item['location']}'),
-            Text('Última Verificación: ${item['lastCheck']}'),
-            Text('Condición: ${item['condition']}'),
+            Text('Última Verificación: ${item['updated_at'] ?? 'N/A'}'),
           ],
         ),
         actions: [
@@ -380,39 +373,141 @@ class _InventoryCheckScreenState extends State<InventoryCheckScreen> {
     );
   }
 
-  void _updateItemStatus(Map<String, dynamic> item) {
-    // Implementar actualización de estado
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('Estado de ${item['name']} actualizado'),
-        backgroundColor: AppColors.success,
-      ),
-    );
-  }
+  void _updateItemStatus(Map<String, dynamic> item) async {
+    // Mostrar diálogo para actualizar el estado
+    String? newStatus;
+    int quantityFound = item['quantity'] ?? 1;
+    int quantityDamaged = 0;
+    int quantityMissing = 0;
+    String notes = '';
 
-  void _showAddItemDialog(BuildContext context) {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Agregar Nuevo Item'),
-        content: const Text('Funcionalidad para agregar nuevos items al inventario.'),
+        title: Text('Actualizar ${item['name']}'),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              DropdownButtonFormField<String>(
+                decoration: const InputDecoration(
+                  labelText: 'Estado',
+                  border: OutlineInputBorder(),
+                ),
+                value: item['status'],
+                items: ['good', 'damaged', 'missing'].map((status) {
+                  return DropdownMenuItem(
+                    value: status,
+                    child: Text(status),
+                  );
+                }).toList(),
+                onChanged: (value) {
+                  newStatus = value;
+                },
+              ),
+              const SizedBox(height: 16),
+              TextField(
+                decoration: const InputDecoration(
+                  labelText: 'Cantidad Encontrada',
+                  border: OutlineInputBorder(),
+                ),
+                keyboardType: TextInputType.number,
+                onChanged: (value) {
+                  quantityFound = int.tryParse(value) ?? 1;
+                },
+              ),
+              const SizedBox(height: 16),
+              TextField(
+                decoration: const InputDecoration(
+                  labelText: 'Cantidad Dañada',
+                  border: OutlineInputBorder(),
+                ),
+                keyboardType: TextInputType.number,
+                onChanged: (value) {
+                  quantityDamaged = int.tryParse(value) ?? 0;
+                },
+              ),
+              const SizedBox(height: 16),
+              TextField(
+                decoration: const InputDecoration(
+                  labelText: 'Cantidad Faltante',
+                  border: OutlineInputBorder(),
+                ),
+                keyboardType: TextInputType.number,
+                onChanged: (value) {
+                  quantityMissing = int.tryParse(value) ?? 0;
+                },
+              ),
+              const SizedBox(height: 16),
+              TextField(
+                decoration: const InputDecoration(
+                  labelText: 'Notas',
+                  border: OutlineInputBorder(),
+                ),
+                maxLines: 3,
+                onChanged: (value) {
+                  notes = value;
+                },
+              ),
+            ],
+          ),
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
             child: const Text('Cancelar'),
           ),
           ElevatedButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Agregar'),
+            onPressed: () async {
+              try {
+                final authProvider = Provider.of<AuthProvider>(context, listen: false);
+                final response = await _apiService.post(
+                  '/api/inventory-checks',
+                  {
+                    'environment_id': authProvider.currentUser!.environmentId,
+                    'student_id': authProvider.currentUser!.id, // O instructor_id según el rol
+                    'items': [
+                      {
+                        'item_id': item['id'],
+                        'status': newStatus ?? item['status'],
+                        'quantity_expected': item['quantity'] ?? 1,
+                        'quantity_found': quantityFound,
+                        'quantity_damaged': quantityDamaged,
+                        'quantity_missing': quantityMissing,
+                        'notes': notes,
+                      }
+                    ],
+                  },
+                );
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(content: Text('Estado actualizado: ${response['status']}')),
+                );
+                Navigator.pop(context);
+                _fetchItems(); // Refrescar la lista
+              } catch (e) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(content: Text('Error al actualizar: $e')),
+                );
+              }
+            },
+            child: const Text('Actualizar'),
           ),
         ],
       ),
     );
   }
 
+  void _showCheckDialog() {
+    // Implementar diálogo para verificación masiva si es necesario
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Funcionalidad de verificación masiva en desarrollo')),
+    );
+  }
+
   @override
   void dispose() {
     _searchController.dispose();
+    _apiService.dispose();
     super.dispose();
   }
 }

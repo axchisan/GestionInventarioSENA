@@ -1,15 +1,86 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
+import '../../../core/services/api_service.dart';
 import '../../../core/theme/app_colors.dart';
-import '../../providers/auth_provider.dart';
+import '../../../core/constants/api_constants.dart';
+import '../../../presentation/providers/auth_provider.dart';
 import '../../widgets/common/sena_app_bar.dart';
 
-class InstructorDashboard extends StatelessWidget {
+class InstructorDashboard extends StatefulWidget {
   const InstructorDashboard({super.key});
 
   @override
+  State<InstructorDashboard> createState() => _InstructorDashboardState();
+}
+
+class _InstructorDashboardState extends State<InstructorDashboard> {
+  final ApiService _apiService = ApiService();
+  Map<String, dynamic>? _environment;
+  Map<String, dynamic>? _inventoryStats;
+
+  @override
+  void initState() {
+    super.initState();
+    _fetchEnvironment();
+    _fetchInventoryStats();
+  }
+
+  Future<void> _fetchEnvironment() async {
+    final authProvider = Provider.of<AuthProvider>(context, listen: false);
+    final user = authProvider.currentUser;
+    if (user?.environmentId != null) {
+      try {
+        final environment = await _apiService.getSingle(
+          '$environmentsEndpoint${user!.environmentId}',
+        );
+        setState(() {
+          _environment = environment;
+        });
+      } catch (e) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error al cargar ambiente: $e')),
+        );
+      }
+    }
+  }
+
+  Future<void> _fetchInventoryStats() async {
+    final authProvider = Provider.of<AuthProvider>(context, listen: false);
+    final user = authProvider.currentUser;
+    if (user?.environmentId != null) {
+      try {
+        final items = await _apiService.get(
+          inventoryEndpoint,
+          queryParams: {'environment_id': ?user!.environmentId},
+        );
+        setState(() {
+          _inventoryStats = {
+            'total': items.length,
+            'available': items.where((item) => item['status'] == 'available').length,
+            'in_use': items.where((item) => item['status'] == 'in_use').length,
+            'maintenance': items.where((item) => item['status'] == 'maintenance').length,
+          };
+        });
+      } catch (e) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error al cargar estadísticas: $e')),
+        );
+      }
+    }
+  }
+
+  @override
+  void dispose() {
+    _apiService.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final authProvider = Provider.of<AuthProvider>(context);
+    final user = authProvider.currentUser;
+
     return Scaffold(
       appBar: const SenaAppBar(
         title: 'Panel de Instructor',
@@ -43,22 +114,24 @@ class InstructorDashboard extends StatelessWidget {
                       ),
                     ),
                     const SizedBox(width: 16),
-                    const Expanded(
+                    Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            '¡Bienvenido, Instructor!',
-                            style: TextStyle(
+                            '¡Bienvenido, ${user?.firstName ?? 'Instructor'}!',
+                            style: const TextStyle(
                               fontSize: 20,
                               fontWeight: FontWeight.bold,
                               color: AppColors.secondary,
                             ),
                           ),
-                          SizedBox(height: 4),
+                          const SizedBox(height: 4),
                           Text(
-                            'Gestiona el inventario de tu ambiente y supervisa préstamos',
-                            style: TextStyle(
+                            _environment != null
+                                ? 'Ambiente: ${_environment!['name']} (${_environment!['location']})'
+                                : 'Escanea un QR para vincular un ambiente',
+                            style: const TextStyle(
                               color: AppColors.grey600,
                               fontSize: 14,
                             ),
@@ -71,7 +144,6 @@ class InstructorDashboard extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 24),
-
             const Text(
               'Mi Ambiente de Formación',
               style: TextStyle(
@@ -80,51 +152,57 @@ class InstructorDashboard extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 12),
-            Row(
-              children: [
-                Expanded(
-                  child: _buildStatCard(
-                    'Equipos Totales',
-                    '45',
-                    Icons.inventory,
-                    AppColors.secondary,
+            if (_inventoryStats != null) ...[
+              Row(
+                children: [
+                  Expanded(
+                    child: _buildStatCard(
+                      'Equipos Totales',
+                      _inventoryStats!['total'].toString(),
+                      Icons.inventory,
+                      AppColors.secondary,
+                    ),
                   ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: _buildStatCard(
-                    'En Préstamo',
-                    '12',
-                    Icons.assignment,
-                    AppColors.warning,
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: _buildStatCard(
+                      'En Préstamo',
+                      _inventoryStats!['in_use'].toString(),
+                      Icons.assignment,
+                      AppColors.warning,
+                    ),
                   ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            Row(
-              children: [
-                Expanded(
-                  child: _buildStatCard(
-                    'Disponibles',
-                    '33',
-                    Icons.check_circle,
-                    AppColors.success,
+                ],
+              ),
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  Expanded(
+                    child: _buildStatCard(
+                      'Disponibles',
+                      _inventoryStats!['available'].toString(),
+                      Icons.check_circle,
+                      AppColors.success,
+                    ),
                   ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: _buildStatCard(
-                    'Mantenimiento',
-                    '2',
-                    Icons.build,
-                    AppColors.error,
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: _buildStatCard(
+                      'Mantenimiento',
+                      _inventoryStats!['maintenance'].toString(),
+                      Icons.build,
+                      AppColors.error,
+                    ),
                   ),
-                ),
-              ],
-            ),
+                ],
+              ),
+            ] else ...[
+              const Text(
+                'Vincula un ambiente para ver estadísticas',
+                style: TextStyle(color: AppColors.grey600),
+              ),
+            ],
             const SizedBox(height: 24),
-
             const Text(
               'Gestión de Ambiente',
               style: TextStyle(
@@ -133,7 +211,6 @@ class InstructorDashboard extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 12),
-            
             GridView.count(
               shrinkWrap: true,
               physics: const NeverScrollableScrollPhysics(),
@@ -157,6 +234,14 @@ class InstructorDashboard extends StatelessWidget {
                   Icons.qr_code_scanner,
                   AppColors.primary,
                   '/qr-scan',
+                ),
+                _buildActionCard(
+                  context,
+                  'Generar QR',
+                  'Crea códigos QR para equipos',
+                  Icons.qr_code,
+                  AppColors.accent,
+                  '/qr-generate',
                 ),
                 _buildActionCard(
                   context,
@@ -188,7 +273,15 @@ class InstructorDashboard extends StatelessWidget {
                   'Vista general del ambiente',
                   Icons.location_on,
                   AppColors.success,
-                  '/environment-overview',
+                  _environment != null
+                      ? '/environment-overview'
+                      : '/qr-scan',
+                  extra: _environment != null
+                      ? {
+                          'environmentId': _environment!['id'],
+                          'environmentName': _environment!['name'],
+                        }
+                      : null,
                 ),
                 _buildActionCard(
                   context,
@@ -209,7 +302,6 @@ class InstructorDashboard extends StatelessWidget {
               ],
             ),
             const SizedBox(height: 24),
-
             Card(
               child: Padding(
                 padding: const EdgeInsets.all(16.0),
@@ -279,11 +371,12 @@ class InstructorDashboard extends StatelessWidget {
     String subtitle,
     IconData icon,
     Color color,
-    String route,
-  ) {
+    String route, {
+    Map<String, dynamic>? extra,
+  }) {
     return Card(
       child: InkWell(
-        onTap: () => context.push(route),
+        onTap: () => context.push(route, extra: extra),
         borderRadius: BorderRadius.circular(12),
         child: Padding(
           padding: const EdgeInsets.all(16.0),
@@ -357,6 +450,9 @@ class InstructorDashboard extends StatelessWidget {
   }
 
   Widget _buildDrawer(BuildContext context) {
+    final authProvider = Provider.of<AuthProvider>(context);
+    final user = authProvider.currentUser;
+
     return Drawer(
       child: ListView(
         padding: EdgeInsets.zero,
@@ -386,17 +482,17 @@ class InstructorDashboard extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(height: 16),
-                const Text(
+                Text(
                   'Panel de Instructor',
-                  style: TextStyle(
+                  style: const TextStyle(
                     color: Colors.white,
                     fontSize: 18,
                     fontWeight: FontWeight.bold,
                   ),
                 ),
-                const Text(
-                  'instructor@sena.edu.co',
-                  style: TextStyle(
+                Text(
+                  user?.email ?? 'instructor@sena.edu.co',
+                  style: const TextStyle(
                     color: Colors.white70,
                     fontSize: 14,
                   ),
@@ -427,7 +523,15 @@ class InstructorDashboard extends StatelessWidget {
           ListTile(
             leading: const Icon(Icons.location_on),
             title: const Text('Mi Ambiente'),
-            onTap: () => context.push('/environment-overview'),
+            onTap: () => context.push(
+              '/environment-overview',
+              extra: _environment != null
+                  ? {
+                      'environmentId': _environment!['id'],
+                      'environmentName': _environment!['name'],
+                    }
+                  : null,
+            ),
           ),
           ListTile(
             leading: const Icon(Icons.schedule),
