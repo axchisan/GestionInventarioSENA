@@ -1,17 +1,34 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
-from typing import List
+from typing import List, Optional
 from uuid import UUID
 
 from ..database import get_db
 from ..models.inventory_items import InventoryItem
-from ..schemas.inventory_item import InventoryItemResponse  # Necesitaremos crear este esquema
+from ..schemas.inventory_item import InventoryItemResponse
+from ..routers.auth import get_current_user
+from ..models.users import User
 
 router = APIRouter(tags=["inventory"])
 
 @router.get("/", response_model=List[InventoryItemResponse])
-def get_inventory_items(db: Session = Depends(get_db), search: str = ""):
+def get_inventory_items(
+    db: Session = Depends(get_db),
+    search: str = "",
+    environment_id: Optional[UUID] = None,
+    current_user: User = Depends(get_current_user)
+):
     query = db.query(InventoryItem).filter(InventoryItem.status != "lost")
+    if environment_id:
+        query = query.filter(InventoryItem.environment_id == environment_id)
+    elif current_user.environment_id:
+        query = query.filter(InventoryItem.environment_id == current_user.environment_id)
+    else:
+        raise HTTPException(
+            status_code=400,
+            detail="No se ha vinculado un ambiente al usuario"
+        )
+
     if search:
         search = search.lower()
         query = query.filter(

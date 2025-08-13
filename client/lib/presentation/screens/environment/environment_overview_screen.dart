@@ -47,15 +47,20 @@ class _EnvironmentOverviewScreenState extends State<EnvironmentOverviewScreen>
       final authProvider = Provider.of<AuthProvider>(context, listen: false);
       print(
         'Fetching data for environment: ${widget.environmentId}, Token: ${authProvider.token}',
-      ); // Log para depuración
+      );
+
+      // Solo incluir environment_id si es válido
+      final queryParams = widget.environmentId.isNotEmpty
+          ? {'environment_id': widget.environmentId}
+          : null;
 
       final inventory = await _apiService.get(
         inventoryEndpoint,
-        queryParams: {'environment_id': widget.environmentId},
+        queryParams: queryParams,
       );
       final schedule = await _apiService.get(
-        '/api/schedules/', // Asegurarse de usar la barra final
-        queryParams: {'environment_id': widget.environmentId},
+        '/api/schedules/',
+        queryParams: queryParams,
       );
       setState(() {
         _inventory = inventory;
@@ -73,7 +78,7 @@ class _EnvironmentOverviewScreenState extends State<EnvironmentOverviewScreen>
         _isLoading = false;
       });
     } catch (e) {
-      print('Error fetching data: $e'); // Log para depuración
+      print('Error fetching data: $e');
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(SnackBar(content: Text('Error al cargar datos: $e')));

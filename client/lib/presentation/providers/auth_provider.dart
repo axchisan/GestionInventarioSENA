@@ -40,7 +40,9 @@ class AuthProvider extends ChangeNotifier {
         final data = jsonDecode(response.body);
         if (data.containsKey('access_token') && data.containsKey('user')) {
           _token = data['access_token'];
-          _currentUser = UserModel.fromJson(data['user'] as Map<String, dynamic>);
+          _currentUser = UserModel.fromJson(
+            data['user'] as Map<String, dynamic>,
+          );
           _isAuthenticated = true;
 
           final expiresAt = JwtDecoder.decode(_token!)['exp'] * 1000;
@@ -120,11 +122,31 @@ class AuthProvider extends ChangeNotifier {
         final userData = await SessionService.getUser();
         final token = await SessionService.getAccessToken();
         if (userData != null && token != null) {
-          _currentUser = UserModel.fromJson(userData);
-          _token = token;
-          _isAuthenticated = true;
-          notifyListeners();
-          return true;
+          // Actualizar datos del usuario desde el backend
+          final response = await http.get(
+            Uri.parse('$baseUrl/api/auth/me'),
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': 'Bearer $token',
+            },
+          );
+          if (response.statusCode == 200) {
+            final updatedUserData = jsonDecode(response.body);
+            _currentUser = UserModel.fromJson(updatedUserData);
+            _token = token;
+            _isAuthenticated = true;
+
+            // Actualizar sesión con los nuevos datos
+            final expiresAt = JwtDecoder.decode(token)['exp'] * 1000;
+            await SessionService.saveSession(
+              token: token,
+              role: _currentUser!.role ?? 'unknown',
+              user: updatedUserData,
+              expiresAt: expiresAt,
+            );
+            notifyListeners();
+            return true;
+          }
         }
       }
       _currentUser = null;
@@ -132,7 +154,8 @@ class AuthProvider extends ChangeNotifier {
       _isAuthenticated = false;
       notifyListeners();
       return false;
-    } catch (_) {
+    } catch (e) {
+      print('Error checking session: $e');
       _currentUser = null;
       _token = null;
       _isAuthenticated = false;
