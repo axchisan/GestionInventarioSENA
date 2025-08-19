@@ -119,10 +119,9 @@ class AuthProvider extends ChangeNotifier {
     try {
       final hasValidSession = await SessionService.hasValidSession();
       if (hasValidSession) {
-        final userData = await SessionService.getUser();
         final token = await SessionService.getAccessToken();
-        if (userData != null && token != null) {
-          // Actualizar datos del usuario desde el backend
+        if (token != null) {
+          // Llamar a /me para datos frescos
           final response = await http.get(
             Uri.parse('$baseUrl/api/auth/me'),
             headers: {
@@ -132,16 +131,19 @@ class AuthProvider extends ChangeNotifier {
           );
           if (response.statusCode == 200) {
             final updatedUserData = jsonDecode(response.body);
+            print(
+              'Datos de /me: $updatedUserData',
+            ); // Log para verificar keys como 'environment_id'
             _currentUser = UserModel.fromJson(updatedUserData);
             _token = token;
             _isAuthenticated = true;
 
-            // Actualizar sesión con los nuevos datos
+            // Guardar actualizado
             final expiresAt = JwtDecoder.decode(token)['exp'] * 1000;
             await SessionService.saveSession(
               token: token,
               role: _currentUser!.role ?? 'unknown',
-              user: updatedUserData,
+              user: updatedUserData, // JSON crudo
               expiresAt: expiresAt,
             );
             notifyListeners();
