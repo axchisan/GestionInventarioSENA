@@ -6,7 +6,6 @@ from datetime import datetime
 from uuid import UUID
 import hashlib
 import json
-import logging
 from jose import jwt, JWTError
 
 from ..database import get_db
@@ -19,22 +18,13 @@ from ..config import settings
 
 router = APIRouter(tags=["qr"])
 
-# Configurar logging
-logging.basicConfig(level=logging.DEBUG)
-logger = logging.getLogger(__name__)
-
 def compute_signature(type: str, id: str, code: str, ts: int) -> str:
     raw = f"{type}:{id}:{code}:{ts}:{settings.SECRET_KEY}"
-    logger.debug(f"Computing signature with raw string: {raw}")
-    signature = hashlib.sha256(raw.encode()).hexdigest()
-    logger.debug(f"Generated signature: {signature}")
-    return signature
+    return hashlib.sha256(raw.encode()).hexdigest()
 
 def validate_signature(type: str, id: str, code: str, ts: int, sig: str) -> bool:
     raw = f"{type}:{id}:{code}:{ts}:{settings.SECRET_KEY}"
-    logger.debug(f"Validating signature with raw string: {raw}")
     expected_sig = hashlib.sha256(raw.encode()).hexdigest()
-    logger.debug(f"Expected signature: {expected_sig}, Received signature: {sig}")
     return sig == expected_sig
 
 @router.get("/generate/{entity_type}/{entity_id}")
@@ -56,7 +46,7 @@ def generate_qr(
         payload["code"] = entity.qr_code
         payload["name"] = entity.name
         payload["location"] = entity.location
-    else:  # item
+    else:
         entity = db.query(InventoryItem).filter(
             InventoryItem.id == entity_id,
             InventoryItem.status != "lost"
@@ -87,7 +77,6 @@ async def scan_qr(
 ):
     try:
         qr_payload = json.loads(request.qr_data)
-        logger.debug(f"QR payload received: {qr_payload}")
         if qr_payload.get("v") != 1:
             raise HTTPException(status_code=400, detail="Versión de QR no soportada")
 
@@ -113,11 +102,8 @@ async def scan_qr(
         if not environment:
             raise HTTPException(status_code=404, detail="Ambiente no encontrado")
 
-        # Decodificar el token para obtener el user_id
         try:
             payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
-            logger.debug(f"Token recibido: {token}")
-            logger.debug(f"Payload decodificado: {payload}")
             user_id: str = payload.get("sub")
             if user_id is None:
                 raise HTTPException(
@@ -132,19 +118,16 @@ async def scan_qr(
                 headers={"WWW-Authenticate": "Bearer"},
             )
 
-        # Obtener el usuario desde la base de datos
         current_user = db.query(User).filter(User.id == UUID(user_id)).first()
         if not current_user:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Usuario no encontrado")
 
-        # Verificar permisos
         if current_user.role not in ["instructor", "student", "supervisor"]:
             raise HTTPException(
                 status_code=403,
                 detail="Rol no autorizado para vincular ambientes"
             )
 
-        # Actualizar el environment_id del usuario
         current_user.environment_id = environment.id
         current_user.updated_at = datetime.utcnow()
         db.commit()

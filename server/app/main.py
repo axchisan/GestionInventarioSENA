@@ -8,7 +8,7 @@ app = FastAPI(title="Sistema de Gestión de Inventarios SENA")
 # Configuración de CORS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Ajustar en producción
+    allow_origins=["*"],  
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

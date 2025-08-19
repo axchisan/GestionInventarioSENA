@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:jwt_decoder/jwt_decoder.dart';
 import '../../core/constants/api_constants.dart';
-import '../../core/constants/api_constants.dart' as APIConstants;
 import '../../core/services/session_service.dart';
 import '../../data/models/user_model.dart';
 
@@ -40,9 +39,7 @@ class AuthProvider extends ChangeNotifier {
         final data = jsonDecode(response.body);
         if (data.containsKey('access_token') && data.containsKey('user')) {
           _token = data['access_token'];
-          _currentUser = UserModel.fromJson(
-            data['user'] as Map<String, dynamic>,
-          );
+          _currentUser = UserModel.fromJson(data['user'] as Map<String, dynamic>);
           _isAuthenticated = true;
 
           final expiresAt = JwtDecoder.decode(_token!)['exp'] * 1000;
@@ -121,7 +118,6 @@ class AuthProvider extends ChangeNotifier {
       if (hasValidSession) {
         final token = await SessionService.getAccessToken();
         if (token != null) {
-          // Llamar a /me para datos frescos
           final response = await http.get(
             Uri.parse('$baseUrl/api/auth/me'),
             headers: {
@@ -131,19 +127,15 @@ class AuthProvider extends ChangeNotifier {
           );
           if (response.statusCode == 200) {
             final updatedUserData = jsonDecode(response.body);
-            print(
-              'Datos de /me: $updatedUserData',
-            ); // Log para verificar keys como 'environment_id'
             _currentUser = UserModel.fromJson(updatedUserData);
             _token = token;
             _isAuthenticated = true;
 
-            // Guardar actualizado
             final expiresAt = JwtDecoder.decode(token)['exp'] * 1000;
             await SessionService.saveSession(
               token: token,
               role: _currentUser!.role ?? 'unknown',
-              user: updatedUserData, // JSON crudo
+              user: updatedUserData,
               expiresAt: expiresAt,
             );
             notifyListeners();
@@ -157,7 +149,6 @@ class AuthProvider extends ChangeNotifier {
       notifyListeners();
       return false;
     } catch (e) {
-      print('Error checking session: $e');
       _currentUser = null;
       _token = null;
       _isAuthenticated = false;

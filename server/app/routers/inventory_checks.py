@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
-from datetime import datetime, date, time
+from datetime import datetime, date
 from uuid import UUID
 from typing import List
 
@@ -35,14 +35,12 @@ async def create_inventory_check(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    # Verificar permisos
     if current_user.role not in ["instructor", "student", "supervisor"]:
         raise HTTPException(
             status_code=403,
             detail="Rol no autorizado para verificar inventario"
         )
 
-    # Verificar ambiente
     environment = db.query(Environment).filter(
         Environment.id == request.environment_id,
         Environment.is_active == True
@@ -50,7 +48,6 @@ async def create_inventory_check(
     if not environment:
         raise HTTPException(status_code=404, detail="Ambiente no encontrado")
 
-    # Verificar estudiante
     student = db.query(User).filter(
         User.id == request.student_id,
         User.role == "student"
@@ -58,7 +55,6 @@ async def create_inventory_check(
     if not student:
         raise HTTPException(status_code=404, detail="Estudiante no encontrado")
 
-    # Crear registro de verificación
     inventory_check = InventoryCheck(
         environment_id=request.environment_id,
         student_id=request.student_id,
@@ -74,13 +70,11 @@ async def create_inventory_check(
     db.commit()
     db.refresh(inventory_check)
 
-    # Procesar ítems
     items_good = 0
     items_damaged = 0
     items_missing = 0
 
     for item_request in request.items:
-        # Verificar ítem
         inventory_item = db.query(InventoryItem).filter(
             InventoryItem.id == item_request.item_id,
             InventoryItem.environment_id == request.environment_id
@@ -91,7 +85,6 @@ async def create_inventory_check(
                 detail=f"Ítem {item_request.item_id} no encontrado en el ambiente"
             )
 
-        # Crear registro de ítem verificado
         check_item = InventoryCheckItem(
             check_id=inventory_check.id,
             item_id=item_request.item_id,
@@ -104,7 +97,6 @@ async def create_inventory_check(
         )
         db.add(check_item)
 
-        # Actualizar contadores
         if item_request.status == "good":
             items_good += item_request.quantity_found
         elif item_request.status == "damaged":
@@ -112,7 +104,6 @@ async def create_inventory_check(
         elif item_request.status == "missing":
             items_missing += item_request.quantity_missing
 
-    # Actualizar estado del chequeo
     inventory_check.items_good = items_good
     inventory_check.items_damaged = items_damaged
     inventory_check.items_missing = items_missing

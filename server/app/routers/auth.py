@@ -51,21 +51,17 @@ async def register(user_create: UserCreate, db: Session = Depends(get_db)):
 
 @router.get("/me")
 async def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)):
-    print(f"Token recibido: {token}")  # Log para depuración
     try:
         payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
-        print(f"Payload decodificado: {payload}")  # Log para depuración
         user_id: str = payload.get("sub")
         role: str = payload.get("role")
         if user_id is None or role is None:
-            print("Error: user_id o role no encontrados en el payload")
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Token inválido",
                 headers={"WWW-Authenticate": "Bearer"},
             )
-    except JWTError as e:
-        print(f"JWTError: {str(e)}")  # Log para depuración
+    except JWTError:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Token inválido o expirado",
@@ -74,7 +70,6 @@ async def get_current_user(token: str = Depends(oauth2_scheme), db: Session = De
 
     user = db.query(User).filter(User.id == uuid.UUID(user_id)).first()
     if user is None:
-        print(f"Usuario no encontrado para user_id: {user_id}")
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Usuario no encontrado")
     
     return UserResponse.from_orm(user)
