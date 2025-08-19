@@ -36,7 +36,7 @@ class SessionService {
 
     final isExpired = JwtDecoder.isExpired(token);
     if (isExpired) {
-      await clear(); // Limpiar sesión si el token expiró
+      await clear();
       return false;
     }
     return true;

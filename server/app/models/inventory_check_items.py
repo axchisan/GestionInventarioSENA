@@ -14,8 +14,8 @@ class InventoryCheckItem(Base):
     status = Column(String(20), nullable=False)
     quantity_expected = Column(Integer, default=1)
     quantity_found = Column(Integer, default=0)
-    quantity_damaged = Column(Integer, default=0)  # Nuevo
-    quantity_missing = Column(Integer, default=0)  # Nuevo
+    quantity_damaged = Column(Integer, default=0) 
+    quantity_missing = Column(Integer, default=0) 
     notes = Column(Text)
     created_at = Column(TIMESTAMP, server_default=func.current_timestamp())
 

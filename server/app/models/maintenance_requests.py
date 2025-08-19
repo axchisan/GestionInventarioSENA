@@ -21,7 +21,7 @@ class MaintenanceRequest(Base):
     cost = Column(Numeric(10, 2))
     notes = Column(Text)
     images_urls = Column(ARRAY(String))
-    quantity_affected = Column(Integer, default=1)  # Nuevo: Para mantenimiento en grupos
+    quantity_affected = Column(Integer, default=1)  
     created_at = Column(TIMESTAMP, server_default=func.current_timestamp())
     updated_at = Column(TIMESTAMP, server_default=func.current_timestamp())
 

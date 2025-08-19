@@ -5,7 +5,7 @@ from uuid import UUID
 
 from ..database import get_db
 from ..models.environments import Environment
-from ..schemas.environment import EnvironmentResponse  # Necesitaremos crear este esquema
+from ..schemas.environment import EnvironmentResponse
 
 router = APIRouter(tags=["environments"])
 
