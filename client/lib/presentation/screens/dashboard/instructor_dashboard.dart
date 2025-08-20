@@ -15,13 +15,14 @@ class InstructorDashboard extends StatefulWidget {
 }
 
 class _InstructorDashboardState extends State<InstructorDashboard> {
-  final ApiService _apiService = ApiService();
+  late final ApiService _apiService; 
   Map<String, dynamic>? _environment;
   Map<String, dynamic>? _inventoryStats;
 
   @override
   void initState() {
     super.initState();
+    _apiService = ApiService(authProvider: Provider.of<AuthProvider>(context, listen: false));
     _fetchEnvironment();
     _fetchInventoryStats();
   }
@@ -29,44 +30,52 @@ class _InstructorDashboardState extends State<InstructorDashboard> {
   Future<void> _fetchEnvironment() async {
     final authProvider = Provider.of<AuthProvider>(context, listen: false);
     final user = authProvider.currentUser;
-    if (user?.environmentId != null) {
-      try {
-        final environment = await _apiService.getSingle(
-          '$environmentsEndpoint${user!.environmentId}',
-        );
-        setState(() {
-          _environment = environment;
-        });
-      } catch (e) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error al cargar ambiente: $e')),
-        );
-      }
+    if (user?.environmentId == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Vincula un ambiente primero')),
+      );
+      return;
+    }
+    try {
+      final environment = await _apiService.getSingle(
+        '$environmentsEndpoint${user!.environmentId}',
+      );
+      setState(() {
+        _environment = environment;
+      });
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error al cargar ambiente: $e')),
+      );
     }
   }
 
   Future<void> _fetchInventoryStats() async {
     final authProvider = Provider.of<AuthProvider>(context, listen: false);
     final user = authProvider.currentUser;
-    if (user?.environmentId != null) {
-      try {
-        final items = await _apiService.get(
-          inventoryEndpoint,
-          queryParams: {'environment_id': ?user!.environmentId},
-        );
-        setState(() {
-          _inventoryStats = {
-            'total': items.length,
-            'available': items.where((item) => item['status'] == 'available').length,
-            'in_use': items.where((item) => item['status'] == 'in_use').length,
-            'maintenance': items.where((item) => item['status'] == 'maintenance').length,
-          };
-        });
-      } catch (e) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error al cargar estadísticas: $e')),
-        );
-      }
+    if (user?.environmentId == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Vincula un ambiente primero')),
+      );
+      return;
+    }
+    try {
+      final items = await _apiService.get(
+        inventoryEndpoint,
+        queryParams: {'environment_id': ?user!.environmentId},
+      );
+      setState(() {
+        _inventoryStats = {
+          'total': items.length,
+          'available': items.where((item) => item['status'] == 'available').length,
+          'in_use': items.where((item) => item['status'] == 'in_use').length,
+          'maintenance': items.where((item) => item['status'] == 'maintenance').length,
+        };
+      });
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error al cargar estadísticas: $e')),
+      );
     }
   }
 
