@@ -15,7 +15,7 @@ class InventoryCheckScreen extends StatefulWidget {
 
 class _InventoryCheckScreenState extends State<InventoryCheckScreen> {
   final TextEditingController _searchController = TextEditingController();
-  late final ApiService _apiService; // Cambiar a late
+  late final ApiService _apiService; 
   String _selectedCategory = 'Todos';
   String _selectedStatus = 'Todos';
   List<dynamic> _items = [];
@@ -39,14 +39,13 @@ class _InventoryCheckScreenState extends State<InventoryCheckScreen> {
           inventoryEndpoint,
           queryParams: {
             'environment_id': ?user!.environmentId,
-          }, // Corregir sintaxis
+          }, 
         );
         setState(() {
           _items = items;
           _isLoading = false;
         });
       } catch (e) {
-        print('Error fetching items: $e'); // Log para depuración
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Error al cargar inventario: $e')),
         );

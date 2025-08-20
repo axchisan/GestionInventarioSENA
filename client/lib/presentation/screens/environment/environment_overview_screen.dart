@@ -49,7 +49,6 @@ class _EnvironmentOverviewScreenState extends State<EnvironmentOverviewScreen>
         'Fetching data for environment: ${widget.environmentId}, Token: ${authProvider.token}',
       );
 
-      // Solo incluir environment_id si es válido
       final queryParams = widget.environmentId.isNotEmpty
           ? {'environment_id': widget.environmentId}
           : null;
@@ -161,7 +160,7 @@ class _EnvironmentOverviewScreenState extends State<EnvironmentOverviewScreen>
                             child: ClipRRect(
                               borderRadius: BorderRadius.circular(8),
                               child: Image.asset(
-                                'assets/images/sena-logo.png',
+                                'assets/images/sena_logo.png',
                                 fit: BoxFit.contain,
                               ),
                             ),
