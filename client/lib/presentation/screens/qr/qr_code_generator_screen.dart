@@ -5,6 +5,7 @@ import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
+import 'package:provider/provider.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:printing/printing.dart';
@@ -16,6 +17,7 @@ import 'package:flutter/foundation.dart'; // Para kIsWeb
 import '../../../core/constants/api_constants.dart';
 import '../../../core/services/api_service.dart';
 import '../../../core/theme/app_colors.dart';
+import '../../providers/auth_provider.dart';
 
 class QrCodeGeneratorScreen extends StatefulWidget {
   const QrCodeGeneratorScreen({super.key});
@@ -25,7 +27,7 @@ class QrCodeGeneratorScreen extends StatefulWidget {
 }
 
 class _QrCodeGeneratorScreenState extends State<QrCodeGeneratorScreen> {
-  final ApiService _apiService = ApiService();
+  late final ApiService _apiService;
   String _selectedType = 'ambiente'; // 'ambiente' | 'item'
   String _searchQuery = '';
   String? _selectedEnvironmentId;
@@ -39,6 +41,9 @@ class _QrCodeGeneratorScreenState extends State<QrCodeGeneratorScreen> {
   @override
   void initState() {
     super.initState();
+    _apiService = ApiService(
+      authProvider: Provider.of<AuthProvider>(context, listen: false),
+    );
     _fetchEnvironments();
     _fetchItems();
   }
@@ -106,7 +111,8 @@ class _QrCodeGeneratorScreenState extends State<QrCodeGeneratorScreen> {
   Future<Uint8List?> _captureQrPngBytes() async {
     try {
       final boundary =
-          _qrBoundaryKey.currentContext?.findRenderObject() as RenderRepaintBoundary?;
+          _qrBoundaryKey.currentContext?.findRenderObject()
+              as RenderRepaintBoundary?;
       if (boundary == null) {
         _notify('No se pudo capturar el widget QR.');
         return null;
@@ -247,7 +253,10 @@ class _QrCodeGeneratorScreenState extends State<QrCodeGeneratorScreen> {
             const SizedBox(width: 8),
             const Text(
               'Generador de Códigos QR',
-              style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+              style: TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.bold,
+              ),
             ),
           ],
         ),
@@ -558,8 +567,10 @@ class _QrCodeGeneratorScreenState extends State<QrCodeGeneratorScreen> {
           _kv('Tipo', _qrPayload!['type']),
           _kv('ID', _qrPayload!['id']),
           _kv('Código', _qrPayload!['code']),
-          if (_qrPayload!['location'] != null) _kv('Ubicación', _qrPayload!['location']),
-          if (_qrPayload!['category'] != null) _kv('Categoría', _qrPayload!['category']),
+          if (_qrPayload!['location'] != null)
+            _kv('Ubicación', _qrPayload!['location']),
+          if (_qrPayload!['category'] != null)
+            _kv('Categoría', _qrPayload!['category']),
           _kv('Timestamp (seg)', _qrPayload!['ts']?.toString()),
           _kv('Firma (sha256)', _qrPayload!['sig']),
           const SizedBox(height: 8),
