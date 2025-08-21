@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart'; // Para navegación
 import 'package:provider/provider.dart';
 import '../../../core/services/api_service.dart';
 import '../../../core/theme/app_colors.dart';
@@ -15,11 +16,12 @@ class InventoryCheckScreen extends StatefulWidget {
 
 class _InventoryCheckScreenState extends State<InventoryCheckScreen> {
   final TextEditingController _searchController = TextEditingController();
-  late final ApiService _apiService; 
+  late final ApiService _apiService;
   String _selectedCategory = 'Todos';
   String _selectedStatus = 'Todos';
   List<dynamic> _items = [];
   bool _isLoading = true;
+  bool _hasCheckedToday = false; // Para verificar check diario
 
   @override
   void initState() {
@@ -33,27 +35,7 @@ class _InventoryCheckScreenState extends State<InventoryCheckScreen> {
   Future<void> _fetchItems() async {
     final authProvider = Provider.of<AuthProvider>(context, listen: false);
     final user = authProvider.currentUser;
-    if (user?.environmentId != null) {
-      try {
-        final items = await _apiService.get(
-          inventoryEndpoint,
-          queryParams: {
-            'environment_id': ?user!.environmentId,
-          }, 
-        );
-        setState(() {
-          _items = items;
-          _isLoading = false;
-        });
-      } catch (e) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error al cargar inventario: $e')),
-        );
-        setState(() {
-          _isLoading = false;
-        });
-      }
-    } else {
+    if (user?.environmentId == null) {
       setState(() {
         _isLoading = false;
       });
@@ -62,6 +44,30 @@ class _InventoryCheckScreenState extends State<InventoryCheckScreen> {
           content: Text('Vincula un ambiente para verificar el inventario'),
         ),
       );
+      return;
+    }
+    try {
+      final items = await _apiService.get(
+        inventoryEndpoint,
+        queryParams: {'environment_id': user!.environmentId.toString()},
+      );
+      // Fetch checks de hoy para ver si ya verificado (asume endpoint soporta date=today)
+      final checks = await _apiService.get(
+        '/api/inventory-checks',
+        queryParams: {'environment_id': user.environmentId.toString(), 'date': DateTime.now().toIso8601String().split('T')[0]},
+      );
+      setState(() {
+        _items = items;
+        _hasCheckedToday = checks.isNotEmpty;
+        _isLoading = false;
+      });
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error al cargar inventario: $e')),
+      );
+      setState(() {
+        _isLoading = false;
+      });
     }
   }
 
@@ -84,123 +90,153 @@ class _InventoryCheckScreenState extends State<InventoryCheckScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final authProvider = Provider.of<AuthProvider>(context);
+    final role = authProvider.currentUser?.role ?? '';
+
     return Scaffold(
       appBar: const SenaAppBar(title: 'Verificación de Inventario'),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
-          : Column(
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(16.0),
-                  color: AppColors.grey100,
-                  child: Column(
-                    children: [
-                      TextField(
-                        controller: _searchController,
-                        decoration: const InputDecoration(
-                          hintText: 'Buscar por nombre o código...',
-                          prefixIcon: Icon(Icons.search),
-                          border: OutlineInputBorder(),
-                          filled: true,
-                          fillColor: Colors.white,
-                        ),
-                        onChanged: (value) => setState(() {}),
-                      ),
-                      const SizedBox(height: 16),
-                      Row(
-                        children: [
-                          Expanded(
-                            child: DropdownButtonFormField<String>(
-                              value: _selectedCategory,
-                              decoration: const InputDecoration(
-                                labelText: 'Categoría',
-                                border: OutlineInputBorder(),
-                                filled: true,
-                                fillColor: Colors.white,
-                              ),
-                              items:
-                                  [
-                                    'Todos',
-                                    'computer',
-                                    'projector',
-                                    'keyboard',
-                                    'mouse',
-                                    'tv',
-                                    'camera',
-                                    'microphone',
-                                    'tablet',
-                                    'other',
-                                  ].map((category) {
-                                    return DropdownMenuItem(
-                                      value: category,
-                                      child: Text(category),
-                                    );
-                                  }).toList(),
-                              onChanged: (value) {
-                                setState(() {
-                                  _selectedCategory = value!;
-                                });
-                              },
-                            ),
+          : RefreshIndicator(
+              onRefresh: _fetchItems,
+              child: Column(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(16.0),
+                    color: AppColors.grey100,
+                    child: Column(
+                      children: [
+                        TextField(
+                          controller: _searchController,
+                          decoration: const InputDecoration(
+                            hintText: 'Buscar por nombre o código...',
+                            prefixIcon: Icon(Icons.search),
+                            border: OutlineInputBorder(),
+                            filled: true,
+                            fillColor: Colors.white,
                           ),
-                          const SizedBox(width: 16),
-                          Expanded(
-                            child: DropdownButtonFormField<String>(
-                              value: _selectedStatus,
-                              decoration: const InputDecoration(
-                                labelText: 'Estado',
-                                border: OutlineInputBorder(),
-                                filled: true,
-                                fillColor: Colors.white,
+                          onChanged: (value) => setState(() {}),
+                        ),
+                        const SizedBox(height: 16),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: DropdownButtonFormField<String>(
+                                value: _selectedCategory,
+                                decoration: const InputDecoration(
+                                  labelText: 'Categoría',
+                                  border: OutlineInputBorder(),
+                                  filled: true,
+                                  fillColor: Colors.white,
+                                ),
+                                items: [
+                                  'Todos',
+                                  'computer',
+                                  'projector',
+                                  'keyboard',
+                                  'mouse',
+                                  'tv',
+                                  'camera',
+                                  'microphone',
+                                  'tablet',
+                                  'other',
+                                ].map((category) {
+                                  return DropdownMenuItem(
+                                    value: category,
+                                    child: Text(category),
+                                  );
+                                }).toList(),
+                                onChanged: (value) {
+                                  setState(() {
+                                    _selectedCategory = value!;
+                                  });
+                                },
                               ),
-                              items:
-                                  [
-                                    'Todos',
-                                    'available',
-                                    'in_use',
-                                    'maintenance',
-                                    'damaged',
-                                    'lost',
-                                  ].map((status) {
-                                    return DropdownMenuItem(
-                                      value: status,
-                                      child: Text(status),
-                                    );
-                                  }).toList(),
-                              onChanged: (value) {
-                                setState(() {
-                                  _selectedStatus = value!;
-                                });
-                              },
                             ),
+                            const SizedBox(width: 16),
+                            Expanded(
+                              child: DropdownButtonFormField<String>(
+                                value: _selectedStatus,
+                                decoration: const InputDecoration(
+                                  labelText: 'Estado',
+                                  border: OutlineInputBorder(),
+                                  filled: true,
+                                  fillColor: Colors.white,
+                                ),
+                                items: [
+                                  'Todos',
+                                  'available',
+                                  'in_use',
+                                  'maintenance',
+                                  'damaged',
+                                  'lost',
+                                ].map((status) {
+                                  return DropdownMenuItem(
+                                    value: status,
+                                    child: Text(status),
+                                  );
+                                }).toList(),
+                                onChanged: (value) {
+                                  setState(() {
+                                    _selectedStatus = value!;
+                                  });
+                                },
+                              ),
+                            ),
+                          ],
+                        ),
+                        if (_hasCheckedToday) ...[ // Mensaje si ya verificado hoy
+                          const SizedBox(height: 8),
+                          const Text(
+                            'Inventario ya verificado hoy. Puedes actualizar si es necesario.',
+                            style: TextStyle(color: AppColors.success),
                           ),
                         ],
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
-                ),
-                Expanded(
-                  child: ListView.builder(
-                    padding: const EdgeInsets.all(16.0),
-                    itemCount: _filteredItems.length,
-                    itemBuilder: (context, index) {
-                      final item = _filteredItems[index];
-                      return _buildItemCard(item);
-                    },
+                  Expanded(
+                    child: ListView.builder(
+                      padding: const EdgeInsets.all(16.0),
+                      itemCount: _filteredItems.length,
+                      itemBuilder: (context, index) {
+                        final item = _filteredItems[index];
+                        return _buildItemCard(item, role);
+                      },
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: _showCheckDialog,
-        backgroundColor: AppColors.primary,
-        child: const Icon(Icons.check, color: Colors.white),
+      floatingActionButton: Column(
+        mainAxisAlignment: MainAxisAlignment.end,
+        children: [
+          if (role == 'supervisor' || role == 'admin') ...[ // Botones por rol
+            FloatingActionButton(
+              heroTag: 'add',
+              onPressed: () {
+                // Navegar a agregar item
+                context.push('/add-inventory-item', extra: {'environmentId': authProvider.currentUser?.environmentId});
+              },
+              backgroundColor: AppColors.primary,
+              child: const Icon(Icons.add, color: Colors.white),
+            ),
+            const SizedBox(height: 16),
+          ],
+          FloatingActionButton(
+            heroTag: 'check',
+            onPressed: _showCheckDialog,
+            backgroundColor: AppColors.primary,
+            child: const Icon(Icons.check, color: Colors.white),
+          ),
+        ],
       ),
     );
   }
 
-  Widget _buildItemCard(Map<String, dynamic> item) {
+  Widget _buildItemCard(Map<String, dynamic> item, String role) {
     Color statusColor = getStatusColor(item['status']);
+    final isGroup = item['item_type'] == 'group';
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
       child: Padding(
@@ -222,7 +258,7 @@ class _InventoryCheckScreenState extends State<InventoryCheckScreen> {
                         ),
                       ),
                       Text(
-                        'ID: ${item['id']}',
+                        isGroup ? 'Grupo: ${item['quantity']} unidades' : 'ID: ${item['id']}',
                         style: const TextStyle(
                           color: AppColors.grey600,
                           fontFamily: 'monospace',
@@ -310,6 +346,44 @@ class _InventoryCheckScreenState extends State<InventoryCheckScreen> {
                 ),
               ],
             ),
+            if (role == 'supervisor' || role == 'admin') ...[ // Botones extra para supervisor
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed: () {
+                        // Lógica para eliminar
+                        showDialog(
+                          context: context,
+                          builder: (ctx) => AlertDialog(
+                            title: const Text('Confirmar'),
+                            content: const Text('¿Eliminar item?'),
+                            actions: [
+                              TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancelar')),
+                              ElevatedButton(
+                                onPressed: () async {
+                                  try {
+                                    await _apiService.delete('/api/inventory/${item['id']}');
+                                    _fetchItems();
+                                    Navigator.pop(ctx);
+                                  } catch (e) {
+                                    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e')));
+                                  }
+                                },
+                                child: const Text('Eliminar'),
+                              ),
+                            ],
+                          ),
+                        );
+                      },
+                      icon: const Icon(Icons.delete),
+                      label: const Text('Eliminar'),
+                    ),
+                  ),
+                ],
+              ),
+            ],
           ],
         ),
       ),
@@ -370,6 +444,8 @@ class _InventoryCheckScreenState extends State<InventoryCheckScreen> {
             Text('ID: ${item['id']}'),
             Text('Categoría: ${item['category']}'),
             Text('Estado: ${item['status']}'),
+            Text('Cantidad: ${item['quantity'] ?? 1}'),
+            Text('Tipo: ${item['item_type']}'),
             Text('Última Verificación: ${item['updated_at'] ?? 'N/A'}'),
           ],
         ),
@@ -384,9 +460,9 @@ class _InventoryCheckScreenState extends State<InventoryCheckScreen> {
   }
 
   void _updateItemStatus(Map<String, dynamic> item) async {
-    // Mostrar diálogo para actualizar el estado
-    String? newStatus;
-    int quantityFound = item['quantity'] ?? 1;
+    String? newStatus = item['status'];
+    int quantityExpected = item['quantity'] ?? 1;
+    int quantityFound = quantityExpected;
     int quantityDamaged = 0;
     int quantityMissing = 0;
     String notes = '';
@@ -404,7 +480,7 @@ class _InventoryCheckScreenState extends State<InventoryCheckScreen> {
                   labelText: 'Estado',
                   border: OutlineInputBorder(),
                 ),
-                value: item['status'],
+                value: newStatus,
                 items: ['good', 'damaged', 'missing'].map((status) {
                   return DropdownMenuItem(value: status, child: Text(status));
                 }).toList(),
@@ -420,7 +496,7 @@ class _InventoryCheckScreenState extends State<InventoryCheckScreen> {
                 ),
                 keyboardType: TextInputType.number,
                 onChanged: (value) {
-                  quantityFound = int.tryParse(value) ?? 1;
+                  quantityFound = int.tryParse(value) ?? 0;
                 },
               ),
               const SizedBox(height: 16),
@@ -466,6 +542,13 @@ class _InventoryCheckScreenState extends State<InventoryCheckScreen> {
           ),
           ElevatedButton(
             onPressed: () async {
+              // Validar sums
+              if (quantityFound + quantityDamaged + quantityMissing > quantityExpected) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Cantidades exceden lo esperado')),
+                );
+                return;
+              }
               try {
                 final authProvider = Provider.of<AuthProvider>(
                   context,
@@ -475,14 +558,12 @@ class _InventoryCheckScreenState extends State<InventoryCheckScreen> {
                   '/api/inventory-checks',
                   {
                     'environment_id': authProvider.currentUser!.environmentId,
-                    'student_id': authProvider
-                        .currentUser!
-                        .id, // O instructor_id según el rol
+                    'student_id': authProvider.currentUser!.id, // Ajusta si es instructor
                     'items': [
                       {
                         'item_id': item['id'],
                         'status': newStatus ?? item['status'],
-                        'quantity_expected': item['quantity'] ?? 1,
+                        'quantity_expected': quantityExpected,
                         'quantity_found': quantityFound,
                         'quantity_damaged': quantityDamaged,
                         'quantity_missing': quantityMissing,
@@ -497,7 +578,7 @@ class _InventoryCheckScreenState extends State<InventoryCheckScreen> {
                   ),
                 );
                 Navigator.pop(context);
-                _fetchItems(); // Refrescar la lista
+                _fetchItems(); // Refrescar
               } catch (e) {
                 ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(content: Text('Error al actualizar: $e')),
@@ -512,10 +593,55 @@ class _InventoryCheckScreenState extends State<InventoryCheckScreen> {
   }
 
   void _showCheckDialog() {
-    // Implementar diálogo para verificación masiva si es necesario
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Funcionalidad de verificación masiva en desarrollo'),
+    // Verificación masiva: Asume todos good por default, permite ajustar
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Verificación Masiva'),
+        content: const Text('¿Marcar todo como en orden hoy? (Ajusta si hay daños)'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancelar'),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              try {
+                final authProvider = Provider.of<AuthProvider>(context, listen: false);
+                final itemsList = _items.map((item) {
+                  return {
+                    'item_id': item['id'],
+                    'status': 'good', // Default
+                    'quantity_expected': item['quantity'] ?? 1,
+                    'quantity_found': item['quantity'] ?? 1,
+                    'quantity_damaged': 0,
+                    'quantity_missing': 0,
+                    'notes': '',
+                  };
+                }).toList();
+                // ignore: unused_local_variable
+                final response = await _apiService.post(
+                  '/api/inventory-checks',
+                  {
+                    'environment_id': authProvider.currentUser!.environmentId,
+                    'student_id': authProvider.currentUser!.id,
+                    'items': itemsList,
+                  },
+                );
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Verificación masiva completada')),
+                );
+                Navigator.pop(context);
+                _fetchItems();
+              } catch (e) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(content: Text('Error: $e')),
+                );
+              }
+            },
+            child: const Text('Confirmar'),
+          ),
+        ],
       ),
     );
   }
