@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:go_router/go_router.dart'; // Para navegación
+import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import '../../../core/services/api_service.dart';
 import '../../../core/theme/app_colors.dart';
@@ -21,7 +21,7 @@ class _InventoryCheckScreenState extends State<InventoryCheckScreen> {
   String _selectedStatus = 'Todos';
   List<dynamic> _items = [];
   bool _isLoading = true;
-  bool _hasCheckedToday = false; // Para verificar check diario
+  bool _hasCheckedToday = false;
 
   @override
   void initState() {
@@ -53,7 +53,7 @@ class _InventoryCheckScreenState extends State<InventoryCheckScreen> {
       );
       // Fetch checks de hoy para ver si ya verificado (asume endpoint soporta date=today)
       final checks = await _apiService.get(
-        '/api/inventory-checks',
+        inventoryChecksEndpoint,
         queryParams: {'environment_id': user.environmentId.toString(), 'date': DateTime.now().toIso8601String().split('T')[0]},
       );
       setState(() {
@@ -364,7 +364,7 @@ class _InventoryCheckScreenState extends State<InventoryCheckScreen> {
                               ElevatedButton(
                                 onPressed: () async {
                                   try {
-                                    await _apiService.delete('/api/inventory/${item['id']}');
+                                    await _apiService.delete('$inventoryEndpoint${item['id']}');
                                     _fetchItems();
                                     Navigator.pop(ctx);
                                   } catch (e) {
@@ -555,7 +555,7 @@ class _InventoryCheckScreenState extends State<InventoryCheckScreen> {
                   listen: false,
                 );
                 final response = await _apiService.post(
-                  '/api/inventory-checks',
+                  inventoryChecksEndpoint,
                   {
                     'environment_id': authProvider.currentUser!.environmentId,
                     'student_id': authProvider.currentUser!.id, // Ajusta si es instructor
@@ -621,7 +621,7 @@ class _InventoryCheckScreenState extends State<InventoryCheckScreen> {
                 }).toList();
                 // ignore: unused_local_variable
                 final response = await _apiService.post(
-                  '/api/inventory-checks',
+                  inventoryChecksEndpoint,
                   {
                     'environment_id': authProvider.currentUser!.environmentId,
                     'student_id': authProvider.currentUser!.id,
