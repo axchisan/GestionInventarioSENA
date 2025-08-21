@@ -96,5 +96,35 @@ class ApiService {
     }
   }
 
+  // Nuevo método para DELETE
+  Future<Map<String, dynamic>> delete(String endpoint) async {
+    final headers = {
+      'Content-Type': 'application/json',
+    };
+
+    if (_authProvider?.token != null) {
+      headers['Authorization'] = 'Bearer ${_authProvider!.token}';
+    }
+
+    final uri = Uri.parse('$baseUrl$endpoint');
+    final response = await _client.delete(
+      uri,
+      headers: headers,
+    );
+
+    if (response.statusCode == 307 || response.statusCode == 301 || response.statusCode == 302) {
+      final redirectUrl = response.headers['location'];
+      if (redirectUrl != null) {
+        return await delete(redirectUrl.replaceFirst(baseUrl, ''));
+      }
+    }
+
+    if (response.statusCode == 200 || response.statusCode == 204) { // 204 No Content para deletes comunes
+      return response.body.isNotEmpty ? json.decode(response.body) : {'status': 'success'};
+    } else {
+      throw Exception('Error: ${response.statusCode} - ${response.body}');
+    }
+  }
+
   void dispose() => _client.close();
 }

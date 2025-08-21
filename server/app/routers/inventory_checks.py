@@ -3,7 +3,7 @@ from sqlalchemy.orm import Session
 from pydantic import BaseModel
 from datetime import datetime, date
 from uuid import UUID
-from typing import List
+from typing import List, Optional
 
 from ..database import get_db
 from ..models.inventory_checks import InventoryCheck
@@ -12,6 +12,7 @@ from ..models.environments import Environment
 from ..models.inventory_items import InventoryItem
 from ..models.users import User
 from ..routers.auth import get_current_user
+from ..schemas.inventory_check import InventoryCheckRequest, InventoryCheckResponse, InventoryCheckItemRequest
 
 router = APIRouter(tags=["inventory-checks"])
 
@@ -120,3 +121,29 @@ async def create_inventory_check(
         "items_damaged": inventory_check.items_damaged,
         "items_missing": inventory_check.items_missing
     }
+
+@router.get("/", response_model=List[InventoryCheckResponse])
+def get_inventory_checks(
+    environment_id: Optional[UUID] = None,
+    check_date: Optional[str] = None,  # Formato YYYY-MM-DD
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    if current_user.role not in ["instructor", "student", "supervisor", "admin", "admin_general"]:
+        raise HTTPException(
+            status_code=403,
+            detail="Rol no autorizado para consultar checks"
+        )
+
+    query = db.query(InventoryCheck)
+    if environment_id:
+        query = query.filter(InventoryCheck.environment_id == environment_id)
+    if check_date:
+        try:
+            parsed_date = date.fromisoformat(check_date)
+            query = query.filter(InventoryCheck.check_date == parsed_date)
+        except ValueError:
+            raise HTTPException(status_code=400, detail="Formato de fecha inválido (use YYYY-MM-DD)")
+
+    checks = query.all()
+    return checks

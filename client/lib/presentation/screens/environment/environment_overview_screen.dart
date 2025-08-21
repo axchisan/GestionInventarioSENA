@@ -1,9 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart'; // Agregado si necesitas navegar a edición
 import 'package:provider/provider.dart';
 import '../../../core/services/api_service.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/constants/api_constants.dart';
-import '../../providers/auth_provider.dart';
+import '../../../presentation/providers/auth_provider.dart';
 import '../../widgets/common/sena_app_bar.dart';
 import '../../widgets/common/sena_card.dart';
 import '../../widgets/common/status_badge.dart';
@@ -25,7 +26,7 @@ class EnvironmentOverviewScreen extends StatefulWidget {
 
 class _EnvironmentOverviewScreenState extends State<EnvironmentOverviewScreen>
     with SingleTickerProviderStateMixin {
-  late final ApiService _apiService; // Cambiar a late
+  late final ApiService _apiService;
   late TabController _tabController;
   List<dynamic> _inventory = [];
   List<dynamic> _schedule = [];
@@ -34,7 +35,6 @@ class _EnvironmentOverviewScreenState extends State<EnvironmentOverviewScreen>
   @override
   void initState() {
     super.initState();
-    // Inicializar ApiService con AuthProvider
     _apiService = ApiService(
       authProvider: Provider.of<AuthProvider>(context, listen: false),
     );
@@ -43,6 +43,9 @@ class _EnvironmentOverviewScreenState extends State<EnvironmentOverviewScreen>
   }
 
   Future<void> _fetchData() async {
+    setState(() {
+      _isLoading = true;
+    });
     try {
       final authProvider = Provider.of<AuthProvider>(context, listen: false);
       print(
@@ -78,9 +81,7 @@ class _EnvironmentOverviewScreenState extends State<EnvironmentOverviewScreen>
       });
     } catch (e) {
       print('Error fetching data: $e');
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Error al cargar datos: $e')));
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error al cargar datos: $e')));
       setState(() {
         _isLoading = false;
       });
@@ -126,122 +127,161 @@ class _EnvironmentOverviewScreenState extends State<EnvironmentOverviewScreen>
 
   @override
   Widget build(BuildContext context) {
+    final authProvider = Provider.of<AuthProvider>(context);
+    final role = authProvider.currentUser?.role ?? ''; // Para checks de rol
+
     return Scaffold(
       appBar: SenaAppBar(title: widget.environmentName, showBackButton: true),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
-          : Column(
-              children: [
-                Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF00324D),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withOpacity(0.1),
-                        blurRadius: 4,
-                        offset: const Offset(0, 2),
-                      ),
-                    ],
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          Container(
-                            width: 60,
-                            height: 60,
-                            decoration: BoxDecoration(
-                              color: Colors.white,
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                            child: ClipRRect(
-                              borderRadius: BorderRadius.circular(8),
-                              child: Image.asset(
-                                'assets/images/sena_logo.png',
-                                fit: BoxFit.contain,
+          : RefreshIndicator(
+              onRefresh: _fetchData, // Agregado para refresh
+              child: Column(
+                children: [
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF00324D),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.1),
+                          blurRadius: 4,
+                          offset: const Offset(0, 2),
+                        ),
+                      ],
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Container(
+                              width: 60,
+                              height: 60,
+                              decoration: BoxDecoration(
+                                color: Colors.white,
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: ClipRRect(
+                                borderRadius: BorderRadius.circular(8),
+                                child: Image.asset(
+                                  'assets/images/sena_logo.png',
+                                  fit: BoxFit.contain,
+                                ),
                               ),
                             ),
-                          ),
-                          const SizedBox(width: 16),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  widget.environmentName,
-                                  style: const TextStyle(
-                                    color: Colors.white,
-                                    fontSize: 18,
-                                    fontWeight: FontWeight.bold,
+                            const SizedBox(width: 16),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    widget.environmentName,
+                                    style: const TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 18,
+                                      fontWeight: FontWeight.bold,
+                                    ),
                                   ),
-                                ),
-                                Text(
-                                  'ID: ${widget.environmentId}',
-                                  style: const TextStyle(
-                                    color: Colors.white70,
-                                    fontSize: 14,
+                                  Text(
+                                    'ID: ${widget.environmentId}',
+                                    style: const TextStyle(
+                                      color: Colors.white70,
+                                      fontSize: 14,
+                                    ),
                                   ),
-                                ),
-                                const SizedBox(height: 8),
-                                Row(
-                                  children: [
-                                    _buildStatChip(
-                                      'Equipos',
-                                      '${_inventory.length}',
-                                      Colors.blue,
-                                    ),
-                                    const SizedBox(width: 8),
-                                    _buildStatChip(
-                                      'Disponibles',
-                                      '${_inventory.where((item) => item['status'] == 'available').length}',
-                                      Colors.green,
-                                    ),
-                                    const SizedBox(width: 8),
-                                    _buildStatChip(
-                                      'En uso',
-                                      '${_inventory.where((item) => item['status'] == 'in_use').length}',
-                                      Colors.orange,
-                                    ),
-                                  ],
-                                ),
-                              ],
+                                  const SizedBox(height: 8),
+                                  Row(
+                                    children: [
+                                      _buildStatChip(
+                                        'Equipos',
+                                        '${_calculateTotalItems()}', // Ajustado para quantity
+                                        Colors.blue,
+                                      ),
+                                      const SizedBox(width: 8),
+                                      _buildStatChip(
+                                        'Disponibles',
+                                        '${_calculateAvailableItems()}',
+                                        Colors.green,
+                                      ),
+                                      const SizedBox(width: 8),
+                                      _buildStatChip(
+                                        'En uso',
+                                        '${_calculateInUseItems()}',
+                                        Colors.orange,
+                                      ),
+                                    ],
+                                  ),
+                                ],
+                              ),
                             ),
-                          ),
-                        ],
-                      ),
-                    ],
+                          ],
+                        ),
+                      ],
+                    ),
                   ),
-                ),
-                Container(
-                  color: Colors.white,
-                  child: TabBar(
-                    controller: _tabController,
-                    labelColor: const Color(0xFF00324D),
-                    unselectedLabelColor: Colors.grey,
-                    indicatorColor: const Color(0xFF00324D),
-                    tabs: const [
-                      Tab(text: 'Inventario'),
-                      Tab(text: 'Horarios'),
-                      Tab(text: 'Estadísticas'),
-                    ],
+                  Container(
+                    color: Colors.white,
+                    child: TabBar(
+                      controller: _tabController,
+                      labelColor: const Color(0xFF00324D),
+                      unselectedLabelColor: Colors.grey,
+                      indicatorColor: const Color(0xFF00324D),
+                      tabs: const [
+                        Tab(text: 'Inventario'),
+                        Tab(text: 'Horarios'),
+                        Tab(text: 'Estadísticas'),
+                      ],
+                    ),
                   ),
-                ),
-                Expanded(
-                  child: TabBarView(
-                    controller: _tabController,
-                    children: [
-                      _buildInventoryTab(),
-                      _buildScheduleTab(),
-                      _buildStatsTab(),
-                    ],
+                  Expanded(
+                    child: TabBarView(
+                      controller: _tabController,
+                      children: [
+                        _buildInventoryTab(role),
+                        _buildScheduleTab(),
+                        _buildStatsTab(),
+                      ],
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
+      floatingActionButton: role == 'supervisor' || role == 'admin'
+          ? FloatingActionButton( // Solo para supervisor/admin
+              onPressed: () {
+                // Navegar a screen de agregar item (asume ruta '/add-inventory-item')
+                context.push('/add-inventory-item', extra: {'environmentId': widget.environmentId});
+              },
+              backgroundColor: AppColors.primary,
+              child: const Icon(Icons.add, color: Colors.white),
+            )
+          : null,
     );
+  }
+
+  // Nueva función para calcular total considerando quantity y grupos
+  int _calculateTotalItems() {
+    return _inventory.fold(0, (sum, item) => sum + (item['quantity'] as int? ?? 1));
+  }
+
+  int _calculateAvailableItems() {
+    return _inventory.fold(0, (sum, item) {
+      if (item['status'] == 'available') {
+        return sum + (item['quantity'] as int? ?? 1);
+      }
+      return sum;
+    });
+  }
+
+  int _calculateInUseItems() {
+    return _inventory.fold(0, (sum, item) {
+      if (item['status'] == 'in_use') {
+        return sum + (item['quantity'] as int? ?? 1);
+      }
+      return sum;
+    });
   }
 
   Widget _buildStatChip(String label, String value, Color color) {
@@ -273,12 +313,13 @@ class _EnvironmentOverviewScreenState extends State<EnvironmentOverviewScreen>
     );
   }
 
-  Widget _buildInventoryTab() {
+  Widget _buildInventoryTab(String role) {
     return ListView.builder(
       padding: const EdgeInsets.all(16),
       itemCount: _inventory.length,
       itemBuilder: (context, index) {
         final item = _inventory[index];
+        final isGroup = item['item_type'] == 'group'; // Soporte grupal
         return Padding(
           padding: const EdgeInsets.only(bottom: 12),
           child: SenaCard(
@@ -300,7 +341,7 @@ class _EnvironmentOverviewScreenState extends State<EnvironmentOverviewScreen>
                             ),
                           ),
                           Text(
-                            'ID: ${item['id']}',
+                            isGroup ? 'Grupo: ${item['quantity']} unidades' : 'ID: ${item['id']}',
                             style: TextStyle(
                               color: Colors.grey[600],
                               fontSize: 14,
@@ -362,6 +403,55 @@ class _EnvironmentOverviewScreenState extends State<EnvironmentOverviewScreen>
                     ),
                   ],
                 ),
+                if (role == 'supervisor' || role == 'admin') ...[ // Botones por rol
+                  const SizedBox(height: 16),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: ElevatedButton.icon(
+                          onPressed: () {
+                            // Navegar a edición (asume ruta '/edit-inventory-item')
+                            context.push('/edit-inventory-item', extra: {'item': item});
+                          },
+                          icon: const Icon(Icons.edit),
+                          label: const Text('Editar'),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: OutlinedButton.icon(
+                          onPressed: () {
+                            // Lógica para eliminar (confirm dialog + API delete)
+                            showDialog(
+                              context: context,
+                              builder: (ctx) => AlertDialog(
+                                title: const Text('Confirmar'),
+                                content: const Text('¿Eliminar item?'),
+                                actions: [
+                                  TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancelar')),
+                                  ElevatedButton(
+                                    onPressed: () async {
+                                      try {
+                                        await _apiService.delete('/api/inventory/${item['id']}'); // Asume endpoint delete
+                                        _fetchData(); // Refresh
+                                        Navigator.pop(ctx);
+                                      } catch (e) {
+                                        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e')));
+                                      }
+                                    },
+                                    child: const Text('Eliminar'),
+                                  ),
+                                ],
+                              ),
+                            );
+                          },
+                          icon: const Icon(Icons.delete),
+                          label: const Text('Eliminar'),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
               ],
             ),
           ),
@@ -371,6 +461,7 @@ class _EnvironmentOverviewScreenState extends State<EnvironmentOverviewScreen>
   }
 
   Widget _buildScheduleTab() {
+    // Igual al original, sin cambios mayores
     return ListView.builder(
       padding: const EdgeInsets.all(16),
       itemCount: _schedule.length,
@@ -450,14 +541,15 @@ class _EnvironmentOverviewScreenState extends State<EnvironmentOverviewScreen>
   }
 
   Widget _buildStatsTab() {
-    final totalEquipment = _inventory.length;
-    final available = _inventory
-        .where((item) => item['status'] == 'available')
-        .length;
-    final inUse = _inventory.where((item) => item['status'] == 'in_use').length;
-    final maintenance = _inventory
-        .where((item) => item['status'] == 'maintenance')
-        .length;
+    final totalEquipment = _calculateTotalItems(); // Usando nuevas funciones
+    final available = _calculateAvailableItems();
+    final inUse = _calculateInUseItems();
+    final maintenance = _inventory.fold(0, (sum, item) {
+      if (item['status'] == 'maintenance') {
+        return sum + (item['quantity'] as int? ?? 1);
+      }
+      return sum;
+    });
 
     return Padding(
       padding: const EdgeInsets.all(16),

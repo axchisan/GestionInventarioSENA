@@ -36,6 +36,7 @@ class RoleNavigationService {
           '/notifications',
           '/profile',
           '/settings',
+          '/environment-overview',
         ];
       case 'instructor':
         return [
@@ -58,12 +59,18 @@ class RoleNavigationService {
           '/user-management',
           '/statistics-dashboard',
           '/inventory-alerts',
+          '/inventory-check',
           '/audit-log',
           '/report-generator',
           '/training-schedule',
           '/notifications',
           '/profile',
           '/settings',
+          '/qr-generate',
+          '/environment-overview',
+          '/qr-scan',
+          '/add-inventory-item', // Nuevo
+          '/edit-inventory-item', // Nuevo
         ];
       case 'admin':
         return [
@@ -85,6 +92,8 @@ class RoleNavigationService {
           '/inventory-history',
           '/environment-overview',
           '/training-schedule',
+          '/add-inventory-item', // Nuevo
+          '/edit-inventory-item', // Nuevo
         ];
       case 'admin_general':
         return [
@@ -107,6 +116,8 @@ class RoleNavigationService {
           '/environment-overview',
           '/training-schedule',
           '/admin-dashboard',
+          '/add-inventory-item', // Nuevo
+          '/edit-inventory-item', // Nuevo
         ];
       default:
         return ['/login', '/register'];
@@ -149,18 +160,20 @@ class RoleNavigationService {
       '/audit-log': ['supervisor', 'admin', 'admin_general'],
       '/report-generator': ['supervisor', 'admin', 'admin_general'],
       '/feedback-form': ['admin', 'admin_general'],
-      '/qr-scan': ['student', 'instructor', 'admin', 'admin_general'],
+      '/qr-scan': ['student', 'instructor', 'admin', 'admin_general', 'supervisor'],
       '/qr-generate': ['supervisor', 'instructor', 'admin', 'admin_general'],
-      '/inventory-check': ['student', 'instructor', 'admin', 'admin_general'],
+      '/inventory-check': ['student', 'instructor', 'admin', 'admin_general', 'supervisor'],
       '/loan-request': ['student', 'instructor', 'admin', 'admin_general'],
       '/loan-history': ['student', 'instructor', 'admin', 'admin_general'],
       '/maintenance-request': ['instructor', 'admin', 'admin_general'],
       '/inventory-history': ['instructor', 'admin', 'admin_general'],
-      '/environment-overview': ['instructor', 'admin', 'admin_general'],
+      '/environment-overview': ['instructor', 'admin', 'admin_general', 'student'],
       '/training-schedule': ['instructor', 'supervisor', 'admin', 'admin_general'],
       '/notifications': ['student', 'instructor', 'supervisor', 'admin', 'admin_general'],
       '/profile': ['student', 'instructor', 'supervisor', 'admin', 'admin_general'],
       '/settings': ['student', 'instructor', 'supervisor', 'admin', 'admin_general'],
+      '/add-inventory-item': ['supervisor', 'admin', 'admin_general'], // Nuevo
+      '/edit-inventory-item': ['supervisor', 'admin', 'admin_general'], // Nuevo
     };
   }
 

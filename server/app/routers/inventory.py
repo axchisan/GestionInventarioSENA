@@ -50,3 +50,24 @@ def get_inventory_item(item_id: UUID, db: Session = Depends(get_db)):
     if not item:
         raise HTTPException(status_code=404, detail="Ítem no encontrado")
     return item
+
+
+@router.delete("/{item_id}")
+def delete_inventory_item(
+    item_id: UUID,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    if current_user.role not in ["supervisor", "admin", "admin_general"]:
+        raise HTTPException(
+            status_code=403,
+            detail="Rol no autorizado para eliminar ítems"
+        )
+    
+    item = db.query(InventoryItem).filter(InventoryItem.id == item_id).first()
+    if not item:
+        raise HTTPException(status_code=404, detail="Ítem no encontrado")
+    
+    db.delete(item)
+    db.commit()
+    return {"status": "success", "detail": "Ítem eliminado"}
