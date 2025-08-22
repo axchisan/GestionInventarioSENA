@@ -21,5 +21,4 @@ class Environment(Base):
     updated_at = Column(TIMESTAMP, server_default=func.current_timestamp())
 
     inventory_checks = relationship("InventoryCheck", back_populates="environment")
-    center = relationship("Center", back_populates="environments")
     inventory_items = relationship("InventoryItem", back_populates="environment")

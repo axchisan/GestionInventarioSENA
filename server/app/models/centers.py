@@ -15,5 +15,3 @@ class Center(Base):
     is_active = Column(Boolean, default=True)
     created_at = Column(TIMESTAMP, server_default=func.current_timestamp())
     updated_at = Column(TIMESTAMP, server_default=func.current_timestamp())
-
-    environments = relationship("Environment", back_populates="center")
