@@ -1,8 +1,8 @@
 """se agregaron nuevos campos para la verificacion completa de el inventario
 
-Revision ID: 179ffd8a5f23
+Revision ID: e6c868c08667
 Revises: 
-Create Date: 2025-08-22 11:20:34.213467
+Create Date: 2025-08-22 11:49:56.125515
 
 """
 from typing import Sequence, Union
@@ -12,7 +12,7 @@ import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql
 
 # revision identifiers, used by Alembic.
-revision: str = '179ffd8a5f23'
+revision: str = 'e6c868c08667'
 down_revision: Union[str, Sequence[str], None] = None
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
