@@ -1,5 +1,4 @@
-from click import DateTime
-from sqlalchemy import Boolean, CheckConstraint, Column, String, Integer, Date, Time, Text, ForeignKey, TIMESTAMP
+from sqlalchemy import Boolean, CheckConstraint, Column, String, Integer, Date, Time, Text, ForeignKey, TIMESTAMP, DateTime
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func

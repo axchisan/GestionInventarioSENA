@@ -9,7 +9,7 @@ from app.config import settings
 # Modelos del sistema
 from app.models import users, environments, inventory_items, schedules, inventory_checks, inventory_check_items
 from app.models import supervisor_reviews, loans, maintenance_requests, maintenance_history, notifications
-from app.models import system_alerts, alert_settings, generated_reports, feedback, audit_logs, user_settings
+from app.models import system_alerts, alert_settings, generated_reports, feedback, audit_logs, user_settings, centers
 
 config = context.config
 if config.config_file_name is not None:
