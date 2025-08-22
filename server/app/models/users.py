@@ -1,5 +1,6 @@
 from sqlalchemy import Column, ForeignKey, String, Boolean, TIMESTAMP, CheckConstraint
 from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 import uuid
 
@@ -23,6 +24,9 @@ class User(Base):
     last_login = Column(TIMESTAMP)
     created_at = Column(TIMESTAMP, server_default=func.current_timestamp())
     updated_at = Column(TIMESTAMP, server_default=func.current_timestamp())
+
+    inventory_checks_student = relationship("InventoryCheck", foreign_keys="InventoryCheck.student_id", back_populates="student")
+    inventory_checks_instructor = relationship("InventoryCheck", foreign_keys="InventoryCheck.instructor_id", back_populates="instructor")
 
     __table_args__ = (
         CheckConstraint("role IN ('student', 'instructor', 'supervisor', 'admin', 'admin_general')", name="check_role"),

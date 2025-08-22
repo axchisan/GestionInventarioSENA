@@ -6,7 +6,7 @@ from uuid import UUID
 from ..database import get_db
 from ..models.schedules import Schedule
 from ..models.environments import Environment
-from ..schemas.schedule import ScheduleResponse, ScheduleCreate
+from ..schemas.schedule import ScheduleResponse, ScheduleCreate, ScheduleUpdate
 from ..routers.auth import get_current_user
 from ..models.users import User
 
@@ -18,7 +18,7 @@ async def get_schedules(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    if current_user.role not in ["instructor", "student", "supervisor"]:
+    if current_user.role not in ["instructor", "student", "supervisor", "admin", "admin_general"]:
         raise HTTPException(
             status_code=403,
             detail="Rol no autorizado para consultar horarios"
@@ -55,33 +55,53 @@ async def get_schedules(
 @router.post("/", response_model=ScheduleResponse, status_code=status.HTTP_201_CREATED)
 async def create_schedule(
     schedule_data: ScheduleCreate,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
 ):
-    try:
-        new_schedule = Schedule(
-            environment_id=schedule_data.environment_id,
-            instructor_id=schedule_data.instructor_id,
-            program=schedule_data.program,
-            ficha=schedule_data.ficha,
-            topic=schedule_data.topic,
-            start_time=schedule_data.start_time,
-            end_time=schedule_data.end_time,
-            day_of_week=schedule_data.day_of_week,
-            start_date=schedule_data.start_date,
-            end_date=schedule_data.end_date,
-            student_count=schedule_data.student_count,
-            is_active=schedule_data.is_active
-        )
-        
-        db.add(new_schedule)
-        db.commit()
-        db.refresh(new_schedule)
-        
-        return new_schedule
-        
-    except Exception as e:
-        db.rollback()
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Error al crear el horario: {str(e)}"
-        )
+    if current_user.role not in ["instructor", "supervisor", "admin"]:
+        raise HTTPException(status_code=403, detail="Rol no autorizado para crear horarios")
+
+    new_schedule = Schedule(**schedule_data.dict())
+    db.add(new_schedule)
+    db.commit()
+    db.refresh(new_schedule)
+    return new_schedule
+
+@router.put("/{schedule_id}", response_model=ScheduleResponse)
+async def update_schedule(
+    schedule_id: UUID,
+    schedule_data: ScheduleUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    if current_user.role not in ["instructor", "supervisor", "admin"]:
+        raise HTTPException(status_code=403, detail="Rol no autorizado para editar horarios")
+
+    schedule = db.query(Schedule).filter(Schedule.id == schedule_id).first()
+    if not schedule:
+        raise HTTPException(status_code=404, detail="Horario no encontrado")
+
+    update_data = schedule_data.dict(exclude_unset=True)
+    for key, value in update_data.items():
+        setattr(schedule, key, value)
+
+    db.commit()
+    db.refresh(schedule)
+    return schedule
+
+@router.delete("/{schedule_id}")
+async def delete_schedule(
+    schedule_id: UUID,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    if current_user.role not in ["instructor", "supervisor", "admin"]:
+        raise HTTPException(status_code=403, detail="Rol no autorizado para eliminar horarios")
+
+    schedule = db.query(Schedule).filter(Schedule.id == schedule_id).first()
+    if not schedule:
+        raise HTTPException(status_code=404, detail="Horario no encontrado")
+
+    db.delete(schedule)
+    db.commit()
+    return {"status": "success", "detail": "Horario eliminado"}

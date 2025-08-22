@@ -1,5 +1,6 @@
 from sqlalchemy import CheckConstraint, Column, String, Integer, Date, Time, Boolean, ForeignKey, TIMESTAMP
 from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 import uuid
 
@@ -23,6 +24,7 @@ class Schedule(Base):
     is_active = Column(Boolean, default=True)
     created_at = Column(TIMESTAMP, server_default=func.current_timestamp())
     updated_at = Column(TIMESTAMP, server_default=func.current_timestamp())
+    inventory_checks = relationship("InventoryCheck", back_populates="schedule")
 
     __table_args__ = (
         CheckConstraint("day_of_week BETWEEN 1 AND 7", name="check_day_of_week"),
