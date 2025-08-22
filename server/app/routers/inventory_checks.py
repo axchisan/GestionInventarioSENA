@@ -149,8 +149,11 @@ def get_inventory_checks(
     if environment_id:
         query = query.filter(InventoryCheck.environment_id == environment_id)
     if date:
-        parsed_date = date.fromisoformat(date)
-        query = query.filter(InventoryCheck.check_date == parsed_date)
+        try:
+            parsed_date = date.fromisoformat(date)
+            query = query.filter(InventoryCheck.check_date == parsed_date)
+        except ValueError:
+            raise HTTPException(status_code=400, detail="Formato de fecha inválido. Se espera YYYY-MM-DD")
     if shift:
         # Filtrar por horario aproximado
         if shift == 'morning':
