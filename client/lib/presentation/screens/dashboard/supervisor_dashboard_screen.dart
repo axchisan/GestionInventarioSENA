@@ -246,7 +246,7 @@ class _SupervisorDashboardScreenState extends State<SupervisorDashboardScreen> {
                         ),
                         _buildActionCard(
                           context,
-                          'Ambiente Overview',
+                          'Ambiente',
                           'Supervisa ambiente vinculado',
                           Icons.location_on,
                           AppColors.success,

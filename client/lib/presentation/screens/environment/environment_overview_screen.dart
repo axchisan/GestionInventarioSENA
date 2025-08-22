@@ -131,11 +131,11 @@ class _EnvironmentOverviewScreenState extends State<EnvironmentOverviewScreen>
     final role = authProvider.currentUser?.role ?? ''; // Para checks de rol
 
     return Scaffold(
-      appBar: SenaAppBar(title: widget.environmentName, showBackButton: true),
+      appBar: SenaAppBar(title: 'Ambiente'),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
           : RefreshIndicator(
-              onRefresh: _fetchData, // Agregado para refresh
+              onRefresh: _fetchData, 
               child: Column(
                 children: [
                   Container(
