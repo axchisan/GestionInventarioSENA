@@ -1,4 +1,5 @@
 from sqlalchemy import Column, ForeignKey, String, Integer, Boolean, TIMESTAMP, Text
+from sqlalchemy.orm import relationship
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.sql import func
 import uuid
@@ -18,3 +19,5 @@ class Environment(Base):
     is_active = Column(Boolean, default=True)
     created_at = Column(TIMESTAMP, server_default=func.current_timestamp())
     updated_at = Column(TIMESTAMP, server_default=func.current_timestamp())
+
+    inventory_checks = relationship("InventoryCheck", back_populates="environment")
