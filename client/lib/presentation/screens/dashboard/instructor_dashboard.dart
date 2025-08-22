@@ -278,7 +278,7 @@ class _InstructorDashboardState extends State<InstructorDashboard> {
                 ),
                 _buildActionCard(
                   context,
-                  'Ambiente Overview',
+                  'Ambiente',
                   'Vista general del ambiente',
                   Icons.location_on,
                   AppColors.success,

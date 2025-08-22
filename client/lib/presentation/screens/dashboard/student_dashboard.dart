@@ -517,7 +517,7 @@ class _StudentDashboardState extends State<StudentDashboard> {
           ),
           ListTile(
             leading: const Icon(Icons.location_on),
-            title: const Text('Ambiente Overview'),
+            title: const Text('Ambiente'),
             onTap: () => context.push(
               '/environment-overview',
               extra: _environment != null
