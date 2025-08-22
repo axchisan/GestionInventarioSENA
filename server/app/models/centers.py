@@ -1,5 +1,6 @@
 from sqlalchemy import UUID, Column, String, Text, Boolean, TIMESTAMP
 from sqlalchemy.sql import func
+from sqlalchemy.orm import relationship
 import uuid
 
 from ..database import Base
@@ -14,3 +15,5 @@ class Center(Base):
     is_active = Column(Boolean, default=True)
     created_at = Column(TIMESTAMP, server_default=func.current_timestamp())
     updated_at = Column(TIMESTAMP, server_default=func.current_timestamp())
+
+    environments = relationship("Environment", back_populates="center")
