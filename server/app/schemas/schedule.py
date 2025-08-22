@@ -36,3 +36,15 @@ class ScheduleResponse(BaseModel):
 
     class Config:
         from_attributes = True
+
+class ScheduleUpdate(BaseModel):
+    program: Optional[str] = None
+    ficha: Optional[str] = None
+    topic: Optional[str] = None
+    start_time: Optional[time] = None
+    end_time: Optional[time] = None
+    day_of_week: Optional[int] = None
+    start_date: Optional[date] = None
+    end_date: Optional[date] = None
+    student_count: Optional[int] = None
+    is_active: Optional[bool] = None

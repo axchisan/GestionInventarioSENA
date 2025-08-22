@@ -5,7 +5,7 @@ from uuid import UUID
 
 from ..database import get_db
 from ..models.inventory_items import InventoryItem
-from ..schemas.inventory_item import InventoryItemResponse
+from ..schemas.inventory_item import InventoryItemCreate, InventoryItemResponse, InventoryItemUpdate, InventoryItemUpdate
 from ..routers.auth import get_current_user
 from ..models.users import User
 
@@ -51,6 +51,42 @@ def get_inventory_item(item_id: UUID, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail="Ítem no encontrado")
     return item
 
+@router.post("/", response_model=InventoryItemResponse)
+def add_inventory_item(
+    item_data: InventoryItemCreate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    if current_user.role not in ["supervisor", "admin", "admin_general"]:
+        raise HTTPException(status_code=403, detail="Rol no autorizado para agregar ítems")
+
+    new_item = InventoryItem(**item_data.dict())
+    db.add(new_item)
+    db.commit()
+    db.refresh(new_item)
+    return new_item
+
+@router.put("/{item_id}", response_model=InventoryItemResponse)
+def update_inventory_item(
+    item_id: UUID,
+    item_data: InventoryItemUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    if current_user.role not in ["supervisor", "admin", "admin_general"]:
+        raise HTTPException(status_code=403, detail="Rol no autorizado para editar ítems")
+
+    item = db.query(InventoryItem).filter(InventoryItem.id == item_id).first()
+    if not item:
+        raise HTTPException(status_code=404, detail="Ítem no encontrado")
+
+    update_data = item_data.dict(exclude_unset=True)
+    for key, value in update_data.items():
+        setattr(item, key, value)
+
+    db.commit()
+    db.refresh(item)
+    return item
 
 @router.delete("/{item_id}")
 def delete_inventory_item(

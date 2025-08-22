@@ -11,61 +11,54 @@ from ..models.inventory_check_items import InventoryCheckItem
 from ..models.environments import Environment
 from ..models.inventory_items import InventoryItem
 from ..models.users import User
+from ..models.schedules import Schedule
 from ..routers.auth import get_current_user
-from ..schemas.inventory_check import InventoryCheckRequest, InventoryCheckResponse, InventoryCheckItemRequest
+from ..schemas.inventory_check import InventoryCheckCreateRequest, InventoryCheckResponse, InventoryCheckInstructorConfirmRequest, InventoryCheckItemRequest
 
 router = APIRouter(tags=["inventory-checks"])
 
-class InventoryCheckItemRequest(BaseModel):
-    item_id: UUID
-    status: str
-    quantity_expected: int
-    quantity_found: int
-    quantity_damaged: int
-    quantity_missing: int
-    notes: str | None = None
-
-class InventoryCheckRequest(BaseModel):
-    environment_id: UUID
-    student_id: UUID
-    items: List[InventoryCheckItemRequest]
-
-@router.post("/")
+@router.post("/", status_code=status.HTTP_201_CREATED)
 async def create_inventory_check(
-    request: InventoryCheckRequest,
+    request: InventoryCheckCreateRequest,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    if current_user.role not in ["instructor", "student", "supervisor"]:
-        raise HTTPException(
-            status_code=403,
-            detail="Rol no autorizado para verificar inventario"
-        )
+    if current_user.role != "student":
+        raise HTTPException(status_code=403, detail="Solo estudiantes pueden iniciar verificaciones")
 
-    environment = db.query(Environment).filter(
-        Environment.id == request.environment_id,
-        Environment.is_active == True
-    ).first()
+    environment = db.query(Environment).filter(Environment.id == request.environment_id).first()
     if not environment:
         raise HTTPException(status_code=404, detail="Ambiente no encontrado")
 
-    student = db.query(User).filter(
-        User.id == request.student_id,
-        User.role == "student"
-    ).first()
+    student = db.query(User).filter(User.id == request.student_id, User.role == "student").first()
     if not student:
         raise HTTPException(status_code=404, detail="Estudiante no encontrado")
+
+    schedule = db.query(Schedule).filter(Schedule.id == request.schedule_id).first()
+    if not schedule:
+        raise HTTPException(status_code=404, detail="Horario no encontrado")
+
+    # Verificar si ya hay check hoy para este schedule/environment
+    existing_check = db.query(InventoryCheck).filter(
+        InventoryCheck.environment_id == request.environment_id,
+        InventoryCheck.schedule_id == request.schedule_id,
+        InventoryCheck.check_date == date.today()
+    ).first()
+    if existing_check:
+        raise HTTPException(status_code=400, detail="Ya se realizó verificación hoy para este turno")
 
     inventory_check = InventoryCheck(
         environment_id=request.environment_id,
         student_id=request.student_id,
+        schedule_id=request.schedule_id,
         check_date=date.today(),
         check_time=datetime.utcnow().time(),
         status="pending",
         total_items=len(request.items),
         items_good=0,
         items_damaged=0,
-        items_missing=0
+        items_missing=0,
+        cleaning_notes=request.cleaning_notes
     )
     db.add(inventory_check)
     db.commit()
@@ -81,10 +74,7 @@ async def create_inventory_check(
             InventoryItem.environment_id == request.environment_id
         ).first()
         if not inventory_item:
-            raise HTTPException(
-                status_code=404,
-                detail=f"Ítem {item_request.item_id} no encontrado en el ambiente"
-            )
+            raise HTTPException(status_code=404, detail=f"Ítem {item_request.item_id} no encontrado")
 
         check_item = InventoryCheckItem(
             check_id=inventory_check.id,
@@ -111,39 +101,64 @@ async def create_inventory_check(
     inventory_check.status = "complete" if items_damaged == 0 and items_missing == 0 else "issues"
     db.commit()
 
-    return {
-        "status": "success",
-        "check_id": str(inventory_check.id),
-        "environment_id": str(inventory_check.environment_id),
-        "status": inventory_check.status,
-        "total_items": inventory_check.total_items,
-        "items_good": inventory_check.items_good,
-        "items_damaged": inventory_check.items_damaged,
-        "items_missing": inventory_check.items_missing
-    }
+    return {"status": "success", "check_id": inventory_check.id}
+
+@router.put("/{check_id}/confirm", response_model=InventoryCheckResponse)
+async def confirm_inventory_check(
+    check_id: UUID,
+    request: InventoryCheckInstructorConfirmRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    if current_user.role != "instructor":
+        raise HTTPException(status_code=403, detail="Solo instructores pueden confirmar verificaciones")
+
+    inventory_check = db.query(InventoryCheck).filter(InventoryCheck.id == check_id).first()
+    if not inventory_check:
+        raise HTTPException(status_code=404, detail="Verificación no encontrada")
+
+    if inventory_check.instructor_id is not None:
+        raise HTTPException(status_code=400, detail="Ya confirmada por instructor")
+
+    inventory_check.instructor_id = current_user.id
+    inventory_check.is_clean = request.is_clean
+    inventory_check.is_organized = request.is_organized
+    inventory_check.inventory_complete = request.inventory_complete
+    inventory_check.comments = request.comments
+    inventory_check.instructor_confirmed_at = datetime.utcnow()
+    # Actualizar status si necesario
+    if not request.inventory_complete or inventory_check.status == "issues":
+        inventory_check.status = "issues"
+    else:
+        inventory_check.status = "complete"
+
+    db.commit()
+    db.refresh(inventory_check)
+
+    return inventory_check
 
 @router.get("/", response_model=List[InventoryCheckResponse])
 def get_inventory_checks(
     environment_id: Optional[UUID] = None,
-    check_date: Optional[str] = None,  # Formato YYYY-MM-DD
+    date: Optional[str] = None,  
+    shift: Optional[str] = None,  
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_db)
 ):
-    if current_user.role not in ["instructor", "student", "supervisor", "admin", "admin_general"]:
-        raise HTTPException(
-            status_code=403,
-            detail="Rol no autorizado para consultar checks"
-        )
-
     query = db.query(InventoryCheck)
     if environment_id:
         query = query.filter(InventoryCheck.environment_id == environment_id)
-    if check_date:
-        try:
-            parsed_date = date.fromisoformat(check_date)
-            query = query.filter(InventoryCheck.check_date == parsed_date)
-        except ValueError:
-            raise HTTPException(status_code=400, detail="Formato de fecha inválido (use YYYY-MM-DD)")
+    if date:
+        parsed_date = date.fromisoformat(date)
+        query = query.filter(InventoryCheck.check_date == parsed_date)
+    if shift:
+        # Filtrar por horario aproximado
+        if shift == 'morning':
+            query = query.join(Schedule).filter(Schedule.start_time.between('07:00:00', '12:00:00'))
+        elif shift == 'afternoon':
+            query = query.join(Schedule).filter(Schedule.start_time.between('13:00:00', '18:00:00'))
+        elif shift == 'night':
+            query = query.join(Schedule).filter(Schedule.start_time.between('18:00:00', '22:00:00'))
 
     checks = query.all()
     return checks
