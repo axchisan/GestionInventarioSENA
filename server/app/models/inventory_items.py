@@ -1,6 +1,7 @@
 from sqlalchemy import TIMESTAMP, Column, String, Integer, Date, Text, ForeignKey, CheckConstraint
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.sql import func
+from sqlalchemy.orm import relationship
 import uuid
 
 from ..database import Base
@@ -28,6 +29,9 @@ class InventoryItem(Base):
 
     created_at = Column(TIMESTAMP, server_default=func.current_timestamp())
     updated_at = Column(TIMESTAMP, server_default=func.current_timestamp())
+
+    environment = relationship("Environment", back_populates="inventory_items")
+    inventory_check_items = relationship("InventoryCheckItem", back_populates="item")
 
     __table_args__ = (
         CheckConstraint("category IN ('computer', 'projector', 'keyboard', 'mouse', 'tv', 'camera', 'microphone', 'tablet', 'other')", name="check_category"),

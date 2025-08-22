@@ -1,5 +1,6 @@
 from sqlalchemy import CheckConstraint, Column, String, Text, ForeignKey, TIMESTAMP
 from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 import uuid
 
@@ -15,6 +16,8 @@ class SupervisorReview(Base):
     comments = Column(Text)
     reviewed_at = Column(TIMESTAMP, server_default=func.current_timestamp())
     created_at = Column(TIMESTAMP, server_default=func.current_timestamp())
+
+    check = relationship("InventoryCheck", back_populates="supervisor_reviews")
 
     __table_args__ = (
         CheckConstraint("status IN ('pending', 'approved', 'rejected')", name="check_status"),
