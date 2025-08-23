@@ -143,14 +143,15 @@ def get_inventory_checks(
     date: Optional[str] = None,  
     shift: Optional[str] = None,  
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_db)
+    current_user: User = Depends(get_current_user) 
 ):
     query = db.query(InventoryCheck)
     if environment_id:
         query = query.filter(InventoryCheck.environment_id == environment_id)
     if date:
         try:
-            parsed_date = date.fromisoformat(date)
+            # Usar datetime.strptime para analizar la fecha
+            parsed_date = datetime.strptime(date, "%Y-%m-%d").date()
             query = query.filter(InventoryCheck.check_date == parsed_date)
         except ValueError:
             raise HTTPException(status_code=400, detail="Formato de fecha inválido. Se espera YYYY-MM-DD")
