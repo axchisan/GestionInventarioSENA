@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:go_router/go_router.dart'; // Agregado si necesitas navegar a edición
+import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import '../../../core/services/api_service.dart';
 import '../../../core/theme/app_colors.dart';
@@ -47,10 +47,8 @@ class _EnvironmentOverviewScreenState extends State<EnvironmentOverviewScreen>
       _isLoading = true;
     });
     try {
+      // ignore: unused_local_variable
       final authProvider = Provider.of<AuthProvider>(context, listen: false);
-      print(
-        'Fetching data for environment: ${widget.environmentId}, Token: ${authProvider.token}',
-      );
 
       final queryParams = widget.environmentId.isNotEmpty
           ? {'environment_id': widget.environmentId}
@@ -69,6 +67,7 @@ class _EnvironmentOverviewScreenState extends State<EnvironmentOverviewScreen>
         _schedule = schedule
             .map(
               (s) => {
+                'id': s['id'],
                 'time': '${s['start_time']} - ${s['end_time']}',
                 'program': s['program'],
                 'activity': s['topic'] ?? 'N/A',
@@ -80,7 +79,6 @@ class _EnvironmentOverviewScreenState extends State<EnvironmentOverviewScreen>
         _isLoading = false;
       });
     } catch (e) {
-      print('Error fetching data: $e');
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error al cargar datos: $e')));
       setState(() {
         _isLoading = false;
@@ -128,14 +126,14 @@ class _EnvironmentOverviewScreenState extends State<EnvironmentOverviewScreen>
   @override
   Widget build(BuildContext context) {
     final authProvider = Provider.of<AuthProvider>(context);
-    final role = authProvider.currentUser?.role ?? ''; // Para checks de rol
+    final role = authProvider.currentUser?.role ?? '';
 
     return Scaffold(
       appBar: SenaAppBar(title: 'Ambiente'),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
           : RefreshIndicator(
-              onRefresh: _fetchData, 
+              onRefresh: _fetchData,
               child: Column(
                 children: [
                   Container(
@@ -196,7 +194,7 @@ class _EnvironmentOverviewScreenState extends State<EnvironmentOverviewScreen>
                                     children: [
                                       _buildStatChip(
                                         'Equipos',
-                                        '${_calculateTotalItems()}', // Ajustado para quantity
+                                        '${_calculateTotalItems()}',
                                         Colors.blue,
                                       ),
                                       const SizedBox(width: 8),
@@ -240,7 +238,7 @@ class _EnvironmentOverviewScreenState extends State<EnvironmentOverviewScreen>
                       controller: _tabController,
                       children: [
                         _buildInventoryTab(role),
-                        _buildScheduleTab(),
+                        _buildScheduleTab(role),
                         _buildStatsTab(),
                       ],
                     ),
@@ -249,10 +247,12 @@ class _EnvironmentOverviewScreenState extends State<EnvironmentOverviewScreen>
               ),
             ),
       floatingActionButton: role == 'supervisor' || role == 'admin'
-          ? FloatingActionButton( // Solo para supervisor/admin
+          ? FloatingActionButton(
               onPressed: () {
-                // Navegar a screen de agregar item (asume ruta '/add-inventory-item')
-                context.push('/add-inventory-item', extra: {'environmentId': widget.environmentId});
+                context.push(
+                  '/add-inventory-item',
+                  extra: {'environmentId': widget.environmentId},
+                );
               },
               backgroundColor: AppColors.primary,
               child: const Icon(Icons.add, color: Colors.white),
@@ -261,7 +261,6 @@ class _EnvironmentOverviewScreenState extends State<EnvironmentOverviewScreen>
     );
   }
 
-  // Nueva función para calcular total considerando quantity y grupos
   int _calculateTotalItems() {
     return _inventory.fold(0, (sum, item) => sum + (item['quantity'] as int? ?? 1));
   }
@@ -319,7 +318,7 @@ class _EnvironmentOverviewScreenState extends State<EnvironmentOverviewScreen>
       itemCount: _inventory.length,
       itemBuilder: (context, index) {
         final item = _inventory[index];
-        final isGroup = item['item_type'] == 'group'; // Soporte grupal
+        final isGroup = item['item_type'] == 'group';
         return Padding(
           padding: const EdgeInsets.only(bottom: 12),
           child: SenaCard(
@@ -403,15 +402,17 @@ class _EnvironmentOverviewScreenState extends State<EnvironmentOverviewScreen>
                     ),
                   ],
                 ),
-                if (role == 'supervisor' || role == 'admin') ...[ // Botones por rol
+                if (role == 'supervisor' || role == 'admin') ...[
                   const SizedBox(height: 16),
                   Row(
                     children: [
                       Expanded(
                         child: ElevatedButton.icon(
                           onPressed: () {
-                            // Navegar a edición (asume ruta '/edit-inventory-item')
-                            context.push('/edit-inventory-item', extra: {'item': item});
+                            context.push(
+                              '/edit-inventory-item',
+                              extra: {'item': item},
+                            );
                           },
                           icon: const Icon(Icons.edit),
                           label: const Text('Editar'),
@@ -421,7 +422,6 @@ class _EnvironmentOverviewScreenState extends State<EnvironmentOverviewScreen>
                       Expanded(
                         child: OutlinedButton.icon(
                           onPressed: () {
-                            // Lógica para eliminar (confirm dialog + API delete)
                             showDialog(
                               context: context,
                               builder: (ctx) => AlertDialog(
@@ -432,8 +432,10 @@ class _EnvironmentOverviewScreenState extends State<EnvironmentOverviewScreen>
                                   ElevatedButton(
                                     onPressed: () async {
                                       try {
-                                        await _apiService.delete('/api/inventory/${item['id']}'); // Asume endpoint delete
-                                        _fetchData(); // Refresh
+                                        await _apiService.delete(
+                                          '/api/inventory/${item['id']}',
+                                        );
+                                        _fetchData();
                                         Navigator.pop(ctx);
                                       } catch (e) {
                                         ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e')));
@@ -460,8 +462,7 @@ class _EnvironmentOverviewScreenState extends State<EnvironmentOverviewScreen>
     );
   }
 
-  Widget _buildScheduleTab() {
-    // Igual al original, sin cambios mayores
+  Widget _buildScheduleTab(String role) {
     return ListView.builder(
       padding: const EdgeInsets.all(16),
       itemCount: _schedule.length,
@@ -532,6 +533,24 @@ class _EnvironmentOverviewScreenState extends State<EnvironmentOverviewScreen>
                     ),
                   ],
                 ),
+                if (role == 'instructor') ...[
+                  const SizedBox(height: 12),
+                  Row(
+                    children: [
+                      ElevatedButton.icon(
+                        onPressed: () => _editSchedule(item),
+                        icon: const Icon(Icons.edit),
+                        label: const Text('Editar'),
+                      ),
+                      const SizedBox(width: 8),
+                      OutlinedButton.icon(
+                        onPressed: () => _deleteSchedule(item['id']),
+                        icon: const Icon(Icons.delete),
+                        label: const Text('Eliminar'),
+                      ),
+                    ],
+                  ),
+                ],
               ],
             ),
           ),
@@ -540,8 +559,22 @@ class _EnvironmentOverviewScreenState extends State<EnvironmentOverviewScreen>
     );
   }
 
+  void _editSchedule(Map<String, dynamic> schedule) async {
+    // Show dialog with form prefilled, then put
+    // Similar to add, but use initialValue and put
+  }
+
+  void _deleteSchedule(String id) async {
+    try {
+      await _apiService.delete('/api/schedules/$id');
+      _fetchData();
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e')));
+    }
+  }
+
   Widget _buildStatsTab() {
-    final totalEquipment = _calculateTotalItems(); // Usando nuevas funciones
+    final totalEquipment = _calculateTotalItems();
     final available = _calculateAvailableItems();
     final inUse = _calculateInUseItems();
     final maintenance = _inventory.fold(0, (sum, item) {
