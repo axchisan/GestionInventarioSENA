@@ -6,6 +6,9 @@ import '../../core/services/role_navigation_service.dart';
 import '../../core/services/session_service.dart';
 import '../../presentation/providers/auth_provider.dart';
 import '../../presentation/screens/dashboard/general_admin_dashboard_screen.dart';
+import '../../presentation/screens/environment/manage_schedules_screen.dart';
+import '../../presentation/screens/inventory/AddInventoryItemScreen.dart';
+import '../../presentation/screens/inventory/edit_inventory_item_screen.dart';
 import '../../presentation/screens/qr/qr_code_generator_screen.dart';
 import '../../presentation/screens/splash/splash_screen.dart';
 import '../../presentation/screens/admin/user_management_screen.dart';
@@ -46,7 +49,8 @@ class NavigationService {
         if (!['/login', '/register', '/splash'].contains(currentPath)) {
           return '/login';
         }
-      } else if (role != null && !RoleNavigationService.hasAccessToRoute(role, currentPath)) {
+      } else if (role != null &&
+          !RoleNavigationService.hasAccessToRoute(role, currentPath)) {
         return RoleNavigationService.getDefaultRoute(role);
       }
       return null;
@@ -145,7 +149,8 @@ class NavigationService {
       GoRoute(
         path: '/inventory-history',
         name: 'inventory-history',
-        builder: (context, state) => const InventoryHistoryScreen(itemId: '', itemName: ''),
+        builder: (context, state) =>
+            const InventoryHistoryScreen(itemId: '', itemName: ''),
       ),
       GoRoute(
         path: '/loan-history',
@@ -155,7 +160,26 @@ class NavigationService {
       GoRoute(
         path: '/environment-overview',
         name: 'environment-overview',
-        builder: (context, state) => const EnvironmentOverviewScreen(environmentId: '', environmentName: ''),
+        builder: (context, state) => const EnvironmentOverviewScreen(
+          environmentId: '',
+          environmentName: '',
+        ),
+      ),
+      GoRoute(
+        path: '/add-inventory-item',
+        name: 'add-inventory-item',
+        builder: (context, state) => const AddInventoryItemScreen(),
+      ),
+      GoRoute(
+        path: '/edit-inventory-item',
+        name: 'edit-inventory-item',
+        builder: (context, state) =>
+            EditInventoryItemScreen(item: state.extra as Map<String, dynamic>),
+      ),
+      GoRoute(
+        path: '/manage-schedules',
+        name: 'manage-schedules',
+        builder: (context, state) => const ManageSchedulesScreen(),
       ),
       GoRoute(
         path: '/audit-log',

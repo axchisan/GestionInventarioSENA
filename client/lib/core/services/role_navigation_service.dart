@@ -42,6 +42,7 @@ class RoleNavigationService {
         return [
           '/instructor-dashboard',
           '/inventory-check',
+          '/manage-schedules',
           '/qr-scan',
           '/qr-generate',
           '/loan-history',
@@ -60,6 +61,7 @@ class RoleNavigationService {
           '/statistics-dashboard',
           '/inventory-alerts',
           '/inventory-check',
+          '/manage-schedules',
           '/audit-log',
           '/report-generator',
           '/training-schedule',
@@ -69,13 +71,14 @@ class RoleNavigationService {
           '/qr-generate',
           '/environment-overview',
           '/qr-scan',
-          '/add-inventory-item', // Nuevo
-          '/edit-inventory-item', // Nuevo
+          '/add-inventory-item', 
+          '/edit-inventory-item', 
         ];
       case 'admin':
         return [
           '/admin-dashboard',
           '/user-management',
+          '/manage-schedules',
           '/statistics-dashboard',
           '/inventory-alerts',
           '/audit-log',
@@ -92,8 +95,8 @@ class RoleNavigationService {
           '/inventory-history',
           '/environment-overview',
           '/training-schedule',
-          '/add-inventory-item', // Nuevo
-          '/edit-inventory-item', // Nuevo
+          '/add-inventory-item', 
+          '/edit-inventory-item', 
         ];
       case 'admin_general':
         return [
@@ -109,6 +112,7 @@ class RoleNavigationService {
           '/settings',
           '/qr-scan',
           '/inventory-check',
+          '/manage-schedules',
           '/loan-request',
           '/loan-history',
           '/maintenance-request',
@@ -116,8 +120,8 @@ class RoleNavigationService {
           '/environment-overview',
           '/training-schedule',
           '/admin-dashboard',
-          '/add-inventory-item', // Nuevo
-          '/edit-inventory-item', // Nuevo
+          '/add-inventory-item',
+          '/edit-inventory-item',
         ];
       default:
         return ['/login', '/register'];
@@ -172,8 +176,9 @@ class RoleNavigationService {
       '/notifications': ['student', 'instructor', 'supervisor', 'admin', 'admin_general'],
       '/profile': ['student', 'instructor', 'supervisor', 'admin', 'admin_general'],
       '/settings': ['student', 'instructor', 'supervisor', 'admin', 'admin_general'],
-      '/add-inventory-item': ['supervisor', 'admin', 'admin_general'], // Nuevo
-      '/edit-inventory-item': ['supervisor', 'admin', 'admin_general'], // Nuevo
+      '/add-inventory-item': ['supervisor', 'admin', 'admin_general'],
+      '/edit-inventory-item': ['supervisor', 'admin', 'admin_general'],
+      '/manage-schedules': ['instructor', 'supervisor', 'admin', 'admin_general'],
     };
   }
 

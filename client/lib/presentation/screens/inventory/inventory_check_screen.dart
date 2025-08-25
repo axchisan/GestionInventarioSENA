@@ -16,10 +16,14 @@ class InventoryCheckScreen extends StatefulWidget {
 
 class _InventoryCheckScreenState extends State<InventoryCheckScreen> {
   final TextEditingController _searchController = TextEditingController();
+  final TextEditingController _cleaningNotesController = TextEditingController();
   late final ApiService _apiService;
   String _selectedCategory = 'Todos';
   String _selectedStatus = 'Todos';
+  String? _selectedScheduleId;
   List<dynamic> _items = [];
+  List<dynamic> _schedules = [];
+  List<dynamic> _pendingChecks = []; // Para instructor/supervisor
   bool _isLoading = true;
   bool _hasCheckedToday = false;
 
@@ -29,10 +33,10 @@ class _InventoryCheckScreenState extends State<InventoryCheckScreen> {
     _apiService = ApiService(
       authProvider: Provider.of<AuthProvider>(context, listen: false),
     );
-    _fetchItems();
+    _fetchData();
   }
 
-  Future<void> _fetchItems() async {
+  Future<void> _fetchData() async {
     final authProvider = Provider.of<AuthProvider>(context, listen: false);
     final user = authProvider.currentUser;
     if (user?.environmentId == null) {
@@ -51,19 +55,28 @@ class _InventoryCheckScreenState extends State<InventoryCheckScreen> {
         inventoryEndpoint,
         queryParams: {'environment_id': user!.environmentId.toString()},
       );
-      // Fetch checks de hoy para ver si ya verificado (asume endpoint soporta date=today)
+      final schedules = await _apiService.get(
+        '/api/schedules/',
+        queryParams: {'environment_id': user.environmentId.toString()},
+      );
       final checks = await _apiService.get(
         inventoryChecksEndpoint,
         queryParams: {'environment_id': user.environmentId.toString(), 'date': DateTime.now().toIso8601String().split('T')[0]},
       );
+      final pendingChecks = await _apiService.get(
+        inventoryChecksEndpoint,
+        queryParams: {'environment_id': user.environmentId.toString(), 'status': 'pending'},
+      );
       setState(() {
         _items = items;
+        _schedules = schedules;
         _hasCheckedToday = checks.isNotEmpty;
+        _pendingChecks = pendingChecks;
         _isLoading = false;
       });
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error al cargar inventario: $e')),
+        SnackBar(content: Text('Error al cargar datos: $e')),
       );
       setState(() {
         _isLoading = false;
@@ -98,7 +111,7 @@ class _InventoryCheckScreenState extends State<InventoryCheckScreen> {
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
           : RefreshIndicator(
-              onRefresh: _fetchItems,
+              onRefresh: _fetchData,
               child: Column(
                 children: [
                   Container(
@@ -185,7 +198,30 @@ class _InventoryCheckScreenState extends State<InventoryCheckScreen> {
                             ),
                           ],
                         ),
-                        if (_hasCheckedToday) ...[ // Mensaje si ya verificado hoy
+                        if (role == 'student') ...[
+                          const SizedBox(height: 16),
+                          DropdownButtonFormField<String>(
+                            value: _selectedScheduleId,
+                            decoration: const InputDecoration(
+                              labelText: 'Turno/Horario',
+                              border: OutlineInputBorder(),
+                              filled: true,
+                              fillColor: Colors.white,
+                            ),
+                            items: _schedules.map((schedule) {
+                              return DropdownMenuItem(
+                                value: schedule['id'].toString(),
+                                child: Text('${schedule['program']} - ${schedule['start_time']}'),
+                              );
+                            }).toList(),
+                            onChanged: (value) {
+                              setState(() {
+                                _selectedScheduleId = value;
+                              });
+                            },
+                          ),
+                        ],
+                        if (_hasCheckedToday) ...[
                           const SizedBox(height: 8),
                           const Text(
                             'Inventario ya verificado hoy. Puedes actualizar si es necesario.',
@@ -195,27 +231,54 @@ class _InventoryCheckScreenState extends State<InventoryCheckScreen> {
                       ],
                     ),
                   ),
-                  Expanded(
-                    child: ListView.builder(
-                      padding: const EdgeInsets.all(16.0),
-                      itemCount: _filteredItems.length,
-                      itemBuilder: (context, index) {
-                        final item = _filteredItems[index];
-                        return _buildItemCard(item, role);
-                      },
+                  if (role == 'instructor' || role == 'supervisor') ...[
+                    const SizedBox(height: 16),
+                    const Text('Verificaciones Pendientes', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                    Expanded(
+                      child: ListView.builder(
+                        itemCount: _pendingChecks.length,
+                        itemBuilder: (context, index) {
+                          final check = _pendingChecks[index];
+                          return Card(
+                            child: ListTile(
+                              title: Text('Check ID: ${check['id']}'),
+                              subtitle: Text('Status: ${check['status']}'),
+                              trailing: role == 'instructor' 
+                                ? ElevatedButton(
+                                    onPressed: () => _confirmCheck(check),
+                                    child: const Text('Confirmar'),
+                                  )
+                                : ElevatedButton(
+                                    onPressed: () => _reviewCheck(check),
+                                    child: const Text('Revisar'),
+                                  ),
+                            ),
+                          );
+                        },
+                      ),
                     ),
-                  ),
+                  ] else ...[
+                    Expanded(
+                      child: ListView.builder(
+                        padding: const EdgeInsets.all(16.0),
+                        itemCount: _filteredItems.length,
+                        itemBuilder: (context, index) {
+                          final item = _filteredItems[index];
+                          return _buildItemCard(item, role);
+                        },
+                      ),
+                    ),
+                  ],
                 ],
               ),
             ),
       floatingActionButton: Column(
         mainAxisAlignment: MainAxisAlignment.end,
         children: [
-          if (role == 'supervisor' || role == 'admin') ...[ // Botones por rol
+          if (role == 'supervisor' || role == 'admin') ...[
             FloatingActionButton(
               heroTag: 'add',
               onPressed: () {
-                // Navegar a agregar item
                 context.push('/add-inventory-item', extra: {'environmentId': authProvider.currentUser?.environmentId});
               },
               backgroundColor: AppColors.primary,
@@ -223,12 +286,14 @@ class _InventoryCheckScreenState extends State<InventoryCheckScreen> {
             ),
             const SizedBox(height: 16),
           ],
-          FloatingActionButton(
-            heroTag: 'check',
-            onPressed: _showCheckDialog,
-            backgroundColor: AppColors.primary,
-            child: const Icon(Icons.check, color: Colors.white),
-          ),
+          if (role == 'student') ...[
+            FloatingActionButton(
+              heroTag: 'check',
+              onPressed: _showCheckDialog,
+              backgroundColor: AppColors.primary,
+              child: const Icon(Icons.check, color: Colors.white),
+            ),
+          ],
         ],
       ),
     );
@@ -346,14 +411,13 @@ class _InventoryCheckScreenState extends State<InventoryCheckScreen> {
                 ),
               ],
             ),
-            if (role == 'supervisor' || role == 'admin') ...[ // Botones extra para supervisor
+            if (role == 'supervisor' || role == 'admin') ...[
               const SizedBox(height: 8),
               Row(
                 children: [
                   Expanded(
                     child: OutlinedButton.icon(
                       onPressed: () {
-                        // Lógica para eliminar
                         showDialog(
                           context: context,
                           builder: (ctx) => AlertDialog(
@@ -365,7 +429,7 @@ class _InventoryCheckScreenState extends State<InventoryCheckScreen> {
                                 onPressed: () async {
                                   try {
                                     await _apiService.delete('$inventoryEndpoint${item['id']}');
-                                    _fetchItems();
+                                    _fetchData();
                                     Navigator.pop(ctx);
                                   } catch (e) {
                                     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e')));
@@ -542,7 +606,6 @@ class _InventoryCheckScreenState extends State<InventoryCheckScreen> {
           ),
           ElevatedButton(
             onPressed: () async {
-              // Validar sums
               if (quantityFound + quantityDamaged + quantityMissing > quantityExpected) {
                 ScaffoldMessenger.of(context).showSnackBar(
                   const SnackBar(content: Text('Cantidades exceden lo esperado')),
@@ -550,15 +613,13 @@ class _InventoryCheckScreenState extends State<InventoryCheckScreen> {
                 return;
               }
               try {
-                final authProvider = Provider.of<AuthProvider>(
-                  context,
-                  listen: false,
-                );
+                final authProvider = Provider.of<AuthProvider>(context, listen: false);
                 final response = await _apiService.post(
                   inventoryChecksEndpoint,
                   {
                     'environment_id': authProvider.currentUser!.environmentId,
-                    'student_id': authProvider.currentUser!.id, // Ajusta si es instructor
+                    'schedule_id': _selectedScheduleId,
+                    'student_id': authProvider.currentUser!.id,
                     'items': [
                       {
                         'item_id': item['id'],
@@ -570,18 +631,17 @@ class _InventoryCheckScreenState extends State<InventoryCheckScreen> {
                         'notes': notes,
                       },
                     ],
+                    'cleaning_notes': _cleaningNotesController.text,
                   },
                 );
                 ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text('Estado actualizado: ${response['status']}'),
-                  ),
+                  SnackBar(content: Text('Actualizado: ${response['status']}')),
                 );
                 Navigator.pop(context);
-                _fetchItems(); // Refrescar
+                _fetchData();
               } catch (e) {
                 ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text('Error al actualizar: $e')),
+                  SnackBar(content: Text('Error: $e')),
                 );
               }
             },
@@ -593,12 +653,25 @@ class _InventoryCheckScreenState extends State<InventoryCheckScreen> {
   }
 
   void _showCheckDialog() {
-    // Verificación masiva: Asume todos good por default, permite ajustar
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Verificación Masiva'),
-        content: const Text('¿Marcar todo como en orden hoy? (Ajusta si hay daños)'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text('¿Marcar todo como en orden hoy?'),
+            const SizedBox(height: 16),
+            TextField(
+              controller: _cleaningNotesController,
+              decoration: const InputDecoration(
+                labelText: 'Notas de Aseo/Basura',
+                border: OutlineInputBorder(),
+              ),
+              maxLines: 3,
+            ),
+          ],
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
@@ -611,7 +684,7 @@ class _InventoryCheckScreenState extends State<InventoryCheckScreen> {
                 final itemsList = _items.map((item) {
                   return {
                     'item_id': item['id'],
-                    'status': 'good', // Default
+                    'status': 'good',
                     'quantity_expected': item['quantity'] ?? 1,
                     'quantity_found': item['quantity'] ?? 1,
                     'quantity_damaged': 0,
@@ -624,15 +697,17 @@ class _InventoryCheckScreenState extends State<InventoryCheckScreen> {
                   inventoryChecksEndpoint,
                   {
                     'environment_id': authProvider.currentUser!.environmentId,
+                    'schedule_id': _selectedScheduleId,
                     'student_id': authProvider.currentUser!.id,
                     'items': itemsList,
+                    'cleaning_notes': _cleaningNotesController.text,
                   },
                 );
                 ScaffoldMessenger.of(context).showSnackBar(
                   const SnackBar(content: Text('Verificación masiva completada')),
                 );
                 Navigator.pop(context);
-                _fetchItems();
+                _fetchData();
               } catch (e) {
                 ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(content: Text('Error: $e')),
@@ -646,9 +721,147 @@ class _InventoryCheckScreenState extends State<InventoryCheckScreen> {
     );
   }
 
+  void _confirmCheck(Map<String, dynamic> check) async {
+    bool isClean = true;
+    bool isOrganized = true;
+    bool inventoryComplete = true;
+    String comments = '';
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Confirmar Verificación'),
+        content: SingleChildScrollView(
+          child: Column(
+            children: [
+              CheckboxListTile(
+                title: const Text('Aula aseada'),
+                value: isClean,
+                onChanged: (value) => setState(() => isClean = value!),
+              ),
+              CheckboxListTile(
+                title: const Text('Sillas y mesas organizadas'),
+                value: isOrganized,
+                onChanged: (value) => setState(() => isOrganized = value!),
+              ),
+              CheckboxListTile(
+                title: const Text('Inventario completo'),
+                value: inventoryComplete,
+                onChanged: (value) => setState(() => inventoryComplete = value!),
+              ),
+              TextField(
+                decoration: const InputDecoration(
+                  labelText: 'Observaciones',
+                  border: OutlineInputBorder(),
+                ),
+                onChanged: (value) => comments = value,
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancelar'),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              try {
+                await _apiService.put(
+                  '$inventoryChecksEndpoint${check['id']}/confirm',
+                  {
+                    'is_clean': isClean,
+                    'is_organized': isOrganized,
+                    'inventory_complete': inventoryComplete,
+                    'comments': comments,
+                  },
+                );
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Confirmado')),
+                );
+                Navigator.pop(context);
+                _fetchData();
+              } catch (e) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(content: Text('Error: $e')),
+                );
+              }
+            },
+            child: const Text('Confirmar'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _reviewCheck(Map<String, dynamic> check) async {
+    String status = 'approved';
+    String comments = '';
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Revisar Verificación'),
+        content: SingleChildScrollView(
+          child: Column(
+            children: [
+              DropdownButtonFormField<String>(
+                value: status,
+                items: ['approved', 'rejected'].map((st) {
+                  return DropdownMenuItem(value: st, child: Text(st));
+                }).toList(),
+                onChanged: (value) => status = value!,
+                decoration: const InputDecoration(labelText: 'Estado'),
+              ),
+              const SizedBox(height: 16),
+              TextField(
+                decoration: const InputDecoration(
+                  labelText: 'Comentarios',
+                  border: OutlineInputBorder(),
+                ),
+                onChanged: (value) => comments = value,
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancelar'),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              try {
+                await _apiService.post(
+                  '/api/supervisor-reviews/', // Asume endpoint para review
+                  {
+                    'check_id': check['id'],
+                    'status': status,
+                    'comments': comments,
+                  },
+                );
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Revisado')),
+                );
+                Navigator.pop(context);
+                _fetchData();
+              } catch (e) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(content: Text('Error: $e')),
+                );
+              }
+            },
+            child: const Text('Enviar'),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   void dispose() {
     _searchController.dispose();
+    _cleaningNotesController.dispose();
     _apiService.dispose();
     super.dispose();
   }
