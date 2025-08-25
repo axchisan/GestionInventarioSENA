@@ -10,7 +10,7 @@ class InventoryItem(Base):
     __tablename__ = "inventory_items"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    environment_id = Column(UUID(as_uuid=True), ForeignKey("environments.id", ondelete="SET NULL"))
+    environment_id = Column(UUID(as_uuid=True), ForeignKey("environments.id", ondelete="CASCADE"))
     name = Column(String(100), nullable=False)
     serial_number = Column(String(100), unique=True, nullable=True)  
     internal_code = Column(String(50), unique=True, nullable=False)
