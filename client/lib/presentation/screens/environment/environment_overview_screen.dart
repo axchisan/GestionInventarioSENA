@@ -127,6 +127,7 @@ class _EnvironmentOverviewScreenState extends State<EnvironmentOverviewScreen>
   Widget build(BuildContext context) {
     final authProvider = Provider.of<AuthProvider>(context);
     final role = authProvider.currentUser?.role ?? '';
+    final user = authProvider.currentUser!;
 
     return Scaffold(
       appBar: SenaAppBar(title: 'Ambiente'),
@@ -183,7 +184,7 @@ class _EnvironmentOverviewScreenState extends State<EnvironmentOverviewScreen>
                                     ),
                                   ),
                                   Text(
-                                    'ID: ${widget.environmentId}',
+                                    'ID: ${user.environmentId}',
                                     style: const TextStyle(
                                       color: Colors.white70,
                                       fontSize: 14,
@@ -560,8 +561,7 @@ class _EnvironmentOverviewScreenState extends State<EnvironmentOverviewScreen>
   }
 
   void _editSchedule(Map<String, dynamic> schedule) async {
-    // Show dialog with form prefilled, then put
-    // Similar to add, but use initialValue and put
+    context.push('/manage-schedules', extra: {'schedule': schedule});
   }
 
   void _deleteSchedule(String id) async {

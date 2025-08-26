@@ -254,7 +254,7 @@ class _StudentDashboardState extends State<StudentDashboard> {
                         ),
                         _buildActionCard(
                           context,
-                          'Ambiente Overview',
+                          'Ambiente',
                           'Vista del ambiente vinculado',
                           Icons.location_on,
                           AppColors.success,
