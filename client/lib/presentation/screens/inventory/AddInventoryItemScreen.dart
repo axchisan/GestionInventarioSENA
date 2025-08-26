@@ -22,7 +22,15 @@ class _AddInventoryItemScreenState extends State<AddInventoryItemScreen> {
   int _quantity = 1;
   String _itemType = 'individual';
   String _status = 'available';
-  // Otros fields optional: serial, brand, etc.
+  String _serialNumber = '';
+  String _brand = '';
+  String _model = '';
+  DateTime? _purchaseDate;
+  DateTime? _warrantyExpiry;
+  DateTime? _lastMaintenance;
+  DateTime? _nextMaintenance;
+  String _imageUrl = '';
+  String _notes = '';
 
   late ApiService _apiService;
 
@@ -41,12 +49,20 @@ class _AddInventoryItemScreenState extends State<AddInventoryItemScreen> {
           {
             'environment_id': authProvider.currentUser!.environmentId,
             'name': _name,
+            'serial_number': _serialNumber.isEmpty ? null : _serialNumber,
             'internal_code': _internalCode,
             'category': _category,
+            'brand': _brand.isEmpty ? null : _brand,
+            'model': _model.isEmpty ? null : _model,
+            'status': _status,
+            'purchase_date': _purchaseDate?.toIso8601String(),
+            'warranty_expiry': _warrantyExpiry?.toIso8601String(),
+            'last_maintenance': _lastMaintenance?.toIso8601String(),
+            'next_maintenance': _nextMaintenance?.toIso8601String(),
+            'image_url': _imageUrl.isEmpty ? null : _imageUrl,
+            'notes': _notes.isEmpty ? null : _notes,
             'quantity': _quantity,
             'item_type': _itemType,
-            'status': _status,
-            // Otros fields if added
           },
         );
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Item agregado')));
@@ -54,6 +70,20 @@ class _AddInventoryItemScreenState extends State<AddInventoryItemScreen> {
       } catch (e) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e')));
       }
+    }
+  }
+
+  Future<void> _selectDate(DateTime? initialDate, Function(DateTime?) setter) async {
+    final DateTime? picked = await showDatePicker(
+      context: context,
+      initialDate: initialDate ?? DateTime.now(),
+      firstDate: DateTime(2000),
+      lastDate: DateTime(2100),
+    );
+    if (picked != null) {
+      setState(() {
+        setter(picked);
+      });
     }
   }
 
@@ -102,6 +132,42 @@ class _AddInventoryItemScreenState extends State<AddInventoryItemScreen> {
                     .map((st) => DropdownMenuItem(value: st, child: Text(st))).toList(),
                 onChanged: (value) => _status = value!,
                 decoration: const InputDecoration(labelText: 'Estado'),
+              ),
+              TextFormField(
+                decoration: const InputDecoration(labelText: 'Número de Serie (opcional)'),
+                onChanged: (value) => _serialNumber = value,
+              ),
+              TextFormField(
+                decoration: const InputDecoration(labelText: 'Marca (opcional)'),
+                onChanged: (value) => _brand = value,
+              ),
+              TextFormField(
+                decoration: const InputDecoration(labelText: 'Modelo (opcional)'),
+                onChanged: (value) => _model = value,
+              ),
+              ListTile(
+                title: Text('Fecha de Compra: ${_purchaseDate?.toString() ?? 'No seleccionada'}'),
+                onTap: () => _selectDate(_purchaseDate, (date) => _purchaseDate = date),
+              ),
+              ListTile(
+                title: Text('Vencimiento Garantía: ${_warrantyExpiry?.toString() ?? 'No seleccionada'}'),
+                onTap: () => _selectDate(_warrantyExpiry, (date) => _warrantyExpiry = date),
+              ),
+              ListTile(
+                title: Text('Último Mantenimiento: ${_lastMaintenance?.toString() ?? 'No seleccionada'}'),
+                onTap: () => _selectDate(_lastMaintenance, (date) => _lastMaintenance = date),
+              ),
+              ListTile(
+                title: Text('Próximo Mantenimiento: ${_nextMaintenance?.toString() ?? 'No seleccionada'}'),
+                onTap: () => _selectDate(_nextMaintenance, (date) => _nextMaintenance = date),
+              ),
+              TextFormField(
+                decoration: const InputDecoration(labelText: 'URL Imagen (opcional)'),
+                onChanged: (value) => _imageUrl = value,
+              ),
+              TextFormField(
+                decoration: const InputDecoration(labelText: 'Notas (opcional)'),
+                onChanged: (value) => _notes = value,
               ),
               const SizedBox(height: 24),
               ElevatedButton(

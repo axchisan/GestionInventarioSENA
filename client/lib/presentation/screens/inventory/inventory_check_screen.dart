@@ -23,9 +23,34 @@ class _InventoryCheckScreenState extends State<InventoryCheckScreen> {
   String? _selectedScheduleId;
   List<dynamic> _items = [];
   List<dynamic> _schedules = [];
-  List<dynamic> _pendingChecks = []; // Para instructor/supervisor
+  List<dynamic> _pendingChecks = [];
   bool _isLoading = true;
   bool _hasCheckedToday = false;
+
+  // Mapas para traducciones
+  final Map<String, String> _categoryTranslations = {
+    'computer': 'Computador',
+    'projector': 'Proyector',
+    'keyboard': 'Teclado',
+    'mouse': 'Ratón',
+    'tv': 'Televisor',
+    'camera': 'Cámara',
+    'microphone': 'Micrófono',
+    'tablet': 'Tableta',
+    'other': 'Otro',
+  };
+
+  final Map<String, String> _statusTranslations = {
+    'available': 'Disponible',
+    'in_use': 'En uso',
+    'maintenance': 'En mantenimiento',
+    'damaged': 'Dañado',
+    'lost': 'Perdido',
+    'good': 'Bueno',
+    // ignore: equal_keys_in_map
+    'damaged': 'Dañado',
+    'missing': 'Faltante',
+  };
 
   @override
   void initState() {
@@ -88,11 +113,11 @@ class _InventoryCheckScreenState extends State<InventoryCheckScreen> {
     return _items.where((item) {
       final matchesSearch =
           item['name'].toString().toLowerCase().contains(
-            _searchController.text.toLowerCase(),
-          ) ||
+                _searchController.text.toLowerCase(),
+              ) ||
           item['id'].toString().toLowerCase().contains(
-            _searchController.text.toLowerCase(),
-          );
+                _searchController.text.toLowerCase(),
+              );
       final matchesCategory =
           _selectedCategory == 'Todos' || item['category'] == _selectedCategory;
       final matchesStatus =
@@ -144,15 +169,7 @@ class _InventoryCheckScreenState extends State<InventoryCheckScreen> {
                                 ),
                                 items: [
                                   'Todos',
-                                  'computer',
-                                  'projector',
-                                  'keyboard',
-                                  'mouse',
-                                  'tv',
-                                  'camera',
-                                  'microphone',
-                                  'tablet',
-                                  'other',
+                                  ..._categoryTranslations.values.toList(),
                                 ].map((category) {
                                   return DropdownMenuItem(
                                     value: category,
@@ -178,11 +195,7 @@ class _InventoryCheckScreenState extends State<InventoryCheckScreen> {
                                 ),
                                 items: [
                                   'Todos',
-                                  'available',
-                                  'in_use',
-                                  'maintenance',
-                                  'damaged',
-                                  'lost',
+                                  ..._statusTranslations.values.toList(),
                                 ].map((status) {
                                   return DropdownMenuItem(
                                     value: status,
@@ -231,6 +244,16 @@ class _InventoryCheckScreenState extends State<InventoryCheckScreen> {
                       ],
                     ),
                   ),
+                  Expanded(
+                    child: ListView.builder(
+                      padding: const EdgeInsets.all(16.0),
+                      itemCount: _filteredItems.length,
+                      itemBuilder: (context, index) {
+                        final item = _filteredItems[index];
+                        return _buildItemCard(item, role);
+                      },
+                    ),
+                  ),
                   if (role == 'instructor' || role == 'supervisor') ...[
                     const SizedBox(height: 16),
                     const Text('Verificaciones Pendientes', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
@@ -242,7 +265,7 @@ class _InventoryCheckScreenState extends State<InventoryCheckScreen> {
                           return Card(
                             child: ListTile(
                               title: Text('Check ID: ${check['id']}'),
-                              subtitle: Text('Status: ${check['status']}'),
+                              subtitle: Text('Estado: ${_statusTranslations[check['status']] ?? check['status']}'),
                               trailing: role == 'instructor' 
                                 ? ElevatedButton(
                                     onPressed: () => _confirmCheck(check),
@@ -252,19 +275,9 @@ class _InventoryCheckScreenState extends State<InventoryCheckScreen> {
                                     onPressed: () => _reviewCheck(check),
                                     child: const Text('Revisar'),
                                   ),
+                              onTap: () => _showCheckDetails(check),
                             ),
                           );
-                        },
-                      ),
-                    ),
-                  ] else ...[
-                    Expanded(
-                      child: ListView.builder(
-                        padding: const EdgeInsets.all(16.0),
-                        itemCount: _filteredItems.length,
-                        itemBuilder: (context, index) {
-                          final item = _filteredItems[index];
-                          return _buildItemCard(item, role);
                         },
                       ),
                     ),
@@ -343,7 +356,7 @@ class _InventoryCheckScreenState extends State<InventoryCheckScreen> {
                     border: Border.all(color: statusColor),
                   ),
                   child: Text(
-                    item['status'],
+                    _statusTranslations[item['status']] ?? item['status'],
                     style: TextStyle(
                       color: statusColor,
                       fontSize: 12,
@@ -360,7 +373,7 @@ class _InventoryCheckScreenState extends State<InventoryCheckScreen> {
                   child: _buildInfoItem(
                     Icons.category,
                     'Categoría',
-                    item['category'],
+                    _categoryTranslations[item['category']] ?? item['category'],
                   ),
                 ),
                 Expanded(
@@ -386,7 +399,7 @@ class _InventoryCheckScreenState extends State<InventoryCheckScreen> {
                   child: _buildInfoItem(
                     Icons.star,
                     'Condición',
-                    item['status'],
+                    _statusTranslations[item['status']] ?? item['status'],
                   ),
                 ),
               ],
@@ -406,7 +419,7 @@ class _InventoryCheckScreenState extends State<InventoryCheckScreen> {
                   child: ElevatedButton.icon(
                     onPressed: () => _updateItemStatus(item),
                     icon: const Icon(Icons.edit),
-                    label: const Text('Actualizar'),
+                    label: const Text('Actualizar Estado'),
                   ),
                 ),
               ],
@@ -457,12 +470,15 @@ class _InventoryCheckScreenState extends State<InventoryCheckScreen> {
   Color getStatusColor(String status) {
     switch (status.toLowerCase()) {
       case 'available':
+      case 'good':
         return AppColors.success;
       case 'in_use':
         return AppColors.warning;
       case 'maintenance':
-        return AppColors.error;
       case 'damaged':
+        return AppColors.error;
+      case 'lost':
+      case 'missing':
         return AppColors.error;
       default:
         return AppColors.grey500;
@@ -506,10 +522,10 @@ class _InventoryCheckScreenState extends State<InventoryCheckScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text('ID: ${item['id']}'),
-            Text('Categoría: ${item['category']}'),
-            Text('Estado: ${item['status']}'),
+            Text('Categoría: ${_categoryTranslations[item['category']] ?? item['category']}'),
+            Text('Estado: ${_statusTranslations[item['status']] ?? item['status']}'),
             Text('Cantidad: ${item['quantity'] ?? 1}'),
-            Text('Tipo: ${item['item_type']}'),
+            Text('Tipo: ${item['item_type'] == 'group' ? 'Grupo' : 'Individual'}'),
             Text('Última Verificación: ${item['updated_at'] ?? 'N/A'}'),
           ],
         ),
@@ -523,131 +539,181 @@ class _InventoryCheckScreenState extends State<InventoryCheckScreen> {
     );
   }
 
-  void _updateItemStatus(Map<String, dynamic> item) async {
-    String? newStatus = item['status'];
+  void _updateItemStatus(Map<String, dynamic> item) {
+    final isGroup = item['item_type'] == 'group';
     int quantityExpected = item['quantity'] ?? 1;
     int quantityFound = quantityExpected;
     int quantityDamaged = 0;
     int quantityMissing = 0;
     String notes = '';
+    String newStatus = 'good';
 
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        title: Text('Actualizar ${item['name']}'),
-        content: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              DropdownButtonFormField<String>(
-                decoration: const InputDecoration(
-                  labelText: 'Estado',
-                  border: OutlineInputBorder(),
-                ),
-                value: newStatus,
-                items: ['good', 'damaged', 'missing'].map((status) {
-                  return DropdownMenuItem(value: status, child: Text(status));
-                }).toList(),
-                onChanged: (value) {
-                  newStatus = value;
-                },
-              ),
-              const SizedBox(height: 16),
-              TextField(
-                decoration: const InputDecoration(
-                  labelText: 'Cantidad Encontrada',
-                  border: OutlineInputBorder(),
-                ),
-                keyboardType: TextInputType.number,
-                onChanged: (value) {
-                  quantityFound = int.tryParse(value) ?? 0;
-                },
-              ),
-              const SizedBox(height: 16),
-              TextField(
-                decoration: const InputDecoration(
-                  labelText: 'Cantidad Dañada',
-                  border: OutlineInputBorder(),
-                ),
-                keyboardType: TextInputType.number,
-                onChanged: (value) {
-                  quantityDamaged = int.tryParse(value) ?? 0;
-                },
-              ),
-              const SizedBox(height: 16),
-              TextField(
-                decoration: const InputDecoration(
-                  labelText: 'Cantidad Faltante',
-                  border: OutlineInputBorder(),
-                ),
-                keyboardType: TextInputType.number,
-                onChanged: (value) {
-                  quantityMissing = int.tryParse(value) ?? 0;
-                },
-              ),
-              const SizedBox(height: 16),
-              TextField(
-                decoration: const InputDecoration(
-                  labelText: 'Notas',
-                  border: OutlineInputBorder(),
-                ),
-                maxLines: 3,
-                onChanged: (value) {
-                  notes = value;
-                },
-              ),
-            ],
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancelar'),
-          ),
-          ElevatedButton(
-            onPressed: () async {
-              if (quantityFound + quantityDamaged + quantityMissing > quantityExpected) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Cantidades exceden lo esperado')),
-                );
-                return;
-              }
-              try {
-                final authProvider = Provider.of<AuthProvider>(context, listen: false);
-                final response = await _apiService.post(
-                  inventoryChecksEndpoint,
-                  {
-                    'environment_id': authProvider.currentUser!.environmentId,
-                    'schedule_id': _selectedScheduleId,
-                    'student_id': authProvider.currentUser!.id,
-                    'items': [
-                      {
-                        'item_id': item['id'],
-                        'status': newStatus ?? item['status'],
-                        'quantity_expected': quantityExpected,
-                        'quantity_found': quantityFound,
-                        'quantity_damaged': quantityDamaged,
-                        'quantity_missing': quantityMissing,
-                        'notes': notes,
-                      },
-                    ],
-                    'cleaning_notes': _cleaningNotesController.text,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          title: Text('Actualizar ${item['name']}'),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                DropdownButtonFormField<String>(
+                  decoration: const InputDecoration(
+                    labelText: 'Estado',
+                    border: OutlineInputBorder(),
+                  ),
+                  value: newStatus,
+                  items: ['good', 'damaged', 'missing'].map((status) {
+                    return DropdownMenuItem(
+                      value: status,
+                      child: Text(_statusTranslations[status] ?? status),
+                    );
+                  }).toList(),
+                  onChanged: (value) {
+                    setDialogState(() {
+                      newStatus = value!;
+                    });
                   },
-                );
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text('Actualizado: ${response['status']}')),
-                );
-                Navigator.pop(context);
-                _fetchData();
-              } catch (e) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text('Error: $e')),
-                );
-              }
-            },
-            child: const Text('Actualizar'),
+                ),
+                const SizedBox(height: 16),
+                if (isGroup) ...[
+                  Column(
+                    children: [
+                      Row(
+                        children: [
+                          const Text('Encontrados: '),
+                          IconButton(
+                            icon: const Icon(Icons.remove),
+                            onPressed: () {
+                              setDialogState(() {
+                                if (quantityFound > 0) quantityFound--;
+                              });
+                            },
+                          ),
+                          Text(quantityFound.toString()),
+                          IconButton(
+                            icon: const Icon(Icons.add),
+                            onPressed: () {
+                              setDialogState(() {
+                                if (quantityFound + quantityDamaged + quantityMissing < quantityExpected) quantityFound++;
+                              });
+                            },
+                          ),
+                        ],
+                      ),
+                      Row(
+                        children: [
+                          const Text('Dañados: '),
+                          IconButton(
+                            icon: const Icon(Icons.remove),
+                            onPressed: () {
+                              setDialogState(() {
+                                if (quantityDamaged > 0) quantityDamaged--;
+                              });
+                            },
+                          ),
+                          Text(quantityDamaged.toString()),
+                          IconButton(
+                            icon: const Icon(Icons.add),
+                            onPressed: () {
+                              setDialogState(() {
+                                if (quantityFound + quantityDamaged + quantityMissing < quantityExpected) quantityDamaged++;
+                              });
+                            },
+                          ),
+                        ],
+                      ),
+                      Row(
+                        children: [
+                          const Text('Faltantes: '),
+                          IconButton(
+                            icon: const Icon(Icons.remove),
+                            onPressed: () {
+                              setDialogState(() {
+                                if (quantityMissing > 0) quantityMissing--;
+                              });
+                            },
+                          ),
+                          Text(quantityMissing.toString()),
+                          IconButton(
+                            icon: const Icon(Icons.add),
+                            onPressed: () {
+                              setDialogState(() {
+                                if (quantityFound + quantityDamaged + quantityMissing < quantityExpected) quantityMissing++;
+                              });
+                            },
+                          ),
+                        ],
+                      ),
+                      Text('Total esperado: $quantityExpected'),
+                      Text('Total reportado: ${quantityFound + quantityDamaged + quantityMissing}'),
+                    ],
+                  ),
+                ] else ...[
+                  TextField(
+                    decoration: const InputDecoration(
+                      labelText: 'Notas',
+                      border: OutlineInputBorder(),
+                    ),
+                    maxLines: 3,
+                    onChanged: (value) {
+                      notes = value;
+                    },
+                  ),
+                ],
+              ],
+            ),
           ),
-        ],
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Cancelar'),
+            ),
+            ElevatedButton(
+              onPressed: () async {
+                if (isGroup && quantityFound + quantityDamaged + quantityMissing != quantityExpected) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Las cantidades deben sumar el esperado')),
+                  );
+                  return;
+                }
+                try {
+                  final authProvider = Provider.of<AuthProvider>(context, listen: false);
+                  final response = await _apiService.post(
+                    inventoryChecksEndpoint,
+                    {
+                      'environment_id': authProvider.currentUser!.environmentId,
+                      'schedule_id': _selectedScheduleId,
+                      'student_id': authProvider.currentUser!.id,
+                      'items': [
+                        {
+                          'item_id': item['id'],
+                          'status': newStatus,
+                          'quantity_expected': quantityExpected,
+                          'quantity_found': quantityFound,
+                          'quantity_damaged': quantityDamaged,
+                          'quantity_missing': quantityMissing,
+                          'notes': notes,
+                        },
+                      ],
+                      'cleaning_notes': _cleaningNotesController.text,
+                    },
+                  );
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('Actualizado: ${_statusTranslations[response['status']] ?? response['status']}')),
+                  );
+                  Navigator.pop(context);
+                  _fetchData();
+                } catch (e) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('Error: $e')),
+                  );
+                }
+              },
+              child: const Text('Actualizar'),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -679,21 +745,21 @@ class _InventoryCheckScreenState extends State<InventoryCheckScreen> {
           ),
           ElevatedButton(
             onPressed: () async {
+              final itemsList = _items.map((item) {
+                final quantity = item['quantity'] ?? 1;
+                return {
+                  'item_id': item['id'],
+                  'status': 'good',
+                  'quantity_expected': quantity,
+                  'quantity_found': quantity,
+                  'quantity_damaged': 0,
+                  'quantity_missing': 0,
+                  'notes': '',
+                };
+              }).toList();
               try {
                 final authProvider = Provider.of<AuthProvider>(context, listen: false);
-                final itemsList = _items.map((item) {
-                  return {
-                    'item_id': item['id'],
-                    'status': 'good',
-                    'quantity_expected': item['quantity'] ?? 1,
-                    'quantity_found': item['quantity'] ?? 1,
-                    'quantity_damaged': 0,
-                    'quantity_missing': 0,
-                    'notes': '',
-                  };
-                }).toList();
-                // ignore: unused_local_variable
-                final response = await _apiService.post(
+                await _apiService.post(
                   inventoryChecksEndpoint,
                   {
                     'environment_id': authProvider.currentUser!.environmentId,
@@ -808,7 +874,7 @@ class _InventoryCheckScreenState extends State<InventoryCheckScreen> {
               DropdownButtonFormField<String>(
                 value: status,
                 items: ['approved', 'rejected'].map((st) {
-                  return DropdownMenuItem(value: st, child: Text(st));
+                  return DropdownMenuItem(value: st, child: Text(_statusTranslations[st] ?? st));
                 }).toList(),
                 onChanged: (value) => status = value!,
                 decoration: const InputDecoration(labelText: 'Estado'),
@@ -833,7 +899,7 @@ class _InventoryCheckScreenState extends State<InventoryCheckScreen> {
             onPressed: () async {
               try {
                 await _apiService.post(
-                  '/api/supervisor-reviews/', // Asume endpoint para review
+                  '/api/supervisor-reviews/',
                   {
                     'check_id': check['id'],
                     'status': status,
@@ -852,6 +918,36 @@ class _InventoryCheckScreenState extends State<InventoryCheckScreen> {
               }
             },
             child: const Text('Enviar'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showCheckDetails(Map<String, dynamic> check) {
+    // Implementar diálogo para mostrar detalles completos del check, incluyendo items, comentarios, quién verificó, etc.
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Detalles de Verificación'),
+        content: SingleChildScrollView(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('ID: ${check['id']}'),
+              Text('Fecha: ${check['check_date']}'),
+              Text('Hora: ${check['check_time']}'),
+              Text('Estado: ${_statusTranslations[check['status']] ?? check['status']}'),
+              Text('Notas de Limpieza: ${check['cleaning_notes'] ?? 'N/A'}'),
+              Text('Comentarios: ${check['comments'] ?? 'N/A'}'),
+              // Añadir lista de items del check, requeriría fetch adicional si no está en _pendingChecks
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cerrar'),
           ),
         ],
       ),
