@@ -20,6 +20,6 @@ class Notification(Base):
     created_at = Column(TIMESTAMP, server_default=func.current_timestamp())
 
     __table_args__ = (
-        CheckConstraint("type IN ('loan_approved', 'loan_rejected', 'loan_overdue', 'check_reminder', 'maintenance_update', 'verification_pending', 'alert', 'system')", name="check_type"),
+        CheckConstraint("type IN ('loan_approved', 'loan_rejected', 'loan_overdue', 'check_reminder', 'maintenance_update', 'verification_pending', 'alert', 'system', 'verification_update')", name="check_type"),
         CheckConstraint("priority IN ('low', 'medium', 'high')", name="check_priority"),
     )
