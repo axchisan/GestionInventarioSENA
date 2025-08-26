@@ -12,6 +12,7 @@ from ..models.environments import Environment
 from ..models.inventory_items import InventoryItem
 from ..models.users import User
 from ..models.schedules import Schedule
+from ..models.notifications import Notification
 from ..routers.auth import get_current_user
 from ..schemas.inventory_check import InventoryCheckCreateRequest, InventoryCheckResponse, InventoryCheckInstructorConfirmRequest, InventoryCheckItemRequest
 
@@ -23,8 +24,8 @@ async def create_inventory_check(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    if current_user.role != "student":
-        raise HTTPException(status_code=403, detail="Solo estudiantes pueden iniciar verificaciones")
+    if current_user.role not in ["student", "instructor", "supervisor"]:
+        raise HTTPException(status_code=403, detail="Rol no autorizado")
 
     environment = db.query(Environment).filter(Environment.id == request.environment_id).first()
     if not environment:
@@ -38,7 +39,6 @@ async def create_inventory_check(
     if not schedule:
         raise HTTPException(status_code=404, detail="Horario no encontrado")
 
-    # Verificar si ya hay check hoy para este schedule/environment
     existing_check = db.query(InventoryCheck).filter(
         InventoryCheck.environment_id == request.environment_id,
         InventoryCheck.schedule_id == request.schedule_id,
@@ -98,7 +98,19 @@ async def create_inventory_check(
     inventory_check.items_good = items_good
     inventory_check.items_damaged = items_damaged
     inventory_check.items_missing = items_missing
-    inventory_check.status = "complete" if items_damaged == 0 and items_missing == 0 else "issues"
+    inventory_check.status = "pending" if items_damaged > 0 or items_missing > 0 else "instructor_review"
+    db.commit()
+
+    # Generar notificación para instructor/supervisor
+    notification = Notification(
+        user_id=schedule.instructor_id,  # Asumiendo instructor_id en schedule
+        type="verification_pending",
+        title="Nueva Verificación Pendiente",
+        message="Una verificación de inventario ha sido iniciada.",
+        is_read=False,
+        priority="medium"
+    )
+    db.add(notification)
     db.commit()
 
     return {"status": "success", "check_id": inventory_check.id}
@@ -134,6 +146,18 @@ async def confirm_inventory_check(
 
     db.commit()
     db.refresh(inventory_check)
+    notification = Notification(
+        user_id=current_user.id, 
+        type="verification_update",
+        title="Verificación Confirmada por Instructor",
+        message="La verificación ha sido confirmada.",
+        is_read=False,
+        priority="medium"
+    )
+    db.add(notification)
+    db.commit()
+    inventory_check.status = "supervisor_review" if request.inventory_complete else "issues"
+    db.commit()
 
     return inventory_check
 

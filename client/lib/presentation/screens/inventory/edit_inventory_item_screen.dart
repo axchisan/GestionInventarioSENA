@@ -24,6 +24,15 @@ class _EditInventoryItemScreenState extends State<EditInventoryItemScreen> {
   late int _quantity;
   late String _itemType;
   late String _status;
+  late String _serialNumber;
+  late String _brand;
+  late String _model;
+  late DateTime? _purchaseDate;
+  late DateTime? _warrantyExpiry;
+  late DateTime? _lastMaintenance;
+  late DateTime? _nextMaintenance;
+  late String _imageUrl;
+  late String _notes;
   late ApiService _apiService;
 
   @override
@@ -36,6 +45,15 @@ class _EditInventoryItemScreenState extends State<EditInventoryItemScreen> {
     _quantity = widget.item['quantity'] ?? 1;
     _itemType = widget.item['item_type'];
     _status = widget.item['status'];
+    _serialNumber = widget.item['serial_number'] ?? '';
+    _brand = widget.item['brand'] ?? '';
+    _model = widget.item['model'] ?? '';
+    _purchaseDate = widget.item['purchase_date'] != null ? DateTime.parse(widget.item['purchase_date']) : null;
+    _warrantyExpiry = widget.item['warranty_expiry'] != null ? DateTime.parse(widget.item['warranty_expiry']) : null;
+    _lastMaintenance = widget.item['last_maintenance'] != null ? DateTime.parse(widget.item['last_maintenance']) : null;
+    _nextMaintenance = widget.item['next_maintenance'] != null ? DateTime.parse(widget.item['next_maintenance']) : null;
+    _imageUrl = widget.item['image_url'] ?? '';
+    _notes = widget.item['notes'] ?? '';
   }
 
   Future<void> _updateItem() async {
@@ -50,6 +68,15 @@ class _EditInventoryItemScreenState extends State<EditInventoryItemScreen> {
             'quantity': _quantity,
             'item_type': _itemType,
             'status': _status,
+            'serial_number': _serialNumber.isEmpty ? null : _serialNumber,
+            'brand': _brand.isEmpty ? null : _brand,
+            'model': _model.isEmpty ? null : _model,
+            'purchase_date': _purchaseDate?.toIso8601String(),
+            'warranty_expiry': _warrantyExpiry?.toIso8601String(),
+            'last_maintenance': _lastMaintenance?.toIso8601String(),
+            'next_maintenance': _nextMaintenance?.toIso8601String(),
+            'image_url': _imageUrl.isEmpty ? null : _imageUrl,
+            'notes': _notes.isEmpty ? null : _notes,
           },
         );
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Item actualizado')));
@@ -57,6 +84,20 @@ class _EditInventoryItemScreenState extends State<EditInventoryItemScreen> {
       } catch (e) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e')));
       }
+    }
+  }
+
+  Future<void> _selectDate(DateTime? initialDate, Function(DateTime?) setter) async {
+    final DateTime? picked = await showDatePicker(
+      context: context,
+      initialDate: initialDate ?? DateTime.now(),
+      firstDate: DateTime(2000),
+      lastDate: DateTime(2100),
+    );
+    if (picked != null) {
+      setState(() {
+        setter(picked);
+      });
     }
   }
 
@@ -108,6 +149,47 @@ class _EditInventoryItemScreenState extends State<EditInventoryItemScreen> {
                     .map((st) => DropdownMenuItem(value: st, child: Text(st))).toList(),
                 onChanged: (value) => setState(() => _status = value!),
                 decoration: const InputDecoration(labelText: 'Estado'),
+              ),
+              TextFormField(
+                initialValue: _serialNumber,
+                decoration: const InputDecoration(labelText: 'Número de Serie (opcional)'),
+                onChanged: (value) => _serialNumber = value,
+              ),
+              TextFormField(
+                initialValue: _brand,
+                decoration: const InputDecoration(labelText: 'Marca (opcional)'),
+                onChanged: (value) => _brand = value,
+              ),
+              TextFormField(
+                initialValue: _model,
+                decoration: const InputDecoration(labelText: 'Modelo (opcional)'),
+                onChanged: (value) => _model = value,
+              ),
+              ListTile(
+                title: Text('Fecha de Compra: ${_purchaseDate?.toString() ?? 'No seleccionada'}'),
+                onTap: () => _selectDate(_purchaseDate, (date) => setState(() => _purchaseDate = date)),
+              ),
+              ListTile(
+                title: Text('Vencimiento Garantía: ${_warrantyExpiry?.toString() ?? 'No seleccionada'}'),
+                onTap: () => _selectDate(_warrantyExpiry, (date) => setState(() => _warrantyExpiry = date)),
+              ),
+              ListTile(
+                title: Text('Último Mantenimiento: ${_lastMaintenance?.toString() ?? 'No seleccionada'}'),
+                onTap: () => _selectDate(_lastMaintenance, (date) => setState(() => _lastMaintenance = date)),
+              ),
+              ListTile(
+                title: Text('Próximo Mantenimiento: ${_nextMaintenance?.toString() ?? 'No seleccionada'}'),
+                onTap: () => _selectDate(_nextMaintenance, (date) => setState(() => _nextMaintenance = date)),
+              ),
+              TextFormField(
+                initialValue: _imageUrl,
+                decoration: const InputDecoration(labelText: 'URL Imagen (opcional)'),
+                onChanged: (value) => _imageUrl = value,
+              ),
+              TextFormField(
+                initialValue: _notes,
+                decoration: const InputDecoration(labelText: 'Notas (opcional)'),
+                onChanged: (value) => _notes = value,
               ),
               const SizedBox(height: 24),
               ElevatedButton(
