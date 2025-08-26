@@ -39,5 +39,5 @@ class InventoryCheck(Base):
 
 
     __table_args__ = (
-        CheckConstraint("status IN ('pending', 'complete', 'incomplete', 'issues')", name="check_status"),
+        CheckConstraint("status IN ('pending', 'complete', 'incomplete', 'issues', 'supervisor_review', 'instructor_review')", name="check_status"),
     )
