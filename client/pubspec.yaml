@@ -4,7 +4,7 @@ publish_to: 'none'
 version: 0.1.0
 
 environment:
-  sdk: ^3.8.1  # Mantén esta versión por ahora, pero considera actualizar más adelante
+  sdk: ^3.8.1  
 
 dependencies:
   fl_chart: ^1.0.0
@@ -12,10 +12,11 @@ dependencies:
     sdk: flutter
   flutter_localizations:
     sdk: flutter
-  flutter_secure_storage: ^9.2.4  # Cambiado de ^10.0.0 a ^9.2.4
+  flutter_secure_storage: ^9.2.4 
   go_router: ^16.0.0
   google_fonts: ^6.2.1
   http: ^1.4.0
+  intl: ^0.20.2
   json_annotation: ^4.9.0
   jwt_decoder: ^2.0.1
   mobile_scanner: ^7.0.1

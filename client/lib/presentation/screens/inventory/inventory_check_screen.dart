@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
+import 'package:intl/intl.dart'; // Para formato de hora
 import '../../../core/services/api_service.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/constants/api_constants.dart';
@@ -23,9 +24,11 @@ class _InventoryCheckScreenState extends State<InventoryCheckScreen> {
   String? _selectedScheduleId;
   List<dynamic> _items = [];
   List<dynamic> _schedules = [];
+  List<dynamic> _checks = []; // Todos los checks, incluyendo históricos
   List<dynamic> _pendingChecks = [];
   bool _isLoading = true;
   bool _hasCheckedToday = false;
+  final DateFormat _colombianTimeFormat = DateFormat('hh:mm a'); // Formato 12h AM/PM
 
   // Mapas para traducciones
   final Map<String, String> _categoryTranslations = {
@@ -50,6 +53,11 @@ class _InventoryCheckScreenState extends State<InventoryCheckScreen> {
     // ignore: equal_keys_in_map
     'damaged': 'Dañado',
     'missing': 'Faltante',
+    'pending': 'Pendiente',
+    'instructor_review': 'Revisión Instructor',
+    'supervisor_review': 'Revisión Supervisor',
+    'complete': 'Completo',
+    'issues': 'Problemas',
   };
 
   @override
@@ -86,17 +94,19 @@ class _InventoryCheckScreenState extends State<InventoryCheckScreen> {
       );
       final checks = await _apiService.get(
         inventoryChecksEndpoint,
-        queryParams: {'environment_id': user.environmentId.toString(), 'date': DateTime.now().toIso8601String().split('T')[0]},
+        queryParams: {'environment_id': user.environmentId.toString()},
       );
-      final pendingChecks = await _apiService.get(
-        inventoryChecksEndpoint,
-        queryParams: {'environment_id': user.environmentId.toString(), 'status': 'pending'},
+      final pendingChecks = checks.where((check) => check['status'] == 'pending').toList();
+      final todayCheck = checks.firstWhere(
+        (check) => check['check_date'] == DateTime.now().toIso8601String().split('T')[0],
+        orElse: () => null,
       );
       setState(() {
         _items = items;
         _schedules = schedules;
-        _hasCheckedToday = checks.isNotEmpty;
+        _checks = checks;
         _pendingChecks = pendingChecks;
+        _hasCheckedToday = todayCheck != null;
         _isLoading = false;
       });
     } catch (e) {
@@ -111,19 +121,18 @@ class _InventoryCheckScreenState extends State<InventoryCheckScreen> {
 
   List<dynamic> get _filteredItems {
     return _items.where((item) {
-      final matchesSearch =
-          item['name'].toString().toLowerCase().contains(
-                _searchController.text.toLowerCase(),
-              ) ||
-          item['id'].toString().toLowerCase().contains(
-                _searchController.text.toLowerCase(),
-              );
-      final matchesCategory =
-          _selectedCategory == 'Todos' || item['category'] == _selectedCategory;
-      final matchesStatus =
-          _selectedStatus == 'Todos' || item['status'] == _selectedStatus;
+      final matchesSearch = item['name'].toString().toLowerCase().contains(_searchController.text.toLowerCase()) ||
+          item['id'].toString().toLowerCase().contains(_searchController.text.toLowerCase());
+      final matchesCategory = _selectedCategory == 'Todos' || (_categoryTranslations[item['category']] ?? item['category']) == _selectedCategory;
+      final matchesStatus = _selectedStatus == 'Todos' || (_statusTranslations[item['status']] ?? item['status']) == _selectedStatus;
       return matchesSearch && matchesCategory && matchesStatus;
     }).toList();
+  }
+
+  String _formatColombianTime(String timeStr) {
+    final utcTime = DateTime.parse('2023-01-01 $timeStr').toUtc();
+    final colombianTime = utcTime.subtract(const Duration(hours: 5)); // UTC-5
+    return _colombianTimeFormat.format(colombianTime);
   }
 
   @override
@@ -211,7 +220,7 @@ class _InventoryCheckScreenState extends State<InventoryCheckScreen> {
                             ),
                           ],
                         ),
-                        if (role == 'student') ...[
+                        if (role == 'student' || role == 'instructor' || role == 'supervisor') ...[
                           const SizedBox(height: 16),
                           DropdownButtonFormField<String>(
                             value: _selectedScheduleId,
@@ -224,7 +233,7 @@ class _InventoryCheckScreenState extends State<InventoryCheckScreen> {
                             items: _schedules.map((schedule) {
                               return DropdownMenuItem(
                                 value: schedule['id'].toString(),
-                                child: Text('${schedule['program']} - ${schedule['start_time']}'),
+                                child: Text('${schedule['program']} - ${_formatColombianTime(schedule['start_time'])}'),
                               );
                             }).toList(),
                             onChanged: (value) {
@@ -237,7 +246,7 @@ class _InventoryCheckScreenState extends State<InventoryCheckScreen> {
                         if (_hasCheckedToday) ...[
                           const SizedBox(height: 8),
                           const Text(
-                            'Inventario ya verificado hoy. Puedes actualizar si es necesario.',
+                            'Inventario ya verificado hoy. Puedes ver historial o actualizar.',
                             style: TextStyle(color: AppColors.success),
                           ),
                         ],
@@ -268,13 +277,32 @@ class _InventoryCheckScreenState extends State<InventoryCheckScreen> {
                               subtitle: Text('Estado: ${_statusTranslations[check['status']] ?? check['status']}'),
                               trailing: role == 'instructor' 
                                 ? ElevatedButton(
-                                    onPressed: () => _confirmCheck(check),
+                                    onPressed: () => _confirmInstructorCheck(check),
                                     child: const Text('Confirmar'),
                                   )
                                 : ElevatedButton(
-                                    onPressed: () => _reviewCheck(check),
+                                    onPressed: () => _reviewSupervisorCheck(check),
                                     child: const Text('Revisar'),
                                   ),
+                              onTap: () => _showCheckDetails(check),
+                            ),
+                          );
+                        },
+                      ),
+                    ),
+                  ],
+                  if (_hasCheckedToday) ...[
+                    const SizedBox(height: 16),
+                    const Text('Historial de Verificaciones', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                    Expanded(
+                      child: ListView.builder(
+                        itemCount: _checks.length,
+                        itemBuilder: (context, index) {
+                          final check = _checks[index];
+                          return Card(
+                            child: ListTile(
+                              title: Text('Check ID: ${check['id']} - ${_formatColombianTime(check['check_time'])}'),
+                              subtitle: Text('Estado: ${_statusTranslations[check['status']] ?? check['status']}'),
                               onTap: () => _showCheckDetails(check),
                             ),
                           );
@@ -299,14 +327,21 @@ class _InventoryCheckScreenState extends State<InventoryCheckScreen> {
             ),
             const SizedBox(height: 16),
           ],
-          if (role == 'student') ...[
+          if ((role == 'student' || role == 'instructor' || role == 'supervisor') && !_hasCheckedToday) ...[
             FloatingActionButton(
               heroTag: 'check',
               onPressed: _showCheckDialog,
               backgroundColor: AppColors.primary,
               child: const Icon(Icons.check, color: Colors.white),
             ),
+            const SizedBox(height: 16),
           ],
+          FloatingActionButton(
+            heroTag: 'report',
+            onPressed: _showReportDamageDialog,
+            backgroundColor: AppColors.error,
+            child: const Icon(Icons.report_problem, color: Colors.white),
+          ),
         ],
       ),
     );
@@ -317,152 +352,157 @@ class _InventoryCheckScreenState extends State<InventoryCheckScreen> {
     final isGroup = item['item_type'] == 'group';
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
-      child: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        item['name'],
-                        style: const TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      Text(
-                        isGroup ? 'Grupo: ${item['quantity']} unidades' : 'ID: ${item['id']}',
-                        style: const TextStyle(
-                          color: AppColors.grey600,
-                          fontFamily: 'monospace',
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 12,
-                    vertical: 6,
-                  ),
-                  decoration: BoxDecoration(
-                    color: statusColor.withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(20),
-                    border: Border.all(color: statusColor),
-                  ),
-                  child: Text(
-                    _statusTranslations[item['status']] ?? item['status'],
-                    style: TextStyle(
-                      color: statusColor,
-                      fontSize: 12,
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            Row(
-              children: [
-                Expanded(
-                  child: _buildInfoItem(
-                    Icons.category,
-                    'Categoría',
-                    _categoryTranslations[item['category']] ?? item['category'],
-                  ),
-                ),
-                Expanded(
-                  child: _buildInfoItem(
-                    Icons.location_on,
-                    'Ubicación',
-                    item['environment_id'] ?? 'N/A',
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 8),
-            Row(
-              children: [
-                Expanded(
-                  child: _buildInfoItem(
-                    Icons.calendar_today,
-                    'Última Verificación',
-                    item['updated_at'] ?? 'N/A',
-                  ),
-                ),
-                Expanded(
-                  child: _buildInfoItem(
-                    Icons.star,
-                    'Condición',
-                    _statusTranslations[item['status']] ?? item['status'],
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 16),
-            Row(
-              children: [
-                Expanded(
-                  child: OutlinedButton.icon(
-                    onPressed: () => _showItemDetails(item),
-                    icon: const Icon(Icons.visibility),
-                    label: const Text('Ver Detalles'),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: ElevatedButton.icon(
-                    onPressed: () => _updateItemStatus(item),
-                    icon: const Icon(Icons.edit),
-                    label: const Text('Actualizar Estado'),
-                  ),
-                ),
-              ],
-            ),
-            if (role == 'supervisor' || role == 'admin') ...[
-              const SizedBox(height: 8),
+      child: InkWell(
+        onTap: () => _showItemDetails(item),
+        child: Padding(
+          padding: const EdgeInsets.all(16.0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
               Row(
                 children: [
                   Expanded(
-                    child: OutlinedButton.icon(
-                      onPressed: () {
-                        showDialog(
-                          context: context,
-                          builder: (ctx) => AlertDialog(
-                            title: const Text('Confirmar'),
-                            content: const Text('¿Eliminar item?'),
-                            actions: [
-                              TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancelar')),
-                              ElevatedButton(
-                                onPressed: () async {
-                                  try {
-                                    await _apiService.delete('$inventoryEndpoint${item['id']}');
-                                    _fetchData();
-                                    Navigator.pop(ctx);
-                                  } catch (e) {
-                                    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e')));
-                                  }
-                                },
-                                child: const Text('Eliminar'),
-                              ),
-                            ],
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          item['name'],
+                          style: const TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
                           ),
-                        );
-                      },
-                      icon: const Icon(Icons.delete),
-                      label: const Text('Eliminar'),
+                        ),
+                        Text(
+                          isGroup ? 'Grupo: ${item['quantity']} unidades' : 'ID: ${item['id']}',
+                          style: const TextStyle(
+                            color: AppColors.grey600,
+                            fontFamily: 'monospace',
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 6,
+                    ),
+                    decoration: BoxDecoration(
+                      color: statusColor.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(color: statusColor),
+                    ),
+                    child: Text(
+                      _statusTranslations[item['status']] ?? item['status'],
+                      style: TextStyle(
+                        color: statusColor,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w500,
+                      ),
                     ),
                   ),
                 ],
               ),
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  Expanded(
+                    child: _buildInfoItem(
+                      Icons.category,
+                      'Categoría',
+                      _categoryTranslations[item['category']] ?? item['category'],
+                    ),
+                  ),
+                  Expanded(
+                    child: _buildInfoItem(
+                      Icons.location_on,
+                      'Ubicación',
+                      item['environment_id'] ?? 'N/A',
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  Expanded(
+                    child: _buildInfoItem(
+                      Icons.calendar_today,
+                      'Última Verificación',
+                      item['updated_at'] ?? 'N/A',
+                    ),
+                  ),
+                  Expanded(
+                    child: _buildInfoItem(
+                      Icons.star,
+                      'Condición',
+                      _statusTranslations[item['status']] ?? item['status'],
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed: () => _updateItemStatus(item),
+                      icon: const Icon(Icons.edit),
+                      label: const Text('Actualizar Estado'),
+                    ),
+                  ),
+                  if (role == 'supervisor' || role == 'admin') ...[
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        onPressed: () => _editItem(item),
+                        icon: const Icon(Icons.edit_document),
+                        label: const Text('Editar Item'),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        onPressed: () => _deleteItem(item),
+                        icon: const Icon(Icons.delete),
+                        label: const Text('Eliminar'),
+                      ),
+                    ),
+                  ],
+                ],
+              ),
             ],
-          ],
+          ),
         ),
+      ),
+    );
+  }
+
+  void _editItem(Map<String, dynamic> item) {
+    context.push('/edit-inventory-item', extra: {'item': item}).then((_) => _fetchData());
+  }
+
+  void _deleteItem(Map<String, dynamic> item) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Confirmar'),
+        content: const Text('¿Eliminar item?'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancelar')),
+          ElevatedButton(
+            onPressed: () async {
+              try {
+                await _apiService.delete('$inventoryEndpoint${item['id']}');
+                _fetchData();
+                Navigator.pop(ctx);
+              } catch (e) {
+                ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e')));
+              }
+            },
+            child: const Text('Eliminar'),
+          ),
+        ],
       ),
     );
   }
@@ -479,6 +519,12 @@ class _InventoryCheckScreenState extends State<InventoryCheckScreen> {
         return AppColors.error;
       case 'lost':
       case 'missing':
+        return AppColors.error;
+      case 'pending':
+        return AppColors.grey500;
+      case 'complete':
+        return AppColors.success;
+      case 'issues':
         return AppColors.error;
       default:
         return AppColors.grey500;
@@ -517,17 +563,28 @@ class _InventoryCheckScreenState extends State<InventoryCheckScreen> {
       context: context,
       builder: (context) => AlertDialog(
         title: Text(item['name']),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('ID: ${item['id']}'),
-            Text('Categoría: ${_categoryTranslations[item['category']] ?? item['category']}'),
-            Text('Estado: ${_statusTranslations[item['status']] ?? item['status']}'),
-            Text('Cantidad: ${item['quantity'] ?? 1}'),
-            Text('Tipo: ${item['item_type'] == 'group' ? 'Grupo' : 'Individual'}'),
-            Text('Última Verificación: ${item['updated_at'] ?? 'N/A'}'),
-          ],
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('ID: ${item['id']}'),
+              Text('Categoría: ${_categoryTranslations[item['category']] ?? item['category']}'),
+              Text('Estado: ${_statusTranslations[item['status']] ?? item['status']}'),
+              Text('Cantidad: ${item['quantity'] ?? 1}'),
+              Text('Tipo: ${item['item_type'] == 'group' ? 'Grupo' : 'Individual'}'),
+              Text('Número de Serie: ${item['serial_number'] ?? 'N/A'}'),
+              Text('Marca: ${item['brand'] ?? 'N/A'}'),
+              Text('Modelo: ${item['model'] ?? 'N/A'}'),
+              Text('Fecha de Compra: ${item['purchase_date'] ?? 'N/A'}'),
+              Text('Vencimiento Garantía: ${item['warranty_expiry'] ?? 'N/A'}'),
+              Text('Último Mantenimiento: ${item['last_maintenance'] ?? 'N/A'}'),
+              Text('Próximo Mantenimiento: ${item['next_maintenance'] ?? 'N/A'}'),
+              Text('Notas: ${item['notes'] ?? 'N/A'}'),
+              Text('Última Verificación: ${item['updated_at'] ?? 'N/A'}'),
+              if (item['image_url'] != null) Image.network(item['image_url']),
+            ],
+          ),
         ),
         actions: [
           TextButton(
@@ -649,18 +706,17 @@ class _InventoryCheckScreenState extends State<InventoryCheckScreen> {
                       Text('Total reportado: ${quantityFound + quantityDamaged + quantityMissing}'),
                     ],
                   ),
-                ] else ...[
-                  TextField(
-                    decoration: const InputDecoration(
-                      labelText: 'Notas',
-                      border: OutlineInputBorder(),
-                    ),
-                    maxLines: 3,
-                    onChanged: (value) {
-                      notes = value;
-                    },
-                  ),
                 ],
+                TextField(
+                  decoration: const InputDecoration(
+                    labelText: 'Notas',
+                    border: OutlineInputBorder(),
+                  ),
+                  maxLines: 3,
+                  onChanged: (value) {
+                    notes = value;
+                  },
+                ),
               ],
             ),
           ),
@@ -719,6 +775,10 @@ class _InventoryCheckScreenState extends State<InventoryCheckScreen> {
   }
 
   void _showCheckDialog() {
+    if (_selectedScheduleId == null) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Selecciona un horario')));
+      return;
+    }
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
@@ -787,7 +847,51 @@ class _InventoryCheckScreenState extends State<InventoryCheckScreen> {
     );
   }
 
-  void _confirmCheck(Map<String, dynamic> check) async {
+  void _showReportDamageDialog() {
+    // Dialog para reportar daños/faltantes independientes (crea maintenance_request)
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Reportar Daño/Faltante'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // Seleccionar items, descripción, prioridad, etc.
+            // Por simplicidad, asumo un form básico; expándelo si necesitas.
+            TextField(
+              decoration: const InputDecoration(labelText: 'Descripción'),
+            ),
+            DropdownButtonFormField<String>(
+              value: 'medium',
+              items: ['low', 'medium', 'high', 'urgent'].map((p) => DropdownMenuItem(value: p, child: Text(p))).toList(),
+              onChanged: (value) {},
+              decoration: const InputDecoration(labelText: 'Prioridad'),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancelar')),
+          ElevatedButton(
+            onPressed: () async {
+              // POST to maintenance_requests
+              try {
+                await _apiService.post('/api/maintenance-requests/', {
+                  // Llena con datos del form
+                });
+                Navigator.pop(context);
+                _fetchData();
+              } catch (e) {
+                ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e')));
+              }
+            },
+            child: const Text('Reportar'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _confirmInstructorCheck(Map<String, dynamic> check) async {
     bool isClean = true;
     bool isOrganized = true;
     bool inventoryComplete = true;
@@ -795,137 +899,140 @@ class _InventoryCheckScreenState extends State<InventoryCheckScreen> {
 
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Confirmar Verificación'),
-        content: SingleChildScrollView(
-          child: Column(
-            children: [
-              CheckboxListTile(
-                title: const Text('Aula aseada'),
-                value: isClean,
-                onChanged: (value) => setState(() => isClean = value!),
-              ),
-              CheckboxListTile(
-                title: const Text('Sillas y mesas organizadas'),
-                value: isOrganized,
-                onChanged: (value) => setState(() => isOrganized = value!),
-              ),
-              CheckboxListTile(
-                title: const Text('Inventario completo'),
-                value: inventoryComplete,
-                onChanged: (value) => setState(() => inventoryComplete = value!),
-              ),
-              TextField(
-                decoration: const InputDecoration(
-                  labelText: 'Observaciones',
-                  border: OutlineInputBorder(),
+      builder: (context) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          title: const Text('Confirmar Verificación (Instructor)'),
+          content: SingleChildScrollView(
+            child: Column(
+              children: [
+                CheckboxListTile(
+                  title: const Text('Aula aseada'),
+                  value: isClean,
+                  onChanged: (value) => setDialogState(() => isClean = value!),
                 ),
-                onChanged: (value) => comments = value,
-              ),
-            ],
+                CheckboxListTile(
+                  title: const Text('Sillas y mesas organizadas'),
+                  value: isOrganized,
+                  onChanged: (value) => setDialogState(() => isOrganized = value!),
+                ),
+                CheckboxListTile(
+                  title: const Text('Inventario completo'),
+                  value: inventoryComplete,
+                  onChanged: (value) => setDialogState(() => inventoryComplete = value!),
+                ),
+                TextField(
+                  decoration: const InputDecoration(
+                    labelText: 'Observaciones',
+                    border: OutlineInputBorder(),
+                  ),
+                  onChanged: (value) => comments = value,
+                ),
+              ],
+            ),
           ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Cancelar'),
+            ),
+            ElevatedButton(
+              onPressed: () async {
+                try {
+                  await _apiService.put(
+                    '$inventoryChecksEndpoint${check['id']}/confirm',
+                    {
+                      'is_clean': isClean,
+                      'is_organized': isOrganized,
+                      'inventory_complete': inventoryComplete,
+                      'comments': comments,
+                    },
+                  );
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Confirmado por Instructor')),
+                  );
+                  Navigator.pop(context);
+                  _fetchData();
+                } catch (e) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('Error: $e')),
+                  );
+                }
+              },
+              child: const Text('Confirmar'),
+            ),
+          ],
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancelar'),
-          ),
-          ElevatedButton(
-            onPressed: () async {
-              try {
-                await _apiService.put(
-                  '$inventoryChecksEndpoint${check['id']}/confirm',
-                  {
-                    'is_clean': isClean,
-                    'is_organized': isOrganized,
-                    'inventory_complete': inventoryComplete,
-                    'comments': comments,
-                  },
-                );
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Confirmado')),
-                );
-                Navigator.pop(context);
-                _fetchData();
-              } catch (e) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text('Error: $e')),
-                );
-              }
-            },
-            child: const Text('Confirmar'),
-          ),
-        ],
       ),
     );
   }
 
-  void _reviewCheck(Map<String, dynamic> check) async {
+  void _reviewSupervisorCheck(Map<String, dynamic> check) async {
     String status = 'approved';
     String comments = '';
 
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Revisar Verificación'),
-        content: SingleChildScrollView(
-          child: Column(
-            children: [
-              DropdownButtonFormField<String>(
-                value: status,
-                items: ['approved', 'rejected'].map((st) {
-                  return DropdownMenuItem(value: st, child: Text(_statusTranslations[st] ?? st));
-                }).toList(),
-                onChanged: (value) => status = value!,
-                decoration: const InputDecoration(labelText: 'Estado'),
-              ),
-              const SizedBox(height: 16),
-              TextField(
-                decoration: const InputDecoration(
-                  labelText: 'Comentarios',
-                  border: OutlineInputBorder(),
+      builder: (context) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          title: const Text('Revisar Verificación (Supervisor)'),
+          content: SingleChildScrollView(
+            child: Column(
+              children: [
+                DropdownButtonFormField<String>(
+                  value: status,
+                  items: ['approved', 'rejected'].map((st) {
+                    return DropdownMenuItem(value: st, child: Text(_statusTranslations[st] ?? st));
+                  }).toList(),
+                  onChanged: (value) => setDialogState(() => status = value!),
+                  decoration: const InputDecoration(labelText: 'Estado'),
                 ),
-                onChanged: (value) => comments = value,
-              ),
-            ],
+                const SizedBox(height: 16),
+                TextField(
+                  decoration: const InputDecoration(
+                    labelText: 'Comentarios',
+                    border: OutlineInputBorder(),
+                  ),
+                  onChanged: (value) => comments = value,
+                ),
+              ],
+            ),
           ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Cancelar'),
+            ),
+            ElevatedButton(
+              onPressed: () async {
+                try {
+                  await _apiService.post(
+                    '/api/supervisor-reviews/',
+                    {
+                      'check_id': check['id'],
+                      'status': status,
+                      'comments': comments,
+                    },
+                  );
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Revisado por Supervisor')),
+                  );
+                  Navigator.pop(context);
+                  _fetchData();
+                } catch (e) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('Error: $e')),
+                  );
+                }
+              },
+              child: const Text('Enviar'),
+            ),
+          ],
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancelar'),
-          ),
-          ElevatedButton(
-            onPressed: () async {
-              try {
-                await _apiService.post(
-                  '/api/supervisor-reviews/',
-                  {
-                    'check_id': check['id'],
-                    'status': status,
-                    'comments': comments,
-                  },
-                );
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Revisado')),
-                );
-                Navigator.pop(context);
-                _fetchData();
-              } catch (e) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text('Error: $e')),
-                );
-              }
-            },
-            child: const Text('Enviar'),
-          ),
-        ],
       ),
     );
   }
 
   void _showCheckDetails(Map<String, dynamic> check) {
-    // Implementar diálogo para mostrar detalles completos del check, incluyendo items, comentarios, quién verificó, etc.
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
@@ -936,11 +1043,23 @@ class _InventoryCheckScreenState extends State<InventoryCheckScreen> {
             children: [
               Text('ID: ${check['id']}'),
               Text('Fecha: ${check['check_date']}'),
-              Text('Hora: ${check['check_time']}'),
+              Text('Hora: ${_formatColombianTime(check['check_time'])}'),
               Text('Estado: ${_statusTranslations[check['status']] ?? check['status']}'),
               Text('Notas de Limpieza: ${check['cleaning_notes'] ?? 'N/A'}'),
               Text('Comentarios: ${check['comments'] ?? 'N/A'}'),
-              // Añadir lista de items del check, requeriría fetch adicional si no está en _pendingChecks
+              Text('Aseada: ${check['is_clean'] ? 'Sí' : 'No'}'),
+              Text('Organizada: ${check['is_organized'] ? 'Sí' : 'No'}'),
+              Text('Inventario Completo: ${check['inventory_complete'] ? 'Sí' : 'No'}'),
+              const SizedBox(height: 8),
+              const Text('Items:'),
+              ...check['items'].map((item) => Text('${item['item_id']}: ${_statusTranslations[item['status']]} (Encontrados: ${item['quantity_found']}, Dañados: ${item['quantity_damaged']}, Faltantes: ${item['quantity_missing']})')),
+              // Si hay supervisor review
+              if (check['supervisor_reviews'].isNotEmpty) ...[
+                const SizedBox(height: 8),
+                const Text('Revisión Supervisor:'),
+                Text('Estado: ${_statusTranslations[check['supervisor_reviews'][0]['status']]}'),
+                Text('Comentarios: ${check['supervisor_reviews'][0]['comments'] ?? 'N/A'}'),
+              ],
             ],
           ),
         ),
