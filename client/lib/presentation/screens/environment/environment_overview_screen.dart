@@ -11,14 +11,7 @@ import '../../widgets/common/sena_card.dart';
 import '../../widgets/common/status_badge.dart';
 
 class EnvironmentOverviewScreen extends StatefulWidget {
-  final String environmentId;
-  final String environmentName;
-
-  const EnvironmentOverviewScreen({
-    Key? key,
-    required this.environmentId,
-    required this.environmentName,
-  }) : super(key: key);
+  const EnvironmentOverviewScreen({Key? key}) : super(key: key);
 
   @override
   State<EnvironmentOverviewScreen> createState() =>
@@ -34,6 +27,8 @@ class _EnvironmentOverviewScreenState extends State<EnvironmentOverviewScreen>
   List<dynamic> _checks = []; // Para estadísticas
   bool _isLoading = true;
   final DateFormat _colombianTimeFormat = DateFormat('hh:mm a');
+  String _environmentId = '';
+  Map<String, dynamic>? _environment;
 
   @override
   void initState() {
@@ -50,12 +45,26 @@ class _EnvironmentOverviewScreenState extends State<EnvironmentOverviewScreen>
       _isLoading = true;
     });
     try {
-      // ignore: unused_local_variable
       final authProvider = Provider.of<AuthProvider>(context, listen: false);
+      final user = authProvider.currentUser;
+      if (user?.environmentId == null) {
+        setState(() {
+          _isLoading = false;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Vincula un ambiente para acceder al overview'),
+          ),
+        );
+        return;
+      }
+      _environmentId = user!.environmentId.toString();
 
-      final queryParams = widget.environmentId.isNotEmpty
-          ? {'environment_id': widget.environmentId}
-          : null;
+      final environment = await _apiService.getSingle(
+        '$environmentsEndpoint$_environmentId',
+      );
+
+      final queryParams = {'environment_id': _environmentId};
 
       final inventory = await _apiService.get(
         inventoryEndpoint,
@@ -70,6 +79,7 @@ class _EnvironmentOverviewScreenState extends State<EnvironmentOverviewScreen>
         queryParams: queryParams,
       );
       setState(() {
+        _environment = environment;
         _inventory = inventory;
         _schedules = schedules;
         _checks = checks;
@@ -179,7 +189,7 @@ class _EnvironmentOverviewScreenState extends State<EnvironmentOverviewScreen>
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
                                   Text(
-                                    widget.environmentName,
+                                    _environment?['name'] ?? 'Ambiente $_environmentId',
                                     style: const TextStyle(
                                       color: Colors.white,
                                       fontSize: 18,
@@ -187,7 +197,14 @@ class _EnvironmentOverviewScreenState extends State<EnvironmentOverviewScreen>
                                     ),
                                   ),
                                   Text(
-                                    'ID: ${widget.environmentId}',
+                                    'ID: $_environmentId',
+                                    style: const TextStyle(
+                                      color: Colors.white70,
+                                      fontSize: 14,
+                                    ),
+                                  ),
+                                  Text(
+                                    'Ubicación: ${_environment?['location'] ?? 'N/A'}',
                                     style: const TextStyle(
                                       color: Colors.white70,
                                       fontSize: 14,
@@ -255,7 +272,7 @@ class _EnvironmentOverviewScreenState extends State<EnvironmentOverviewScreen>
               onPressed: () {
                 context.push(
                   '/add-inventory-item',
-                  extra: {'environmentId': widget.environmentId},
+                  extra: {'environmentId': _environmentId},
                 ).then((_) => _fetchData());
               },
               backgroundColor: AppColors.primary,
@@ -731,7 +748,7 @@ class _EnvironmentOverviewScreenState extends State<EnvironmentOverviewScreen>
             onPressed: () async {
               try {
                 await _apiService.post('/api/schedules/', {
-                  'environment_id': widget.environmentId,
+                  'environment_id': _environmentId,
                   'instructor_id': Provider.of<AuthProvider>(context, listen: false).currentUser!.id,
                   'program': program,
                   'ficha': ficha,
