@@ -1,8 +1,8 @@
-"""se agregaron nuevos campos para la verificacion completa de el inventario
+"""se hizo una migracion limpia para agregar los constraints a la base de datos y coincidir con los modelos
 
-Revision ID: e6c868c08667
+Revision ID: 2e2e91176462
 Revises: 
-Create Date: 2025-08-22 11:49:56.125515
+Create Date: 2025-08-27 21:58:20.191629
 
 """
 from typing import Sequence, Union
@@ -12,7 +12,7 @@ import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql
 
 # revision identifiers, used by Alembic.
-revision: str = 'e6c868c08667'
+revision: str = '2e2e91176462'
 down_revision: Union[str, Sequence[str], None] = None
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
@@ -70,7 +70,7 @@ def upgrade() -> None:
     sa.CheckConstraint("item_type IN ('individual', 'group')", name='check_item_type'),
     sa.CheckConstraint("status IN ('available', 'in_use', 'maintenance', 'damaged', 'lost')", name='check_status'),
     sa.CheckConstraint('quantity >= 1', name='check_quantity'),
-    sa.ForeignKeyConstraint(['environment_id'], ['environments.id'], ondelete='SET NULL'),
+    sa.ForeignKeyConstraint(['environment_id'], ['environments.id'], ondelete='CASCADE'),
     sa.PrimaryKeyConstraint('id'),
     sa.UniqueConstraint('internal_code'),
     sa.UniqueConstraint('serial_number')
@@ -226,7 +226,7 @@ def upgrade() -> None:
     sa.Column('expires_at', sa.TIMESTAMP(), nullable=True),
     sa.Column('created_at', sa.TIMESTAMP(), server_default=sa.text('CURRENT_TIMESTAMP'), nullable=True),
     sa.CheckConstraint("priority IN ('low', 'medium', 'high')", name='check_priority'),
-    sa.CheckConstraint("type IN ('loan_approved', 'loan_rejected', 'loan_overdue', 'check_reminder', 'maintenance_update', 'verification_pending', 'alert', 'system')", name='check_type'),
+    sa.CheckConstraint("type IN ('loan_approved', 'loan_rejected', 'loan_overdue', 'check_reminder', 'maintenance_update', 'verification_pending', 'alert', 'system', 'verification_update')", name='check_type'),
     sa.ForeignKeyConstraint(['user_id'], ['users.id'], ondelete='CASCADE'),
     sa.PrimaryKeyConstraint('id')
     )
@@ -305,7 +305,7 @@ def upgrade() -> None:
     sa.Column('instructor_confirmed_at', sa.DateTime(), server_default=sa.text('now()'), nullable=True),
     sa.Column('created_at', sa.DateTime(), server_default=sa.text('now()'), nullable=True),
     sa.Column('updated_at', sa.DateTime(), server_default=sa.text('now()'), nullable=True),
-    sa.CheckConstraint("status IN ('pending', 'complete', 'incomplete', 'issues')", name='check_status'),
+    sa.CheckConstraint("status IN ('pending', 'complete', 'incomplete', 'issues', 'supervisor_review', 'instructor_review')", name='check_status'),
     sa.ForeignKeyConstraint(['environment_id'], ['environments.id'], ondelete='CASCADE'),
     sa.ForeignKeyConstraint(['instructor_id'], ['users.id'], ondelete='SET NULL'),
     sa.ForeignKeyConstraint(['schedule_id'], ['schedules.id'], ondelete='SET NULL'),

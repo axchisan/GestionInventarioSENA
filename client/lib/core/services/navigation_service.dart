@@ -160,10 +160,7 @@ class NavigationService {
       GoRoute(
         path: '/environment-overview',
         name: 'environment-overview',
-        builder: (context, state) => const EnvironmentOverviewScreen(
-          environmentId: '',
-          environmentName: '',
-        ),
+        builder: (context, state) => const EnvironmentOverviewScreen(),
       ),
       GoRoute(
         path: '/add-inventory-item',
