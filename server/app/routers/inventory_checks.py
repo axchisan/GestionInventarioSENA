@@ -18,6 +18,54 @@ from ..schemas.inventory_check import InventoryCheckCreateRequest, InventoryChec
 
 router = APIRouter(tags=["inventory-checks"])
 
+class InventoryCheckItemCreateRequest(BaseModel):
+    item_id: UUID
+    status: str
+    quantity_expected: int
+    quantity_found: int
+    quantity_damaged: int
+    quantity_missing: int
+    notes: Optional[str] = None
+    environment_id: UUID
+    student_id: UUID
+
+@router.post("/inventory-check-items/", status_code=status.HTTP_201_CREATED)
+async def create_individual_check_item(
+    request: InventoryCheckItemCreateRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    if current_user.role not in ["student", "instructor", "supervisor"]:
+        raise HTTPException(status_code=403, detail="Rol no autorizado")
+
+    inventory_item = db.query(InventoryItem).filter(
+        InventoryItem.id == request.item_id,
+        InventoryItem.environment_id == request.environment_id
+    ).first()
+    if not inventory_item:
+        raise HTTPException(status_code=404, detail="Ítem no encontrado")
+
+    check_item = InventoryCheckItem(
+        check_id=None,  # No asociado a check general
+        item_id=request.item_id,
+        status=request.status,
+        quantity_expected=request.quantity_expected,
+        quantity_found=request.quantity_found,
+        quantity_damaged=request.quantity_damaged,
+        quantity_missing=request.quantity_missing,
+        notes=request.notes
+    )
+    db.add(check_item)
+    db.commit()
+    db.refresh(check_item)
+
+    # Actualizar quantity en InventoryItem
+    inventory_item.quantity = request.quantity_found + request.quantity_damaged
+    inventory_item.status = request.status if request.status in ['damaged', 'missing'] else inventory_item.status
+    db.commit()
+
+    return {"status": "success", "item_id": check_item.item_id}
+
 @router.post("/", status_code=status.HTTP_201_CREATED)
 async def create_inventory_check(
     request: InventoryCheckCreateRequest,
@@ -98,12 +146,11 @@ async def create_inventory_check(
     inventory_check.items_good = items_good
     inventory_check.items_damaged = items_damaged
     inventory_check.items_missing = items_missing
-    inventory_check.status = "pending" if items_damaged > 0 or items_missing > 0 else "instructor_review"
+    inventory_check.status = "issues" if items_damaged > 0 or items_missing > 0 else "instructor_review"
     db.commit()
 
-    # Generar notificación para instructor/supervisor
     notification = Notification(
-        user_id=schedule.instructor_id,  # Asumiendo instructor_id en schedule
+        user_id=schedule.instructor_id,
         type="verification_pending",
         title="Nueva Verificación Pendiente",
         message="Una verificación de inventario ha sido iniciada.",
@@ -138,11 +185,10 @@ async def confirm_inventory_check(
     inventory_check.inventory_complete = request.inventory_complete
     inventory_check.comments = request.comments
     inventory_check.instructor_confirmed_at = datetime.utcnow()
-    # Actualizar status si necesario
     if not request.inventory_complete or inventory_check.status == "issues":
         inventory_check.status = "issues"
     else:
-        inventory_check.status = "complete"
+        inventory_check.status = "supervisor_review"
 
     db.commit()
     db.refresh(inventory_check)
@@ -155,8 +201,6 @@ async def confirm_inventory_check(
         priority="medium"
     )
     db.add(notification)
-    db.commit()
-    inventory_check.status = "supervisor_review" if request.inventory_complete else "issues"
     db.commit()
 
     return inventory_check
@@ -174,13 +218,11 @@ def get_inventory_checks(
         query = query.filter(InventoryCheck.environment_id == environment_id)
     if date:
         try:
-            # Usar datetime.strptime para analizar la fecha
             parsed_date = datetime.strptime(date, "%Y-%m-%d").date()
             query = query.filter(InventoryCheck.check_date == parsed_date)
         except ValueError:
             raise HTTPException(status_code=400, detail="Formato de fecha inválido. Se espera YYYY-MM-DD")
     if shift:
-        # Filtrar por horario aproximado
         if shift == 'morning':
             query = query.join(Schedule).filter(Schedule.start_time.between('07:00:00', '12:00:00'))
         elif shift == 'afternoon':

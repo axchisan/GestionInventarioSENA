@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
-import 'package:intl/intl.dart'; // Para formato de hora
+import 'package:intl/intl.dart';
+import 'dart:convert';
+import 'dart:io'; // Para Platform si es necesario
 import '../../../core/services/api_service.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/constants/api_constants.dart';
@@ -24,13 +26,12 @@ class _InventoryCheckScreenState extends State<InventoryCheckScreen> {
   String? _selectedScheduleId;
   List<dynamic> _items = [];
   List<dynamic> _schedules = [];
-  List<dynamic> _checks = []; // Todos los checks, incluyendo históricos
+  List<dynamic> _checks = [];
   List<dynamic> _pendingChecks = [];
   bool _isLoading = true;
   bool _hasCheckedToday = false;
-  final DateFormat _colombianTimeFormat = DateFormat('hh:mm a'); // Formato 12h AM/PM
+  final DateFormat _colombianTimeFormat = DateFormat('hh:mm a');
 
-  // Mapas para traducciones
   final Map<String, String> _categoryTranslations = {
     'computer': 'Computador',
     'projector': 'Proyector',
@@ -58,6 +59,7 @@ class _InventoryCheckScreenState extends State<InventoryCheckScreen> {
     'supervisor_review': 'Revisión Supervisor',
     'complete': 'Completo',
     'issues': 'Problemas',
+    'incomplete': 'Incompleto',
   };
 
   @override
@@ -96,7 +98,7 @@ class _InventoryCheckScreenState extends State<InventoryCheckScreen> {
         inventoryChecksEndpoint,
         queryParams: {'environment_id': user.environmentId.toString()},
       );
-      final pendingChecks = checks.where((check) => check['status'] == 'pending').toList();
+      final pendingChecks = checks.where((check) => check['status'] == 'pending' || check['status'] == 'instructor_review' || check['status'] == 'supervisor_review').toList();
       final todayCheck = checks.firstWhere(
         (check) => check['check_date'] == DateTime.now().toIso8601String().split('T')[0],
         orElse: () => null,
@@ -130,9 +132,16 @@ class _InventoryCheckScreenState extends State<InventoryCheckScreen> {
   }
 
   String _formatColombianTime(String timeStr) {
-    final utcTime = DateTime.parse('2023-01-01 $timeStr').toUtc();
-    final colombianTime = utcTime.subtract(const Duration(hours: 5)); // UTC-5
-    return _colombianTimeFormat.format(colombianTime);
+    try {
+      final timeParts = timeStr.split(':');
+      final hour = int.parse(timeParts[0]);
+      final minute = int.parse(timeParts[1]);
+      final utcTime = DateTime(2000, 1, 1, hour, minute); // Fecha dummy
+      final colombianTime = utcTime.subtract(const Duration(hours: 5));
+      return _colombianTimeFormat.format(colombianTime);
+    } catch (e) {
+      return timeStr; // Fallback si formato inválido
+    }
   }
 
   @override
@@ -233,7 +242,7 @@ class _InventoryCheckScreenState extends State<InventoryCheckScreen> {
                             items: _schedules.map((schedule) {
                               return DropdownMenuItem(
                                 value: schedule['id'].toString(),
-                                child: Text('${schedule['program']} - ${_formatColombianTime(schedule['start_time'])}'),
+                                child: Text('${schedule['program']} - ${_formatColombianTime(schedule['start_time'])} - ${_formatColombianTime(schedule['end_time'])}'),
                               );
                             }).toList(),
                             onChanged: (value) {
@@ -246,7 +255,7 @@ class _InventoryCheckScreenState extends State<InventoryCheckScreen> {
                         if (_hasCheckedToday) ...[
                           const SizedBox(height: 8),
                           const Text(
-                            'Inventario ya verificado hoy. Puedes ver historial o actualizar.',
+                            'Inventario ya verificado hoy. Puedes ver historial o actualizar individualmente.',
                             style: TextStyle(color: AppColors.success),
                           ),
                         ],
@@ -275,15 +284,17 @@ class _InventoryCheckScreenState extends State<InventoryCheckScreen> {
                             child: ListTile(
                               title: Text('Check ID: ${check['id']}'),
                               subtitle: Text('Estado: ${_statusTranslations[check['status']] ?? check['status']}'),
-                              trailing: role == 'instructor' 
-                                ? ElevatedButton(
-                                    onPressed: () => _confirmInstructorCheck(check),
-                                    child: const Text('Confirmar'),
-                                  )
-                                : ElevatedButton(
-                                    onPressed: () => _reviewSupervisorCheck(check),
-                                    child: const Text('Revisar'),
-                                  ),
+                              trailing: role == 'instructor' && check['status'] == 'instructor_review'
+                                  ? ElevatedButton(
+                                      onPressed: () => _confirmInstructorCheck(check),
+                                      child: const Text('Confirmar'),
+                                    )
+                                  : role == 'supervisor' && check['status'] == 'supervisor_review'
+                                      ? ElevatedButton(
+                                          onPressed: () => _reviewSupervisorCheck(check),
+                                          child: const Text('Revisar'),
+                                        )
+                                      : null,
                               onTap: () => _showCheckDetails(check),
                             ),
                           );
@@ -291,7 +302,7 @@ class _InventoryCheckScreenState extends State<InventoryCheckScreen> {
                       ),
                     ),
                   ],
-                  if (_hasCheckedToday) ...[
+                  if (_hasCheckedToday || _checks.isNotEmpty) ...[
                     const SizedBox(height: 16),
                     const Text('Historial de Verificaciones', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
                     Expanded(
@@ -301,7 +312,7 @@ class _InventoryCheckScreenState extends State<InventoryCheckScreen> {
                           final check = _checks[index];
                           return Card(
                             child: ListTile(
-                              title: Text('Check ID: ${check['id']} - ${_formatColombianTime(check['check_time'])}'),
+                              title: Text('Check ID: ${check['id']} - ${_formatColombianTime(check['check_time'] ?? '00:00:00')}'),
                               subtitle: Text('Estado: ${_statusTranslations[check['status']] ?? check['status']}'),
                               onTap: () => _showCheckDetails(check),
                             ),
@@ -525,7 +536,12 @@ class _InventoryCheckScreenState extends State<InventoryCheckScreen> {
       case 'complete':
         return AppColors.success;
       case 'issues':
+      case 'incomplete':
         return AppColors.error;
+      case 'instructor_review':
+        return AppColors.warning;
+      case 'supervisor_review':
+        return AppColors.warning;
       default:
         return AppColors.grey500;
     }
@@ -735,28 +751,29 @@ class _InventoryCheckScreenState extends State<InventoryCheckScreen> {
                 }
                 try {
                   final authProvider = Provider.of<AuthProvider>(context, listen: false);
+                  // Solo crea InventoryCheckItem y actualiza InventoryItem, no InventoryCheck
+                  // ignore: unused_local_variable
                   final response = await _apiService.post(
-                    inventoryChecksEndpoint,
+                    '/api/inventory-check-items/',  // Nuevo endpoint para individuales (ver backend)
                     {
+                      'item_id': item['id'],
+                      'status': newStatus,
+                      'quantity_expected': quantityExpected,
+                      'quantity_found': quantityFound,
+                      'quantity_damaged': quantityDamaged,
+                      'quantity_missing': quantityMissing,
+                      'notes': notes,
                       'environment_id': authProvider.currentUser!.environmentId,
-                      'schedule_id': _selectedScheduleId,
                       'student_id': authProvider.currentUser!.id,
-                      'items': [
-                        {
-                          'item_id': item['id'],
-                          'status': newStatus,
-                          'quantity_expected': quantityExpected,
-                          'quantity_found': quantityFound,
-                          'quantity_damaged': quantityDamaged,
-                          'quantity_missing': quantityMissing,
-                          'notes': notes,
-                        },
-                      ],
-                      'cleaning_notes': _cleaningNotesController.text,
                     },
                   );
+                  // Actualiza quantity en InventoryItem
+                  await _apiService.put(
+                    '$inventoryEndpoint${item['id']}',
+                    {'quantity': quantityFound + quantityDamaged},
+                  );
                   ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('Actualizado: ${_statusTranslations[response['status']] ?? response['status']}')),
+                    SnackBar(content: Text('Item actualizado: ${_statusTranslations[newStatus] ?? newStatus}')),
                   );
                   Navigator.pop(context);
                   _fetchData();
@@ -830,7 +847,7 @@ class _InventoryCheckScreenState extends State<InventoryCheckScreen> {
                   },
                 );
                 ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Verificación masiva completada')),
+                  const SnackBar(content: Text('Verificación masiva completada. Estado: instructor_review')),
                 );
                 Navigator.pop(context);
                 _fetchData();
@@ -848,7 +865,6 @@ class _InventoryCheckScreenState extends State<InventoryCheckScreen> {
   }
 
   void _showReportDamageDialog() {
-    // Dialog para reportar daños/faltantes independientes (crea maintenance_request)
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
@@ -856,8 +872,6 @@ class _InventoryCheckScreenState extends State<InventoryCheckScreen> {
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            // Seleccionar items, descripción, prioridad, etc.
-            // Por simplicidad, asumo un form básico; expándelo si necesitas.
             TextField(
               decoration: const InputDecoration(labelText: 'Descripción'),
             ),
@@ -873,10 +887,14 @@ class _InventoryCheckScreenState extends State<InventoryCheckScreen> {
           TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancelar')),
           ElevatedButton(
             onPressed: () async {
-              // POST to maintenance_requests
               try {
                 await _apiService.post('/api/maintenance-requests/', {
-                  // Llena con datos del form
+                  // Llena con datos del form, ejemplo placeholder
+                  'item_id': 'example-item-id', // Ajusta a selección real
+                  'title': 'Daño reportado',
+                  'description': 'Descripción del daño',
+                  'priority': 'medium',
+                  'user_id': Provider.of<AuthProvider>(context, listen: false).currentUser!.id,
                 });
                 Navigator.pop(context);
                 _fetchData();
@@ -948,7 +966,7 @@ class _InventoryCheckScreenState extends State<InventoryCheckScreen> {
                     },
                   );
                   ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Confirmado por Instructor')),
+                    const SnackBar(content: Text('Confirmado por Instructor. Estado: supervisor_review')),
                   );
                   Navigator.pop(context);
                   _fetchData();
@@ -1014,7 +1032,7 @@ class _InventoryCheckScreenState extends State<InventoryCheckScreen> {
                     },
                   );
                   ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Revisado por Supervisor')),
+                    const SnackBar(content: Text('Revisado por Supervisor. Estado: complete o issues')),
                   );
                   Navigator.pop(context);
                   _fetchData();
@@ -1043,18 +1061,17 @@ class _InventoryCheckScreenState extends State<InventoryCheckScreen> {
             children: [
               Text('ID: ${check['id']}'),
               Text('Fecha: ${check['check_date']}'),
-              Text('Hora: ${_formatColombianTime(check['check_time'])}'),
+              Text('Hora: ${_formatColombianTime(check['check_time'] ?? '00:00:00')}'),
               Text('Estado: ${_statusTranslations[check['status']] ?? check['status']}'),
               Text('Notas de Limpieza: ${check['cleaning_notes'] ?? 'N/A'}'),
               Text('Comentarios: ${check['comments'] ?? 'N/A'}'),
-              Text('Aseada: ${check['is_clean'] ? 'Sí' : 'No'}'),
-              Text('Organizada: ${check['is_organized'] ? 'Sí' : 'No'}'),
-              Text('Inventario Completo: ${check['inventory_complete'] ? 'Sí' : 'No'}'),
+              Text('Aseada: ${check['is_clean'] == true ? 'Sí' : check['is_clean'] == false ? 'No' : 'Pendiente'}'),
+              Text('Organizada: ${check['is_organized'] == true ? 'Sí' : check['is_organized'] == false ? 'No' : 'Pendiente'}'),
+              Text('Inventario Completo: ${check['inventory_complete'] == true ? 'Sí' : check['inventory_complete'] == false ? 'No' : 'Pendiente'}'),
               const SizedBox(height: 8),
               const Text('Items:'),
-              ...check['items'].map((item) => Text('${item['item_id']}: ${_statusTranslations[item['status']]} (Encontrados: ${item['quantity_found']}, Dañados: ${item['quantity_damaged']}, Faltantes: ${item['quantity_missing']})')),
-              // Si hay supervisor review
-              if (check['supervisor_reviews'].isNotEmpty) ...[
+              ...(check['items'] ?? []).map((item) => Text('${item['item_id']}: ${_statusTranslations[item['status']]} (Encontrados: ${item['quantity_found'] ?? 0}, Dañados: ${item['quantity_damaged'] ?? 0}, Faltantes: ${item['quantity_missing'] ?? 0})')),
+              if ((check['supervisor_reviews'] ?? []).isNotEmpty) ...[
                 const SizedBox(height: 8),
                 const Text('Revisión Supervisor:'),
                 Text('Estado: ${_statusTranslations[check['supervisor_reviews'][0]['status']]}'),
