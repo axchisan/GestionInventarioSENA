@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
-import 'package:intl/intl.dart'; // Para formato de hora
+import 'package:intl/intl.dart';
 import '../../../core/services/api_service.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/constants/api_constants.dart';
@@ -24,7 +24,7 @@ class _EnvironmentOverviewScreenState extends State<EnvironmentOverviewScreen>
   late TabController _tabController;
   List<dynamic> _inventory = [];
   List<dynamic> _schedules = [];
-  List<dynamic> _checks = []; // Para estadísticas
+  List<dynamic> _checks = [];
   bool _isLoading = true;
   final DateFormat _colombianTimeFormat = DateFormat('hh:mm a');
   String _environmentId = '';
@@ -94,9 +94,16 @@ class _EnvironmentOverviewScreenState extends State<EnvironmentOverviewScreen>
   }
 
   String _formatColombianTime(String timeStr) {
-    final utcTime = DateTime.parse('2023-01-01 $timeStr').toUtc();
-    final colombianTime = utcTime.subtract(const Duration(hours: 5));
-    return _colombianTimeFormat.format(colombianTime);
+    try {
+      final timeParts = timeStr.split(':');
+      final hour = int.parse(timeParts[0]);
+      final minute = int.parse(timeParts[1]);
+      final utcTime = DateTime(2000, 1, 1, hour, minute); // Fecha dummy
+      final colombianTime = utcTime.subtract(const Duration(hours: 5));
+      return _colombianTimeFormat.format(colombianTime);
+    } catch (e) {
+      return timeStr; // Fallback
+    }
   }
 
   @override
@@ -149,7 +156,6 @@ class _EnvironmentOverviewScreenState extends State<EnvironmentOverviewScreen>
               onRefresh: _fetchData,
               child: Column(
                 children: [
-                  // Header...
                   Container(
                     width: double.infinity,
                     padding: const EdgeInsets.all(16),
@@ -492,7 +498,6 @@ class _EnvironmentOverviewScreenState extends State<EnvironmentOverviewScreen>
   }
 
   void _showItemDetails(Map<String, dynamic> item) {
-    // Igual que en InventoryCheckScreen
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
@@ -533,7 +538,7 @@ class _EnvironmentOverviewScreenState extends State<EnvironmentOverviewScreen>
   Widget _buildScheduleTab(String role) {
     return ListView.builder(
       padding: const EdgeInsets.all(16),
-      itemCount: _schedules.length + (role == 'instructor' || role == 'supervisor' ? 1 : 0), // Espacio para add button
+      itemCount: _schedules.length + (role == 'instructor' || role == 'supervisor' ? 1 : 0),
       itemBuilder: (context, index) {
         if (index == _schedules.length && (role == 'instructor' || role == 'supervisor')) {
           return Padding(
@@ -558,7 +563,7 @@ class _EnvironmentOverviewScreenState extends State<EnvironmentOverviewScreen>
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       Text(
-                        _formatColombianTime(item['start_time']) + ' - ' + _formatColombianTime(item['end_time']),
+                        '${_formatColombianTime(item['start_time'])} - ${_formatColombianTime(item['end_time'])}',
                         style: const TextStyle(
                           fontWeight: FontWeight.bold,
                           fontSize: 16,
@@ -671,112 +676,269 @@ class _EnvironmentOverviewScreenState extends State<EnvironmentOverviewScreen>
   }
 
   void _addSchedule() {
-    // Dialog para agregar schedule
     String program = '';
     String ficha = '';
     String topic = '';
-    TimeOfDay? startTime = TimeOfDay.now();
-    TimeOfDay? endTime = TimeOfDay.now();
+    TimeOfDay startTime = TimeOfDay.now();
+    TimeOfDay endTime = TimeOfDay.now();
     int dayOfWeek = 1;
-    DateTime? startDate = DateTime.now();
-    DateTime? endDate = DateTime.now();
+    DateTime startDate = DateTime.now();
+    DateTime endDate = DateTime.now();
     int studentCount = 0;
 
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Agregar Horario'),
-        content: SingleChildScrollView(
-          child: Column(
-            children: [
-              TextField(
-                decoration: const InputDecoration(labelText: 'Programa'),
-                onChanged: (value) => program = value,
-              ),
-              TextField(
-                decoration: const InputDecoration(labelText: 'Ficha'),
-                onChanged: (value) => ficha = value,
-              ),
-              TextField(
-                decoration: const InputDecoration(labelText: 'Tema'),
-                onChanged: (value) => topic = value,
-              ),
-              ListTile(
-                title: Text('Inicio: ${startTime!.format(context)}'),
-                onTap: () async {
-                  final picked = await showTimePicker(context: context, initialTime: startTime!);
-                  if (picked != null) startTime = picked;
-                },
-              ),
-              ListTile(
-                title: Text('Fin: ${endTime!.format(context)}'),
-                onTap: () async {
-                  final picked = await showTimePicker(context: context, initialTime: endTime!);
-                  if (picked != null) endTime = picked;
-                },
-              ),
-              DropdownButtonFormField<int>(
-                value: dayOfWeek,
-                items: List.generate(7, (i) => DropdownMenuItem(value: i + 1, child: Text('Día ${i + 1}'))),
-                onChanged: (value) => dayOfWeek = value!,
-              ),
-              ListTile(
-                title: Text('Fecha Inicio: $startDate'),
-                onTap: () async {
-                  final picked = await showDatePicker(context: context, initialDate: startDate, firstDate: DateTime(2000), lastDate: DateTime(2100));
-                  if (picked != null) startDate = picked;
-                },
-              ),
-              ListTile(
-                title: Text('Fecha Fin: $endDate'),
-                onTap: () async {
-                  final picked = await showDatePicker(context: context, initialDate: endDate, firstDate: DateTime(2000), lastDate: DateTime(2100));
-                  if (picked != null) endDate = picked;
-                },
-              ),
-              TextField(
-                decoration: const InputDecoration(labelText: 'Estudiantes'),
-                keyboardType: TextInputType.number,
-                onChanged: (value) => studentCount = int.tryParse(value) ?? 0,
-              ),
-            ],
+      builder: (context) => StatefulBuilder(
+        builder: (context, setState) => AlertDialog(
+          title: const Text('Agregar Horario'),
+          content: SingleChildScrollView(
+            child: Column(
+              children: [
+                TextField(
+                  decoration: const InputDecoration(labelText: 'Programa'),
+                  onChanged: (value) => program = value,
+                ),
+                TextField(
+                  decoration: const InputDecoration(labelText: 'Ficha'),
+                  onChanged: (value) => ficha = value,
+                ),
+                TextField(
+                  decoration: const InputDecoration(labelText: 'Tema'),
+                  onChanged: (value) => topic = value,
+                ),
+                ListTile(
+                  title: Text('Inicio: ${startTime.format(context)}'),
+                  onTap: () async {
+                    final picked = await showTimePicker(
+                      context: context,
+                      initialTime: startTime,
+                      initialEntryMode: TimePickerEntryMode.dial, // Para formato visual
+                    );
+                    if (picked != null) {
+                      setState(() {
+                        startTime = picked;
+                      });
+                    }
+                  },
+                ),
+                ListTile(
+                  title: Text('Fin: ${endTime.format(context)}'),
+                  onTap: () async {
+                    final picked = await showTimePicker(
+                      context: context,
+                      initialTime: endTime,
+                      initialEntryMode: TimePickerEntryMode.dial,
+                    );
+                    if (picked != null) {
+                      setState(() {
+                        endTime = picked;
+                      });
+                    }
+                  },
+                ),
+                DropdownButtonFormField<int>(
+                  value: dayOfWeek,
+                  items: List.generate(7, (i) => DropdownMenuItem(value: i + 1, child: Text('Día ${i + 1}'))),
+                  onChanged: (value) {
+                    setState(() {
+                      dayOfWeek = value!;
+                    });
+                  },
+                ),
+                ListTile(
+                  title: Text('Fecha Inicio: ${DateFormat('yyyy-MM-dd').format(startDate)}'),
+                  onTap: () async {
+                    final picked = await showDatePicker(context: context, initialDate: startDate, firstDate: DateTime(2000), lastDate: DateTime(2100));
+                    if (picked != null) {
+                      setState(() {
+                        startDate = picked;
+                      });
+                    }
+                  },
+                ),
+                ListTile(
+                  title: Text('Fecha Fin: ${DateFormat('yyyy-MM-dd').format(endDate)}'),
+                  onTap: () async {
+                    final picked = await showDatePicker(context: context, initialDate: endDate, firstDate: DateTime(2000), lastDate: DateTime(2100));
+                    if (picked != null) {
+                      setState(() {
+                        endDate = picked;
+                      });
+                    }
+                  },
+                ),
+                TextField(
+                  decoration: const InputDecoration(labelText: 'Estudiantes'),
+                  keyboardType: TextInputType.number,
+                  onChanged: (value) => studentCount = int.tryParse(value) ?? 0,
+                ),
+              ],
+            ),
           ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancelar')),
+            ElevatedButton(
+              onPressed: () async {
+                try {
+                  await _apiService.post('/api/schedules/', {
+                    'environment_id': _environmentId,
+                    'instructor_id': Provider.of<AuthProvider>(context, listen: false).currentUser!.id,
+                    'program': program,
+                    'ficha': ficha,
+                    'topic': topic,
+                    'start_time': '${startTime.hour.toString().padLeft(2, '0')}:${startTime.minute.toString().padLeft(2, '0')}:00',
+                    'end_time': '${endTime.hour.toString().padLeft(2, '0')}:${endTime.minute.toString().padLeft(2, '0')}:00',
+                    'day_of_week': dayOfWeek,
+                    'start_date': DateFormat('yyyy-MM-dd').format(startDate),
+                    'end_date': DateFormat('yyyy-MM-dd').format(endDate),
+                    'student_count': studentCount,
+                  });
+                  Navigator.pop(context);
+                  _fetchData();
+                } catch (e) {
+                  ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e')));
+                }
+              },
+              child: const Text('Agregar'),
+            ),
+          ],
         ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancelar')),
-          ElevatedButton(
-            onPressed: () async {
-              try {
-                await _apiService.post('/api/schedules/', {
-                  'environment_id': _environmentId,
-                  'instructor_id': Provider.of<AuthProvider>(context, listen: false).currentUser!.id,
-                  'program': program,
-                  'ficha': ficha,
-                  'topic': topic,
-                  'start_time': startTime!.format(context),
-                  'end_time': endTime!.format(context),
-                  'day_of_week': dayOfWeek,
-                  'start_date': startDate!.toIso8601String().split('T')[0],
-                  'end_date': endDate!.toIso8601String().split('T')[0],
-                  'student_count': studentCount,
-                });
-                Navigator.pop(context);
-                _fetchData();
-              } catch (e) {
-                ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e')));
-              }
-            },
-            child: const Text('Agregar'),
-          ),
-        ],
       ),
     );
   }
 
   void _editSchedule(Map<String, dynamic> schedule) {
-    // Similar a add, pero prefill y PUT
-    // Implementa el dialog con valores iniciales y usa _apiService.put('/api/schedules/${schedule['id']}', {...})
-    // Por brevidad, copia el dialog de add y ajusta.
+    String program = schedule['program'];
+    String ficha = schedule['ficha'];
+    String topic = schedule['topic'] ?? '';
+    TimeOfDay startTime = TimeOfDay.fromDateTime(DateFormat('HH:mm').parse(schedule['start_time']));
+    TimeOfDay endTime = TimeOfDay.fromDateTime(DateFormat('HH:mm').parse(schedule['end_time']));
+    int dayOfWeek = schedule['day_of_week'];
+    DateTime startDate = DateFormat('yyyy-MM-dd').parse(schedule['start_date']);
+    DateTime endDate = DateFormat('yyyy-MM-dd').parse(schedule['end_date']);
+    int studentCount = schedule['student_count'];
+
+    showDialog(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setState) => AlertDialog(
+          title: const Text('Editar Horario'),
+          content: SingleChildScrollView(
+            child: Column(
+              children: [
+                TextField(
+                  decoration: const InputDecoration(labelText: 'Programa'),
+                  onChanged: (value) => program = value,
+                  controller: TextEditingController(text: program),
+                ),
+                TextField(
+                  decoration: const InputDecoration(labelText: 'Ficha'),
+                  onChanged: (value) => ficha = value,
+                  controller: TextEditingController(text: ficha),
+                ),
+                TextField(
+                  decoration: const InputDecoration(labelText: 'Tema'),
+                  onChanged: (value) => topic = value,
+                  controller: TextEditingController(text: topic),
+                ),
+                ListTile(
+                  title: Text('Inicio: ${startTime.format(context)}'),
+                  onTap: () async {
+                    final picked = await showTimePicker(
+                      context: context,
+                      initialTime: startTime,
+                      initialEntryMode: TimePickerEntryMode.dial,
+                    );
+                    if (picked != null) {
+                      setState(() {
+                        startTime = picked;
+                      });
+                    }
+                  },
+                ),
+                ListTile(
+                  title: Text('Fin: ${endTime.format(context)}'),
+                  onTap: () async {
+                    final picked = await showTimePicker(
+                      context: context,
+                      initialTime: endTime,
+                      initialEntryMode: TimePickerEntryMode.dial,
+                    );
+                    if (picked != null) {
+                      setState(() {
+                        endTime = picked;
+                      });
+                    }
+                  },
+                ),
+                DropdownButtonFormField<int>(
+                  value: dayOfWeek,
+                  items: List.generate(7, (i) => DropdownMenuItem(value: i + 1, child: Text('Día ${i + 1}'))),
+                  onChanged: (value) {
+                    setState(() {
+                      dayOfWeek = value!;
+                    });
+                  },
+                ),
+                ListTile(
+                  title: Text('Fecha Inicio: ${DateFormat('yyyy-MM-dd').format(startDate)}'),
+                  onTap: () async {
+                    final picked = await showDatePicker(context: context, initialDate: startDate, firstDate: DateTime(2000), lastDate: DateTime(2100));
+                    if (picked != null) {
+                      setState(() {
+                        startDate = picked;
+                      });
+                    }
+                  },
+                ),
+                ListTile(
+                  title: Text('Fecha Fin: ${DateFormat('yyyy-MM-dd').format(endDate)}'),
+                  onTap: () async {
+                    final picked = await showDatePicker(context: context, initialDate: endDate, firstDate: DateTime(2000), lastDate: DateTime(2100));
+                    if (picked != null) {
+                      setState(() {
+                        endDate = picked;
+                      });
+                    }
+                  },
+                ),
+                TextField(
+                  decoration: const InputDecoration(labelText: 'Estudiantes'),
+                  keyboardType: TextInputType.number,
+                  onChanged: (value) => studentCount = int.tryParse(value) ?? 0,
+                  controller: TextEditingController(text: studentCount.toString()),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancelar')),
+            ElevatedButton(
+              onPressed: () async {
+                try {
+                  await _apiService.put('/api/schedules/${schedule['id']}', {
+                    'program': program,
+                    'ficha': ficha,
+                    'topic': topic,
+                    'start_time': '${startTime.hour.toString().padLeft(2, '0')}:${startTime.minute.toString().padLeft(2, '0')}:00',
+                    'end_time': '${endTime.hour.toString().padLeft(2, '0')}:${endTime.minute.toString().padLeft(2, '0')}:00',
+                    'day_of_week': dayOfWeek,
+                    'start_date': DateFormat('yyyy-MM-dd').format(startDate),
+                    'end_date': DateFormat('yyyy-MM-dd').format(endDate),
+                    'student_count': studentCount,
+                  });
+                  Navigator.pop(context);
+                  _fetchData();
+                } catch (e) {
+                  ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e')));
+                }
+              },
+              child: const Text('Actualizar'),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   void _deleteSchedule(String id) async {
@@ -866,7 +1028,6 @@ class _EnvironmentOverviewScreenState extends State<EnvironmentOverviewScreen>
             Colors.green,
             Icons.check,
           ),
-          // Agrega más estadísticas de checks si necesitas
         ],
       ),
     );
@@ -892,30 +1053,6 @@ class _EnvironmentOverviewScreenState extends State<EnvironmentOverviewScreen>
             ),
           ),
           Text(title, style: TextStyle(fontSize: 14, color: Colors.grey[600])),
-        ],
-      ),
-    );
-  }
-
-  // ignore: unused_element
-  Widget _buildUtilizationRow(String label, String percentage, Color color) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Text(
-            label,
-            style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
-          ),
-          Text(
-            percentage,
-            style: TextStyle(
-              fontSize: 14,
-              fontWeight: FontWeight.bold,
-              color: color,
-            ),
-          ),
         ],
       ),
     );
