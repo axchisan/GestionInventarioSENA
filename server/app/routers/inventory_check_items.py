@@ -21,7 +21,7 @@ class InventoryCheckItemCreateRequest(BaseModel):
     quantity_missing: int
     notes: Optional[str] = None
     environment_id: UUID
-    student_id: UUID
+    user_id: UUID
 
 @router.post("/", status_code=status.HTTP_201_CREATED)
 async def create_individual_check_item(
@@ -40,14 +40,14 @@ async def create_individual_check_item(
         raise HTTPException(status_code=404, detail="Ítem no encontrado")
 
     check_item = InventoryCheckItem(
-        check_id=None,  # No asociado a check general
         item_id=request.item_id,
         status=request.status,
         quantity_expected=request.quantity_expected,
         quantity_found=request.quantity_found,
         quantity_damaged=request.quantity_damaged,
         quantity_missing=request.quantity_missing,
-        notes=request.notes
+        notes=request.notes,
+        user_id=current_user.id
     )
     db.add(check_item)
     db.commit()
