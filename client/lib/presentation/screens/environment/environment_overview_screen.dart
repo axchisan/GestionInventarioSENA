@@ -87,20 +87,17 @@ class _EnvironmentOverviewScreenState extends State<EnvironmentOverviewScreen>
       });
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error al cargar datos: $e')));
-      setState(() {
+      // ignore: unused_element
+      setState() {
         _isLoading = false;
-      });
+      };
     }
   }
 
   String _formatColombianTime(String timeStr) {
     try {
-      final timeParts = timeStr.split(':');
-      final hour = int.parse(timeParts[0]);
-      final minute = int.parse(timeParts[1]);
-      final utcTime = DateTime(2000, 1, 1, hour, minute); // Fecha dummy
-      final colombianTime = utcTime.subtract(const Duration(hours: 5));
-      return _colombianTimeFormat.format(colombianTime);
+      final dateTime = DateFormat('HH:mm').parse(timeStr); // Parsea 24h
+      return _colombianTimeFormat.format(dateTime); // Formato 12h AM/PM
     } catch (e) {
       return timeStr; // Fallback
     }
@@ -236,6 +233,12 @@ class _EnvironmentOverviewScreenState extends State<EnvironmentOverviewScreen>
                                         '${_calculateInUseItems()}',
                                         Colors.orange,
                                       ),
+                                      const SizedBox(width: 8),
+                                      _buildStatChip(
+                                        'Dañados/Faltantes',
+                                        '${_calculateDamagedMissingItems()}',
+                                        Colors.red,
+                                      ),
                                     ],
                                   ),
                                 ],
@@ -304,6 +307,15 @@ class _EnvironmentOverviewScreenState extends State<EnvironmentOverviewScreen>
   int _calculateInUseItems() {
     return _inventory.fold(0, (sum, item) {
       if (item['status'] == 'in_use') {
+        return sum + (item['quantity'] as int? ?? 1);
+      }
+      return sum;
+    });
+  }
+
+  int _calculateDamagedMissingItems() {
+    return _inventory.fold(0, (sum, item) {
+      if (item['status'] == 'damaged' || item['status'] == 'lost') {
         return sum + (item['quantity'] as int? ?? 1);
       }
       return sum;
@@ -954,6 +966,7 @@ class _EnvironmentOverviewScreenState extends State<EnvironmentOverviewScreen>
     final totalEquipment = _calculateTotalItems();
     final available = _calculateAvailableItems();
     final inUse = _calculateInUseItems();
+    final damagedMissing = _calculateDamagedMissingItems();
     final maintenance = _inventory.fold(0, (sum, item) {
       if (item['status'] == 'maintenance') {
         return sum + (item['quantity'] as int? ?? 1);
@@ -1015,6 +1028,13 @@ class _EnvironmentOverviewScreenState extends State<EnvironmentOverviewScreen>
                 ),
               ),
             ],
+          ),
+          const SizedBox(height: 12),
+          _buildStatCard(
+            'Dañados/Faltantes',
+            damagedMissing.toString(),
+            Colors.red,
+            Icons.warning,
           ),
           const SizedBox(height: 24),
           const Text(

@@ -1,8 +1,8 @@
-"""agregada columna environment a la tabla de invenory_checks_items
+"""restablecimiento
 
-Revision ID: 19b1f78c462c
+Revision ID: f329c839c580
 Revises: 
-Create Date: 2025-08-31 21:05:32.853714
+Create Date: 2025-08-31 23:23:35.555846
 
 """
 from typing import Sequence, Union
@@ -12,7 +12,7 @@ import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql
 
 # revision identifiers, used by Alembic.
-revision: str = '19b1f78c462c'
+revision: str = 'f329c839c580'
 down_revision: Union[str, Sequence[str], None] = None
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
