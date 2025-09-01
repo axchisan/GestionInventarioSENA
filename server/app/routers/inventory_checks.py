@@ -14,7 +14,7 @@ from ..models.users import User
 from ..models.schedules import Schedule
 from ..models.notifications import Notification
 from ..routers.auth import get_current_user
-from ..schemas.inventory_check import InventoryCheckCreateRequest, InventoryCheckResponse, InventoryCheckInstructorConfirmRequest, InventoryCheckItemRequest
+from ..schemas.inventory_check import InventoryCheckCreateRequest, InventoryCheckResponse, InventoryCheckInstructorConfirmRequest
 
 router = APIRouter(tags=["inventory-checks"])
 
@@ -47,6 +47,18 @@ async def create_inventory_check(
     if existing_check:
         raise HTTPException(status_code=400, detail="Ya se realizó verificación hoy para este turno")
 
+    # Calcular estadísticas basadas en InventoryCheckItem existentes
+    check_items = db.query(InventoryCheckItem).filter(
+        InventoryCheckItem.environment_id == request.environment_id,
+        InventoryCheckItem.created_at >= datetime.combine(date.today(), datetime.min.time()),
+        InventoryCheckItem.created_at <= datetime.combine(date.today(), datetime.max.time())
+    ).all()
+
+    items_good = sum(item.quantity_found for item in check_items if item.status == "good")
+    items_damaged = sum(item.quantity_damaged for item in check_items if item.status == "damaged")
+    items_missing = sum(item.quantity_missing for item in check_items if item.status == "missing")
+    total_items = len(check_items)
+
     inventory_check = InventoryCheck(
         environment_id=request.environment_id,
         student_id=request.student_id,
@@ -54,50 +66,17 @@ async def create_inventory_check(
         check_date=date.today(),
         check_time=datetime.utcnow().time(),
         status="pending",
-        total_items=len(request.items),
-        items_good=0,
-        items_damaged=0,
-        items_missing=0,
+        total_items=total_items,
+        items_good=items_good,
+        items_damaged=items_damaged,
+        items_missing=items_missing,
         cleaning_notes=request.cleaning_notes
     )
     db.add(inventory_check)
     db.commit()
     db.refresh(inventory_check)
 
-    items_good = 0
-    items_damaged = 0
-    items_missing = 0
-
-    for item_request in request.items:
-        inventory_item = db.query(InventoryItem).filter(
-            InventoryItem.id == item_request.item_id,
-            InventoryItem.environment_id == request.environment_id
-        ).first()
-        if not inventory_item:
-            raise HTTPException(status_code=404, detail=f"Ítem {item_request.item_id} no encontrado")
-
-        check_item = InventoryCheckItem(
-            check_id=inventory_check.id,
-            item_id=item_request.item_id,
-            status=item_request.status,
-            quantity_expected=item_request.quantity_expected,
-            quantity_found=item_request.quantity_found,
-            quantity_damaged=item_request.quantity_damaged,
-            quantity_missing=item_request.quantity_missing,
-            notes=item_request.notes
-        )
-        db.add(check_item)
-
-        if item_request.status == "good":
-            items_good += item_request.quantity_found
-        elif item_request.status == "damaged":
-            items_damaged += item_request.quantity_damaged
-        elif item_request.status == "missing":
-            items_missing += item_request.quantity_missing
-
-    inventory_check.items_good = items_good
-    inventory_check.items_damaged = items_damaged
-    inventory_check.items_missing = items_missing
+    # Actualizar el estado según los ítems verificados
     inventory_check.status = "issues" if items_damaged > 0 or items_missing > 0 else "instructor_review"
     db.commit()
 

@@ -16,7 +16,6 @@ class InventoryCheckCreateRequest(BaseModel):
     environment_id: UUID
     schedule_id: UUID
     student_id: UUID
-    items: List[InventoryCheckItemRequest]
     cleaning_notes: Optional[str] = None
 
 class InventoryCheckInstructorConfirmRequest(BaseModel):

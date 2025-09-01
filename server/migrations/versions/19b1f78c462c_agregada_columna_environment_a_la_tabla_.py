@@ -1,8 +1,8 @@
-"""se elimino l columna check_id a los checks de items por individual y los backpopulates fueron eliminados
+"""agregada columna environment a la tabla de invenory_checks_items
 
-Revision ID: 3ca06cf57fd5
+Revision ID: 19b1f78c462c
 Revises: 
-Create Date: 2025-08-31 20:29:36.342695
+Create Date: 2025-08-31 21:05:32.853714
 
 """
 from typing import Sequence, Union
@@ -12,7 +12,7 @@ import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql
 
 # revision identifiers, used by Alembic.
-revision: str = '3ca06cf57fd5'
+revision: str = '19b1f78c462c'
 down_revision: Union[str, Sequence[str], None] = None
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
@@ -172,6 +172,7 @@ def upgrade() -> None:
     op.create_table('inventory_check_items',
     sa.Column('id', sa.UUID(), nullable=False),
     sa.Column('item_id', sa.UUID(), nullable=False),
+    sa.Column('environment_id', sa.UUID(), nullable=False),
     sa.Column('user_id', sa.UUID(), nullable=True),
     sa.Column('status', sa.String(length=20), nullable=False),
     sa.Column('quantity_expected', sa.Integer(), nullable=True),
@@ -181,6 +182,7 @@ def upgrade() -> None:
     sa.Column('notes', sa.Text(), nullable=True),
     sa.Column('created_at', sa.TIMESTAMP(), server_default=sa.text('CURRENT_TIMESTAMP'), nullable=True),
     sa.CheckConstraint("status IN ('good', 'damaged', 'missing')", name='check_status'),
+    sa.ForeignKeyConstraint(['environment_id'], ['environments.id'], ondelete='CASCADE'),
     sa.ForeignKeyConstraint(['item_id'], ['inventory_items.id'], ondelete='CASCADE'),
     sa.ForeignKeyConstraint(['user_id'], ['users.id'], ondelete='CASCADE'),
     sa.PrimaryKeyConstraint('id')
