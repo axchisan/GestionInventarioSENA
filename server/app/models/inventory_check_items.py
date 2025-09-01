@@ -20,9 +20,6 @@ class InventoryCheckItem(Base):
     notes = Column(Text)
     created_at = Column(TIMESTAMP, server_default=func.current_timestamp())
     
-    check = relationship("InventoryCheck", back_populates="items")
-    item = relationship("InventoryItem", back_populates="inventory_check_items")
-
     __table_args__ = (
         CheckConstraint("status IN ('good', 'damaged', 'missing')", name="check_status"),
     )
