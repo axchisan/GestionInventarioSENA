@@ -21,7 +21,6 @@ class InventoryCheckItemCreateRequest(BaseModel):
     quantity_missing: int
     notes: Optional[str] = None
     environment_id: UUID
-    user_id: UUID
 
 @router.post("/", status_code=status.HTTP_201_CREATED)
 async def create_individual_check_item(
@@ -41,6 +40,7 @@ async def create_individual_check_item(
 
     check_item = InventoryCheckItem(
         item_id=request.item_id,
+        environment_id=request.environment_id,
         status=request.status,
         quantity_expected=request.quantity_expected,
         quantity_found=request.quantity_found,
