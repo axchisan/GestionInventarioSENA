@@ -31,7 +31,6 @@ class InventoryItem(Base):
     updated_at = Column(TIMESTAMP, server_default=func.current_timestamp())
 
     environment = relationship("Environment", back_populates="inventory_items")
-    inventory_check_items = relationship("InventoryCheckItem", back_populates="item")
 
     __table_args__ = (
         CheckConstraint("category IN ('computer', 'projector', 'keyboard', 'mouse', 'tv', 'camera', 'microphone', 'tablet', 'other')", name="check_category"),
