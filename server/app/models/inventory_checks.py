@@ -34,7 +34,6 @@ class InventoryCheck(Base):
     student = relationship("User", foreign_keys=[student_id], back_populates="inventory_checks_student")
     instructor = relationship("User", foreign_keys=[instructor_id], back_populates="inventory_checks_instructor")
     schedule = relationship("Schedule", back_populates="inventory_checks")
-    items = relationship("InventoryCheckItem", back_populates="check")
     supervisor_reviews = relationship("SupervisorReview", back_populates="check")
 
 

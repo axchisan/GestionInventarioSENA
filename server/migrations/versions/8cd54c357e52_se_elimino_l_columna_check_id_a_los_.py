@@ -1,8 +1,8 @@
-"""se elimino l columna check_id a los checks de items por individual
+"""se elimino l columna check_id a los checks de items por individual y los backpopulates fueron eliminados
 
-Revision ID: d92699e85933
+Revision ID: 8cd54c357e52
 Revises: 
-Create Date: 2025-08-31 20:07:54.607062
+Create Date: 2025-08-31 20:20:14.080092
 
 """
 from typing import Sequence, Union
@@ -12,7 +12,7 @@ import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql
 
 # revision identifiers, used by Alembic.
-revision: str = 'd92699e85933'
+revision: str = '8cd54c357e52'
 down_revision: Union[str, Sequence[str], None] = None
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
