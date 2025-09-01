@@ -5,7 +5,7 @@ from uuid import UUID
 
 from ..database import get_db
 from ..models.inventory_items import InventoryItem
-from ..schemas.inventory_item import InventoryItemCreate, InventoryItemResponse, InventoryItemUpdate, InventoryItemUpdate
+from ..schemas.inventory_item import InventoryItemCreate, InventoryItemResponse, InventoryItemUpdate
 from ..routers.auth import get_current_user
 from ..models.users import User
 
@@ -83,6 +83,12 @@ def update_inventory_item(
     update_data = item_data.dict(exclude_unset=True)
     for key, value in update_data.items():
         setattr(item, key, value)
+
+    # Mejora: Si quantity cambia y hay damaged/missing, ajustar status
+    if 'quantity' in update_data and item.quantity_damaged > 0:
+        item.status = 'damaged'
+    elif 'quantity' in update_data and item.quantity_missing > 0:
+        item.status = 'lost'
 
     db.commit()
     db.refresh(item)

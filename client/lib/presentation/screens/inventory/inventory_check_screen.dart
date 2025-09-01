@@ -3,7 +3,7 @@ import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
 import 'dart:convert';
-import 'dart:io'; // Para Platform si es necesario
+import 'dart:io'; 
 import '../../../core/services/api_service.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/constants/api_constants.dart';
@@ -28,6 +28,7 @@ class _InventoryCheckScreenState extends State<InventoryCheckScreen> {
   List<dynamic> _schedules = [];
   List<dynamic> _checks = [];
   List<dynamic> _pendingChecks = [];
+  List<dynamic> _notifications = []; // Nueva: Para notificaciones
   bool _isLoading = true;
   bool _hasCheckedToday = false;
   final DateFormat _colombianTimeFormat = DateFormat('hh:mm a');
@@ -98,19 +99,24 @@ class _InventoryCheckScreenState extends State<InventoryCheckScreen> {
         inventoryChecksEndpoint,
         queryParams: {'environment_id': user.environmentId.toString()},
       );
-      final pendingChecks = checks.where((check) => check['status'] == 'pending' || check['status'] == 'instructor_review' || check['status'] == 'supervisor_review').toList();
+      final notifications = await _apiService.get(
+        '/api/notifications/', // Nuevo endpoint para notificaciones del user
+      );
+      final pendingChecks = checks.where((check) => ['pending', 'instructor_review', 'supervisor_review'].contains(check['status'])).toList();
       final todayCheck = checks.firstWhere(
         (check) => check['check_date'] == DateTime.now().toIso8601String().split('T')[0],
         orElse: () => null,
       );
-      setState(() {
+      // ignore: unused_element
+      setState() {
         _items = items;
         _schedules = schedules;
         _checks = checks;
         _pendingChecks = pendingChecks;
+        _notifications = notifications;
         _hasCheckedToday = todayCheck != null;
         _isLoading = false;
-      });
+      };
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Error al cargar datos: $e')),
@@ -133,14 +139,10 @@ class _InventoryCheckScreenState extends State<InventoryCheckScreen> {
 
   String _formatColombianTime(String timeStr) {
     try {
-      final timeParts = timeStr.split(':');
-      final hour = int.parse(timeParts[0]);
-      final minute = int.parse(timeParts[1]);
-      final utcTime = DateTime(2000, 1, 1, hour, minute); // Fecha dummy
-      final colombianTime = utcTime.subtract(const Duration(hours: 6));
-      return _colombianTimeFormat.format(colombianTime);
+      final dateTime = DateFormat('HH:mm').parse(timeStr); // Parsea 24h
+      return _colombianTimeFormat.format(dateTime); // Formato 12h AM/PM
     } catch (e) {
-      return timeStr; // Fallback si formato inválido
+      return timeStr; // Fallback
     }
   }
 
@@ -321,6 +323,26 @@ class _InventoryCheckScreenState extends State<InventoryCheckScreen> {
                       ),
                     ),
                   ],
+                  // Nueva sección para notificaciones
+                  if (_notifications.isNotEmpty) ...[
+                    const SizedBox(height: 16),
+                    const Text('Notificaciones', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                    Expanded(
+                      child: ListView.builder(
+                        itemCount: _notifications.length,
+                        itemBuilder: (context, index) {
+                          final notif = _notifications[index];
+                          return Card(
+                            child: ListTile(
+                              title: Text(notif['title']),
+                              subtitle: Text(notif['message']),
+                              trailing: notif['is_read'] ? Icon(Icons.check) : Icon(Icons.notifications_active),
+                            ),
+                          );
+                        },
+                      ),
+                    ),
+                  ],
                 ],
               ),
             ),
@@ -384,7 +406,7 @@ class _InventoryCheckScreenState extends State<InventoryCheckScreen> {
                           ),
                         ),
                         Text(
-                          isGroup ? 'Grupo: ${item['quantity']} unidades' : 'ID: ${item['id']}',
+                          isGroup ? 'Grupo: Encontrados ${item['quantity'] - (item['quantity_damaged'] ?? 0) - (item['quantity_missing'] ?? 0)}, Dañados ${item['quantity_damaged'] ?? 0}, Faltantes ${item['quantity_missing'] ?? 0}' : 'ID: ${item['id']}',
                           style: const TextStyle(
                             color: AppColors.grey600,
                             fontFamily: 'monospace',
@@ -466,7 +488,7 @@ class _InventoryCheckScreenState extends State<InventoryCheckScreen> {
                     const SizedBox(width: 12),
                     Expanded(
                       child: OutlinedButton.icon(
-                        onPressed: () => _editItem(item),
+                        onPressed: () => _editItemDialog(item), // Nueva: Edición en dialog
                         icon: const Icon(Icons.edit_document),
                         label: const Text('Editar Item'),
                       ),
@@ -489,8 +511,162 @@ class _InventoryCheckScreenState extends State<InventoryCheckScreen> {
     );
   }
 
-  void _editItem(Map<String, dynamic> item) {
-    context.push('/edit-inventory-item', extra: {'item': item}).then((_) => _fetchData());
+  void _editItemDialog(Map<String, dynamic> item) {
+    // Lógica de edición movida aquí desde EditInventoryItemScreen
+    String name = item['name'] ?? '';
+    String internalCode = item['internal_code'] ?? '';
+    String category = item['category'] ?? 'other';
+    int quantity = item['quantity'] ?? 1;
+    String itemType = item['item_type'] ?? 'individual';
+    String status = item['status'] ?? 'available';
+    String serialNumber = item['serial_number'] ?? '';
+    String brand = item['brand'] ?? '';
+    String model = item['model'] ?? '';
+    DateTime? purchaseDate = item['purchase_date'] != null ? DateTime.parse(item['purchase_date']) : null;
+    DateTime? warrantyExpiry = item['warranty_expiry'] != null ? DateTime.parse(item['warranty_expiry']) : null;
+    DateTime? lastMaintenance = item['last_maintenance'] != null ? DateTime.parse(item['last_maintenance']) : null;
+    DateTime? nextMaintenance = item['next_maintenance'] != null ? DateTime.parse(item['next_maintenance']) : null;
+    String imageUrl = item['image_url'] ?? '';
+    String notes = item['notes'] ?? '';
+
+    showDialog(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          title: const Text('Editar Item'),
+          content: SingleChildScrollView(
+            child: Column(
+              children: [
+                TextField(
+                  decoration: const InputDecoration(labelText: 'Nombre'),
+                  onChanged: (value) => name = value,
+                  controller: TextEditingController(text: name),
+                ),
+                TextField(
+                  decoration: const InputDecoration(labelText: 'Código Interno'),
+                  onChanged: (value) => internalCode = value,
+                  controller: TextEditingController(text: internalCode),
+                ),
+                DropdownButtonFormField<String>(
+                  value: category,
+                  items: ['computer', 'projector', 'keyboard', 'mouse', 'tv', 'camera', 'microphone', 'tablet', 'other']
+                      .map((cat) => DropdownMenuItem(value: cat, child: Text(cat))).toList(),
+                  onChanged: (value) => setDialogState(() => category = value!),
+                  decoration: const InputDecoration(labelText: 'Categoría'),
+                ),
+                TextField(
+                  decoration: const InputDecoration(labelText: 'Cantidad'),
+                  keyboardType: TextInputType.number,
+                  onChanged: (value) => quantity = int.tryParse(value) ?? 1,
+                  controller: TextEditingController(text: quantity.toString()),
+                ),
+                DropdownButtonFormField<String>(
+                  value: itemType,
+                  items: ['individual', 'group'].map((type) => DropdownMenuItem(value: type, child: Text(type))).toList(),
+                  onChanged: (value) => setDialogState(() => itemType = value!),
+                  decoration: const InputDecoration(labelText: 'Tipo'),
+                ),
+                DropdownButtonFormField<String>(
+                  value: status,
+                  items: ['available', 'in_use', 'maintenance', 'damaged', 'lost']
+                      .map((st) => DropdownMenuItem(value: st, child: Text(st))).toList(),
+                  onChanged: (value) => setDialogState(() => status = value!),
+                  decoration: const InputDecoration(labelText: 'Estado'),
+                ),
+                TextField(
+                  decoration: const InputDecoration(labelText: 'Número de Serie (opcional)'),
+                  onChanged: (value) => serialNumber = value,
+                  controller: TextEditingController(text: serialNumber),
+                ),
+                TextField(
+                  decoration: const InputDecoration(labelText: 'Marca (opcional)'),
+                  onChanged: (value) => brand = value,
+                  controller: TextEditingController(text: brand),
+                ),
+                TextField(
+                  decoration: const InputDecoration(labelText: 'Modelo (opcional)'),
+                  onChanged: (value) => model = value,
+                  controller: TextEditingController(text: model),
+                ),
+                ListTile(
+                  title: Text('Fecha de Compra: ${purchaseDate?.toString() ?? 'No seleccionada'}'),
+                  onTap: () async {
+                    final picked = await showDatePicker(context: context, initialDate: purchaseDate ?? DateTime.now(), firstDate: DateTime(2000), lastDate: DateTime(2100));
+                    if (picked != null) setDialogState(() => purchaseDate = picked);
+                  },
+                ),
+                ListTile(
+                  title: Text('Vencimiento Garantía: ${warrantyExpiry?.toString() ?? 'No seleccionada'}'),
+                  onTap: () async {
+                    final picked = await showDatePicker(context: context, initialDate: warrantyExpiry ?? DateTime.now(), firstDate: DateTime(2000), lastDate: DateTime(2100));
+                    if (picked != null) setDialogState(() => warrantyExpiry = picked);
+                  },
+                ),
+                ListTile(
+                  title: Text('Último Mantenimiento: ${lastMaintenance?.toString() ?? 'No seleccionada'}'),
+                  onTap: () async {
+                    final picked = await showDatePicker(context: context, initialDate: lastMaintenance ?? DateTime.now(), firstDate: DateTime(2000), lastDate: DateTime(2100));
+                    if (picked != null) setDialogState(() => lastMaintenance = picked);
+                  },
+                ),
+                ListTile(
+                  title: Text('Próximo Mantenimiento: ${nextMaintenance?.toString() ?? 'No seleccionada'}'),
+                  onTap: () async {
+                    final picked = await showDatePicker(context: context, initialDate: nextMaintenance ?? DateTime.now(), firstDate: DateTime(2000), lastDate: DateTime(2100));
+                    if (picked != null) setDialogState(() => nextMaintenance = picked);
+                  },
+                ),
+                TextField(
+                  decoration: const InputDecoration(labelText: 'URL Imagen (opcional)'),
+                  onChanged: (value) => imageUrl = value,
+                  controller: TextEditingController(text: imageUrl),
+                ),
+                TextField(
+                  decoration: const InputDecoration(labelText: 'Notas (opcional)'),
+                  onChanged: (value) => notes = value,
+                  controller: TextEditingController(text: notes),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancelar')),
+            ElevatedButton(
+              onPressed: () async {
+                try {
+                  await _apiService.put(
+                    '$inventoryEndpoint${item['id']}',
+                    {
+                      'name': name,
+                      'internal_code': internalCode,
+                      'category': category,
+                      'quantity': quantity,
+                      'item_type': itemType,
+                      'status': status,
+                      'serial_number': serialNumber.isEmpty ? null : serialNumber,
+                      'brand': brand.isEmpty ? null : brand,
+                      'model': model.isEmpty ? null : model,
+                      'purchase_date': purchaseDate?.toIso8601String(),
+                      'warranty_expiry': warrantyExpiry?.toIso8601String(),
+                      'last_maintenance': lastMaintenance?.toIso8601String(),
+                      'next_maintenance': nextMaintenance?.toIso8601String(),
+                      'image_url': imageUrl.isEmpty ? null : imageUrl,
+                      'notes': notes.isEmpty ? null : notes,
+                    },
+                  );
+                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Item actualizado')));
+                  Navigator.pop(context);
+                  _fetchData();
+                } catch (e) {
+                  ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e')));
+                }
+              },
+              child: const Text('Actualizar'),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   void _deleteItem(Map<String, dynamic> item) {
@@ -587,7 +763,7 @@ class _InventoryCheckScreenState extends State<InventoryCheckScreen> {
               Text('ID: ${item['id']}'),
               Text('Categoría: ${_categoryTranslations[item['category']] ?? item['category']}'),
               Text('Estado: ${_statusTranslations[item['status']] ?? item['status']}'),
-              Text('Cantidad: ${item['quantity'] ?? 1}'),
+              Text('Cantidad: ${item['quantity'] ?? 1} (Encontrados: ${item['quantity_found'] ?? 0}, Dañados: ${item['quantity_damaged'] ?? 0}, Faltantes: ${item['quantity_missing'] ?? 0})'),
               Text('Tipo: ${item['item_type'] == 'group' ? 'Grupo' : 'Individual'}'),
               Text('Número de Serie: ${item['serial_number'] ?? 'N/A'}'),
               Text('Marca: ${item['brand'] ?? 'N/A'}'),
@@ -751,10 +927,9 @@ class _InventoryCheckScreenState extends State<InventoryCheckScreen> {
                 }
                 try {
                   final authProvider = Provider.of<AuthProvider>(context, listen: false);
-                  // Solo crea InventoryCheckItem y actualiza InventoryItem, no InventoryCheck
-                  // ignore: unused_local_variable
-                  final response = await _apiService.post(
-                    '/api/inventory-check-items/',  // Nuevo endpoint para individuales (ver backend)
+                  // Crea InventoryCheckItem
+                  await _apiService.post(
+                    '/api/inventory-check-items/',
                     {
                       'item_id': item['id'],
                       'status': newStatus,
@@ -764,13 +939,18 @@ class _InventoryCheckScreenState extends State<InventoryCheckScreen> {
                       'quantity_missing': quantityMissing,
                       'notes': notes,
                       'environment_id': authProvider.currentUser!.environmentId,
-                      'student_id': authProvider.currentUser!.id,
                     },
                   );
-                  // Actualiza quantity en InventoryItem
+                  // Actualiza InventoryItem con quantity y status
+                  String updatedStatus = newStatus;
+                  if (quantityMissing > 0) updatedStatus = 'lost';
+                  else if (quantityDamaged > 0) updatedStatus = 'damaged';
                   await _apiService.put(
                     '$inventoryEndpoint${item['id']}',
-                    {'quantity': quantityFound + quantityDamaged},
+                    {
+                      'quantity': quantityFound + quantityDamaged,
+                      'status': updatedStatus,
+                    },
                   );
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(content: Text('Item actualizado: ${_statusTranslations[newStatus] ?? newStatus}')),
@@ -822,18 +1002,6 @@ class _InventoryCheckScreenState extends State<InventoryCheckScreen> {
           ),
           ElevatedButton(
             onPressed: () async {
-              final itemsList = _items.map((item) {
-                final quantity = item['quantity'] ?? 1;
-                return {
-                  'item_id': item['id'],
-                  'status': 'good',
-                  'quantity_expected': quantity,
-                  'quantity_found': quantity,
-                  'quantity_damaged': 0,
-                  'quantity_missing': 0,
-                  'notes': '',
-                };
-              }).toList();
               try {
                 final authProvider = Provider.of<AuthProvider>(context, listen: false);
                 await _apiService.post(
@@ -842,7 +1010,6 @@ class _InventoryCheckScreenState extends State<InventoryCheckScreen> {
                     'environment_id': authProvider.currentUser!.environmentId,
                     'schedule_id': _selectedScheduleId,
                     'student_id': authProvider.currentUser!.id,
-                    'items': itemsList,
                     'cleaning_notes': _cleaningNotesController.text,
                   },
                 );
@@ -865,6 +1032,9 @@ class _InventoryCheckScreenState extends State<InventoryCheckScreen> {
   }
 
   void _showReportDamageDialog() {
+    String description = '';
+    String priority = 'medium';
+    String itemId = ''; // Asumir selección, o pasar desde item si en context
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
@@ -874,12 +1044,17 @@ class _InventoryCheckScreenState extends State<InventoryCheckScreen> {
           children: [
             TextField(
               decoration: const InputDecoration(labelText: 'Descripción'),
+              onChanged: (value) => description = value,
             ),
             DropdownButtonFormField<String>(
-              value: 'medium',
+              value: priority,
               items: ['low', 'medium', 'high', 'urgent'].map((p) => DropdownMenuItem(value: p, child: Text(p))).toList(),
-              onChanged: (value) {},
+              onChanged: (value) => priority = value!,
               decoration: const InputDecoration(labelText: 'Prioridad'),
+            ),
+            TextField(
+              decoration: const InputDecoration(labelText: 'ID del Item'),
+              onChanged: (value) => itemId = value,
             ),
           ],
         ),
@@ -889,15 +1064,15 @@ class _InventoryCheckScreenState extends State<InventoryCheckScreen> {
             onPressed: () async {
               try {
                 await _apiService.post('/api/maintenance-requests/', {
-                  // Llena con datos del form, ejemplo placeholder
-                  'item_id': 'example-item-id', // Ajusta a selección real
+                  'item_id': itemId,
                   'title': 'Daño reportado',
-                  'description': 'Descripción del daño',
-                  'priority': 'medium',
+                  'description': description,
+                  'priority': priority,
                   'user_id': Provider.of<AuthProvider>(context, listen: false).currentUser!.id,
                 });
                 Navigator.pop(context);
                 _fetchData();
+                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Reporte enviado')));
               } catch (e) {
                 ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e')));
               }
