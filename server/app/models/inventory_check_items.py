@@ -10,8 +10,8 @@ class InventoryCheckItem(Base):
     __tablename__ = "inventory_check_items"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    check_id = Column(UUID(as_uuid=True), ForeignKey("inventory_checks.id", ondelete="CASCADE"), nullable=False)
     item_id = Column(UUID(as_uuid=True), ForeignKey("inventory_items.id", ondelete="CASCADE"), nullable=False)
+    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=True)
     status = Column(String(20), nullable=False)
     quantity_expected = Column(Integer, default=1)
     quantity_found = Column(Integer, default=0)
