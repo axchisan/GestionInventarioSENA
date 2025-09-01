@@ -137,7 +137,7 @@ class _InventoryCheckScreenState extends State<InventoryCheckScreen> {
       final hour = int.parse(timeParts[0]);
       final minute = int.parse(timeParts[1]);
       final utcTime = DateTime(2000, 1, 1, hour, minute); // Fecha dummy
-      final colombianTime = utcTime.subtract(const Duration(hours: 5));
+      final colombianTime = utcTime.subtract(const Duration(hours: 6));
       return _colombianTimeFormat.format(colombianTime);
     } catch (e) {
       return timeStr; // Fallback si formato inválido
