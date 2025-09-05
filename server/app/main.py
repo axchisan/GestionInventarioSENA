@@ -1,6 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from .routers import auth, environments, inventory, qr, schedules, settings_route, users, inventory_checks, supervisor_reviews, inventory_check_items, system_alerts, notifications, maintenance_requests, maintenance_history
+from .routers import auth, environments, inventory, qr, schedules, settings_route, users, inventory_checks, supervisor_reviews, inventory_check_items, system_alerts, notifications, maintenance_requests, maintenance_history, settings_route
 from .config import settings
 
 app = FastAPI(title="Sistema de Gestión de Inventarios SENA")
