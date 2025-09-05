@@ -7,7 +7,7 @@ from ..database import get_db
 from ..models.user_settings import UserSetting
 from ..models.users import User
 from ..schemas.user_settings import UserSettingCreate, UserSettingUpdate, UserSettingResponse
-from ..routers.auth import get_current_user
+from .auth import get_current_user
 
 router = APIRouter(prefix="/api/settings", tags=["settings"])
 
