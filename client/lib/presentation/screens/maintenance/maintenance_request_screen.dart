@@ -1,5 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import '../../../core/theme/app_colors.dart';
+import '../../../core/services/api_service.dart';
+import '../../../core/constants/api_constants.dart';
+import '../../../presentation/providers/auth_provider.dart';
 import '../../widgets/common/sena_app_bar.dart';
 
 class MaintenanceRequestScreen extends StatefulWidget {
@@ -11,13 +15,46 @@ class MaintenanceRequestScreen extends StatefulWidget {
 
 class _MaintenanceRequestScreenState extends State<MaintenanceRequestScreen> {
   final _formKey = GlobalKey<FormState>();
-  final _itemController = TextEditingController();
+  final _equipmentNameController = TextEditingController();
   final _descriptionController = TextEditingController();
   final _locationController = TextEditingController();
+  final _titleController = TextEditingController();
   
-  String _selectedType = 'Preventivo';
-  String _selectedPriority = 'Media';
+  late final ApiService _apiService;
+  String _selectedType = 'corrective';
+  String _selectedPriority = 'medium';
+  String _selectedCategory = 'Herramientas';
   bool _isSubmitting = false;
+  bool _isItemFromDatabase = false;
+  List<Map<String, dynamic>> _inventoryItems = [];
+  Map<String, dynamic>? _selectedItem;
+
+  @override
+  void initState() {
+    super.initState();
+    final authProvider = Provider.of<AuthProvider>(context, listen: false);
+    _apiService = ApiService(authProvider: authProvider);
+    _loadInventoryItems();
+  }
+
+  Future<void> _loadInventoryItems() async {
+    try {
+      final authProvider = Provider.of<AuthProvider>(context, listen: false);
+      final user = authProvider.currentUser;
+      
+      if (user?.environmentId != null) {
+        final items = await _apiService.get(
+          inventoryEndpoint,
+          queryParams: {'environment_id': user!.environmentId.toString()},
+        );
+        setState(() {
+          _inventoryItems = List<Map<String, dynamic>>.from(items);
+        });
+      }
+    } catch (e) {
+      debugPrint('Error loading inventory items: $e');
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -30,6 +67,39 @@ class _MaintenanceRequestScreenState extends State<MaintenanceRequestScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              Card(
+                child: Padding(
+                  padding: const EdgeInsets.all(16.0),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'Tipo de Equipo',
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      
+                      SwitchListTile(
+                        title: const Text('Equipo registrado en inventario'),
+                        subtitle: const Text('Seleccionar de equipos existentes'),
+                        value: _isItemFromDatabase,
+                        onChanged: (value) {
+                          setState(() {
+                            _isItemFromDatabase = value;
+                            _selectedItem = null;
+                            _equipmentNameController.clear();
+                          });
+                        },
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+
               // Información del equipo
               Card(
                 child: Padding(
@@ -46,20 +116,76 @@ class _MaintenanceRequestScreenState extends State<MaintenanceRequestScreen> {
                       ),
                       const SizedBox(height: 16),
                       
-                      TextFormField(
-                        controller: _itemController,
-                        decoration: const InputDecoration(
-                          labelText: 'Nombre del Equipo o ID',
-                          border: OutlineInputBorder(),
-                          prefixIcon: Icon(Icons.inventory),
+                      if (_isItemFromDatabase) ...[
+                        DropdownButtonFormField<Map<String, dynamic>>(
+                          value: _selectedItem,
+                          decoration: const InputDecoration(
+                            labelText: 'Seleccionar Equipo del Inventario',
+                            border: OutlineInputBorder(),
+                            prefixIcon: Icon(Icons.inventory),
+                          ),
+                          items: _inventoryItems.map((item) {
+                            return DropdownMenuItem(
+                              value: item,
+                              child: Text('${item['name']} - ${item['internal_code']}'),
+                            );
+                          }).toList(),
+                          onChanged: (value) {
+                            setState(() {
+                              _selectedItem = value;
+                            });
+                          },
+                          validator: (value) {
+                            if (_isItemFromDatabase && value == null) {
+                              return 'Por favor seleccione un equipo del inventario';
+                            }
+                            return null;
+                          },
                         ),
-                        validator: (value) {
-                          if (value == null || value.isEmpty) {
-                            return 'Por favor ingrese el nombre o ID del equipo';
-                          }
-                          return null;
-                        },
-                      ),
+                      ] else ...[
+                        TextFormField(
+                          controller: _equipmentNameController,
+                          decoration: const InputDecoration(
+                            labelText: 'Nombre del Equipo',
+                            border: OutlineInputBorder(),
+                            prefixIcon: Icon(Icons.build),
+                          ),
+                          validator: (value) {
+                            if (!_isItemFromDatabase && (value == null || value.isEmpty)) {
+                              return 'Por favor ingrese el nombre del equipo';
+                            }
+                            return null;
+                          },
+                        ),
+                        const SizedBox(height: 16),
+                        
+                        DropdownButtonFormField<String>(
+                          value: _selectedCategory,
+                          decoration: const InputDecoration(
+                            labelText: 'Categoría del Equipo',
+                            border: OutlineInputBorder(),
+                            prefixIcon: Icon(Icons.category),
+                          ),
+                          items: [
+                            'Herramientas',
+                            'Maquinaria',
+                            'Equipos de Cómputo',
+                            'Mobiliario',
+                            'Equipos de Medición',
+                            'Otros'
+                          ].map((category) {
+                            return DropdownMenuItem(
+                              value: category,
+                              child: Text(category),
+                            );
+                          }).toList(),
+                          onChanged: (value) {
+                            setState(() {
+                              _selectedCategory = value!;
+                            });
+                          },
+                        ),
+                      ],
                       const SizedBox(height: 16),
                       
                       TextFormField(
@@ -101,6 +227,7 @@ class _MaintenanceRequestScreenState extends State<MaintenanceRequestScreen> {
                       Column(
                         children: [
                           _buildMaintenanceTypeCard(
+                            'preventive',
                             'Preventivo',
                             'Mantenimiento programado regular',
                             Icons.schedule,
@@ -108,6 +235,7 @@ class _MaintenanceRequestScreenState extends State<MaintenanceRequestScreen> {
                           ),
                           const SizedBox(height: 12),
                           _buildMaintenanceTypeCard(
+                            'corrective',
                             'Correctivo',
                             'Reparación de fallas o daños',
                             Icons.build,
@@ -115,6 +243,7 @@ class _MaintenanceRequestScreenState extends State<MaintenanceRequestScreen> {
                           ),
                           const SizedBox(height: 12),
                           _buildMaintenanceTypeCard(
+                            'emergency',
                             'Emergencia',
                             'Reparación urgente inmediata',
                             Icons.emergency,
@@ -144,6 +273,22 @@ class _MaintenanceRequestScreenState extends State<MaintenanceRequestScreen> {
                       ),
                       const SizedBox(height: 16),
                       
+                      TextFormField(
+                        controller: _titleController,
+                        decoration: const InputDecoration(
+                          labelText: 'Título de la Solicitud',
+                          border: OutlineInputBorder(),
+                          prefixIcon: Icon(Icons.title),
+                        ),
+                        validator: (value) {
+                          if (value == null || value.isEmpty) {
+                            return 'Por favor ingrese un título para la solicitud';
+                          }
+                          return null;
+                        },
+                      ),
+                      const SizedBox(height: 16),
+                      
                       DropdownButtonFormField<String>(
                         value: _selectedPriority,
                         decoration: const InputDecoration(
@@ -151,21 +296,26 @@ class _MaintenanceRequestScreenState extends State<MaintenanceRequestScreen> {
                           border: OutlineInputBorder(),
                           prefixIcon: Icon(Icons.priority_high),
                         ),
-                        items: ['Alta', 'Media', 'Baja'].map((priority) {
+                        items: [
+                          {'value': 'urgent', 'label': 'Urgente'},
+                          {'value': 'high', 'label': 'Alta'},
+                          {'value': 'medium', 'label': 'Media'},
+                          {'value': 'low', 'label': 'Baja'},
+                        ].map((priority) {
                           return DropdownMenuItem(
-                            value: priority,
+                            value: priority['value'],
                             child: Row(
                               children: [
                                 Container(
                                   width: 12,
                                   height: 12,
                                   decoration: BoxDecoration(
-                                    color: _getPriorityColor(priority),
+                                    color: _getPriorityColor(priority['value']!),
                                     borderRadius: BorderRadius.circular(6),
                                   ),
                                 ),
                                 const SizedBox(width: 8),
-                                Text(priority),
+                                Text(priority['label']!),
                               ],
                             ),
                           );
@@ -273,19 +423,20 @@ class _MaintenanceRequestScreenState extends State<MaintenanceRequestScreen> {
   }
 
   Widget _buildMaintenanceTypeCard(
+    String value,
     String type,
     String description,
     IconData icon,
     Color color,
   ) {
-    final isSelected = _selectedType == type;
+    final isSelected = _selectedType == value;
     
     return Card(
       color: isSelected ? color.withOpacity(0.1) : null,
       child: InkWell(
         onTap: () {
           setState(() {
-            _selectedType = type;
+            _selectedType = value;
           });
         },
         borderRadius: BorderRadius.circular(12),
@@ -325,11 +476,11 @@ class _MaintenanceRequestScreenState extends State<MaintenanceRequestScreen> {
                 ),
               ),
               Radio<String>(
-                value: type,
+                value: value,
                 groupValue: _selectedType,
-                onChanged: (value) {
+                onChanged: (newValue) {
                   setState(() {
-                    _selectedType = value!;
+                    _selectedType = newValue!;
                   });
                 },
                 activeColor: color,
@@ -343,11 +494,13 @@ class _MaintenanceRequestScreenState extends State<MaintenanceRequestScreen> {
 
   Color _getPriorityColor(String priority) {
     switch (priority) {
-      case 'Alta':
+      case 'urgent':
         return AppColors.error;
-      case 'Media':
+      case 'high':
+        return AppColors.error;
+      case 'medium':
         return AppColors.warning;
-      case 'Baja':
+      case 'low':
         return AppColors.success;
       default:
         return AppColors.grey500;
@@ -360,30 +513,59 @@ class _MaintenanceRequestScreenState extends State<MaintenanceRequestScreen> {
         _isSubmitting = true;
       });
 
-      // Simular envío de solicitud
-      await Future.delayed(const Duration(seconds: 2));
+      try {
+        final requestData = {
+          'title': _titleController.text,
+          'description': _descriptionController.text,
+          'priority': _selectedPriority,
+          'maintenance_type': _selectedType,
+          'quantity_affected': 1,
+        };
 
-      setState(() {
-        _isSubmitting = false;
-      });
+        if (_isItemFromDatabase && _selectedItem != null) {
+          requestData['item_id'] = _selectedItem!['id'];
+        } else {
+          requestData['equipment_name'] = _equipmentNameController.text;
+          requestData['equipment_location'] = _locationController.text;
+          requestData['equipment_category'] = _selectedCategory;
+        }
 
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Solicitud de mantenimiento enviada exitosamente'),
-            backgroundColor: AppColors.success,
-          ),
-        );
-        Navigator.pop(context);
+        await _apiService.post('/api/maintenance-requests/', requestData);
+
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Solicitud de mantenimiento enviada exitosamente'),
+              backgroundColor: AppColors.success,
+            ),
+          );
+          Navigator.pop(context);
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Error al enviar solicitud: $e'),
+              backgroundColor: AppColors.error,
+            ),
+          );
+        }
+      } finally {
+        if (mounted) {
+          setState(() {
+            _isSubmitting = false;
+          });
+        }
       }
     }
   }
 
   @override
   void dispose() {
-    _itemController.dispose();
+    _equipmentNameController.dispose();
     _descriptionController.dispose();
     _locationController.dispose();
+    _titleController.dispose();
     super.dispose();
   }
 }

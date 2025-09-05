@@ -50,10 +50,25 @@ class _StudentDashboardState extends State<StudentDashboard> {
       setState(() {
         _environment = environment;
         _inventoryStats = {
-          'total': items.length,
-          'available': items.where((item) => item['status'] == 'available').length,
-          'in_use': items.where((item) => item['status'] == 'in_use').length,
-          'maintenance': items.where((item) => item['status'] == 'maintenance').length,
+          'total': items.fold(0, (sum, item) => sum + (item['quantity'] as int? ?? 1)),
+          'available': items.fold(0, (sum, item) {
+            if (item['status'] == 'available') {
+              return sum + (item['quantity'] as int? ?? 1);
+            }
+            return sum;
+          }),
+          'in_use': items.fold(0, (sum, item) {
+            if (item['status'] == 'in_use') {
+              return sum + (item['quantity'] as int? ?? 1);
+            }
+            return sum;
+          }),
+          'maintenance': items.fold(0, (sum, item) {
+            if (item['status'] == 'maintenance') {
+              return sum + (item['quantity'] as int? ?? 1);
+            }
+            return sum;
+          }),
         };
         _isLoading = false;
       });
@@ -386,8 +401,8 @@ class _StudentDashboardState extends State<StudentDashboard> {
                 subtitle,
                 textAlign: TextAlign.center,
                 style: const TextStyle(
-                  fontSize: 10,
                   color: AppColors.grey600,
+                  fontSize: 10,
                 ),
               ),
             ],

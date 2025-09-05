@@ -139,27 +139,160 @@ async def confirm_inventory_check(
 @router.get("/", response_model=List[InventoryCheckResponse])
 def get_inventory_checks(
     environment_id: Optional[UUID] = None,
+    schedule_id: Optional[UUID] = None,
     date: Optional[str] = None,  
     shift: Optional[str] = None,  
+    status: Optional[str] = None,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user) 
 ):
     query = db.query(InventoryCheck)
+    
     if environment_id:
         query = query.filter(InventoryCheck.environment_id == environment_id)
+    
+    if schedule_id:
+        query = query.filter(InventoryCheck.schedule_id == schedule_id)
+    
     if date:
         try:
             parsed_date = datetime.strptime(date, "%Y-%m-%d").date()
             query = query.filter(InventoryCheck.check_date == parsed_date)
         except ValueError:
             raise HTTPException(status_code=400, detail="Formato de fecha inválido. Se espera YYYY-MM-DD")
+    
     if shift:
         if shift == 'morning':
-            query = query.join(Schedule).filter(Schedule.start_time.between('07:00:00', '12:00:00'))
+            query = query.join(Schedule).filter(Schedule.start_time.between('06:00:00', '12:59:59'))
         elif shift == 'afternoon':
-            query = query.join(Schedule).filter(Schedule.start_time.between('13:00:00', '18:00:00'))
+            query = query.join(Schedule).filter(Schedule.start_time.between('13:00:00', '17:59:59'))
         elif shift == 'night':
             query = query.join(Schedule).filter(Schedule.start_time.between('18:00:00', '22:00:00'))
+    
+    if status:
+        query = query.filter(InventoryCheck.status == status)
 
     checks = query.all()
     return checks
+
+@router.get("/schedule-stats/{schedule_id}")
+async def get_schedule_verification_stats(
+    schedule_id: UUID,
+    start_date: Optional[str] = None,
+    end_date: Optional[str] = None,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Get verification statistics for a specific schedule over a date range"""
+    if current_user.role not in ["instructor", "supervisor", "admin"]:
+        raise HTTPException(status_code=403, detail="Rol no autorizado")
+    
+    schedule = db.query(Schedule).filter(Schedule.id == schedule_id).first()
+    if not schedule:
+        raise HTTPException(status_code=404, detail="Horario no encontrado")
+    
+    query = db.query(InventoryCheck).filter(InventoryCheck.schedule_id == schedule_id)
+    
+    if start_date:
+        try:
+            parsed_start = datetime.strptime(start_date, "%Y-%m-%d").date()
+            query = query.filter(InventoryCheck.check_date >= parsed_start)
+        except ValueError:
+            raise HTTPException(status_code=400, detail="Formato de fecha de inicio inválido")
+    
+    if end_date:
+        try:
+            parsed_end = datetime.strptime(end_date, "%Y-%m-%d").date()
+            query = query.filter(InventoryCheck.check_date <= parsed_end)
+        except ValueError:
+            raise HTTPException(status_code=400, detail="Formato de fecha de fin inválido")
+    
+    checks = query.all()
+    
+    stats = {
+        "schedule_info": {
+            "id": str(schedule.id),
+            "program": schedule.program,
+            "ficha": schedule.ficha,
+            "start_time": schedule.start_time.strftime("%H:%M"),
+            "end_time": schedule.end_time.strftime("%H:%M"),
+        },
+        "total_checks": len(checks),
+        "status_breakdown": {},
+        "recent_checks": []
+    }
+    
+    # Calculate status breakdown
+    for check in checks:
+        status = check.status
+        if status not in stats["status_breakdown"]:
+            stats["status_breakdown"][status] = 0
+        stats["status_breakdown"][status] += 1
+    
+    # Get recent checks (last 5)
+    recent_checks = sorted(checks, key=lambda x: x.check_date, reverse=True)[:5]
+    for check in recent_checks:
+        stats["recent_checks"].append({
+            "id": str(check.id),
+            "check_date": check.check_date.isoformat(),
+            "status": check.status,
+            "total_items": check.total_items,
+            "items_good": check.items_good,
+            "items_damaged": check.items_damaged,
+            "items_missing": check.items_missing
+        })
+    
+    return stats
+
+@router.get("/today-status")
+async def get_today_verification_status(
+    environment_id: Optional[UUID] = None,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Get today's verification status for all schedules in an environment"""
+    if not environment_id and current_user.environment_id:
+        environment_id = current_user.environment_id
+    
+    if not environment_id:
+        raise HTTPException(status_code=400, detail="ID de ambiente requerido")
+    
+    # Get all active schedules for the environment
+    schedules = db.query(Schedule).filter(
+        Schedule.environment_id == environment_id,
+        Schedule.is_active == True
+    ).all()
+    
+    # Get today's checks for the environment
+    today_checks = db.query(InventoryCheck).filter(
+        InventoryCheck.environment_id == environment_id,
+        InventoryCheck.check_date == date.today()
+    ).all()
+    
+    # Create a mapping of schedule_id to check
+    checks_by_schedule = {check.schedule_id: check for check in today_checks}
+    
+    schedule_status = []
+    for schedule in schedules:
+        check = checks_by_schedule.get(schedule.id)
+        schedule_status.append({
+            "schedule_id": str(schedule.id),
+            "program": schedule.program,
+            "ficha": schedule.ficha,
+            "start_time": schedule.start_time.strftime("%H:%M"),
+            "end_time": schedule.end_time.strftime("%H:%M"),
+            "has_check_today": check is not None,
+            "check_status": check.status if check else None,
+            "check_id": str(check.id) if check else None,
+            "items_good": check.items_good if check else 0,
+            "items_damaged": check.items_damaged if check else 0,
+            "items_missing": check.items_missing if check else 0
+        })
+    
+    return {
+        "date": date.today().isoformat(),
+        "environment_id": str(environment_id),
+        "schedules": schedule_status,
+        "total_schedules": len(schedules),
+        "completed_checks": len(today_checks)
+    }

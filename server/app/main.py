@@ -28,6 +28,7 @@ app.include_router(system_alerts.router, prefix="/api/system-alerts", tags=["sys
 app.include_router(notifications.router, prefix="/api/notifications", tags=["notifications"])
 app.include_router(maintenance_requests.router, prefix="/api/maintenance-requests", tags=["maintenance-requests"])
 app.include_router(maintenance_history.router, prefix="/api/maintenance-history", tags=["maintenance-history"])
+app.include_router(settings.router, prefix="/api/settings", tags=["settings"])
 
 
 @app.get("/")

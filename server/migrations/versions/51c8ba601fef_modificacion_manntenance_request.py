@@ -1,8 +1,8 @@
-"""restablecimiento
+"""modificacion manntenance request
 
-Revision ID: f329c839c580
+Revision ID: 51c8ba601fef
 Revises: 
-Create Date: 2025-08-31 23:23:35.555846
+Create Date: 2025-09-04 20:13:30.694725
 
 """
 from typing import Sequence, Union
@@ -12,7 +12,7 @@ import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql
 
 # revision identifiers, used by Alembic.
-revision: str = 'f329c839c580'
+revision: str = '51c8ba601fef'
 down_revision: Union[str, Sequence[str], None] = None
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
@@ -210,13 +210,17 @@ def upgrade() -> None:
     )
     op.create_table('maintenance_requests',
     sa.Column('id', sa.UUID(), nullable=False),
-    sa.Column('item_id', sa.UUID(), nullable=False),
+    sa.Column('item_id', sa.UUID(), nullable=True),
     sa.Column('user_id', sa.UUID(), nullable=False),
     sa.Column('assigned_technician_id', sa.UUID(), nullable=True),
+    sa.Column('equipment_name', sa.String(length=200), nullable=True),
+    sa.Column('equipment_location', sa.String(length=200), nullable=True),
+    sa.Column('equipment_category', sa.String(length=100), nullable=True),
     sa.Column('title', sa.String(length=200), nullable=False),
     sa.Column('description', sa.Text(), nullable=False),
     sa.Column('priority', sa.String(length=20), nullable=False),
     sa.Column('status', sa.String(length=20), nullable=False),
+    sa.Column('maintenance_type', sa.String(length=20), nullable=False),
     sa.Column('estimated_completion', sa.Date(), nullable=True),
     sa.Column('actual_completion', sa.Date(), nullable=True),
     sa.Column('cost', sa.Numeric(precision=10, scale=2), nullable=True),
@@ -225,6 +229,7 @@ def upgrade() -> None:
     sa.Column('quantity_affected', sa.Integer(), nullable=True),
     sa.Column('created_at', sa.TIMESTAMP(), server_default=sa.text('CURRENT_TIMESTAMP'), nullable=True),
     sa.Column('updated_at', sa.TIMESTAMP(), server_default=sa.text('CURRENT_TIMESTAMP'), nullable=True),
+    sa.CheckConstraint("maintenance_type IN ('preventive', 'corrective', 'emergency')", name='check_maintenance_type'),
     sa.CheckConstraint("priority IN ('low', 'medium', 'high', 'urgent')", name='check_priority'),
     sa.CheckConstraint("status IN ('pending', 'assigned', 'in_progress', 'completed', 'cancelled')", name='check_status'),
     sa.ForeignKeyConstraint(['assigned_technician_id'], ['users.id'], ondelete='SET NULL'),

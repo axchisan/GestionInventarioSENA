@@ -42,10 +42,25 @@ class _SupervisorDashboardScreenState extends State<SupervisorDashboardScreen> {
         setState(() {
           _environment = environment;
           _inventoryStats = {
-            'total': items.length,
-            'available': items.where((item) => item['status'] == 'available').length,
-            'in_use': items.where((item) => item['status'] == 'in_use').length,
-            'maintenance': items.where((item) => item['status'] == 'maintenance').length,
+            'total': items.fold(0, (sum, item) => sum + (item['quantity'] as int? ?? 1)),
+            'available': items.fold(0, (sum, item) {
+              if (item['status'] == 'available') {
+                return sum + (item['quantity'] as int? ?? 1);
+              }
+              return sum;
+            }),
+            'in_use': items.fold(0, (sum, item) {
+              if (item['status'] == 'in_use') {
+                return sum + (item['quantity'] as int? ?? 1);
+              }
+              return sum;
+            }),
+            'maintenance': items.fold(0, (sum, item) {
+              if (item['status'] == 'maintenance') {
+                return sum + (item['quantity'] as int? ?? 1);
+              }
+              return sum;
+            }),
           };
         });
       } else {
@@ -53,10 +68,25 @@ class _SupervisorDashboardScreenState extends State<SupervisorDashboardScreen> {
         final items = await _apiService.get(inventoryEndpoint); // Asume endpoint soporta sin environment_id para supervisor
         setState(() {
           _inventoryStats = {
-            'total': items.length,
-            'available': items.where((item) => item['status'] == 'available').length,
-            'in_use': items.where((item) => item['status'] == 'in_use').length,
-            'maintenance': items.where((item) => item['status'] == 'maintenance').length,
+            'total': items.fold(0, (sum, item) => sum + (item['quantity'] as int? ?? 1)),
+            'available': items.fold(0, (sum, item) {
+              if (item['status'] == 'available') {
+                return sum + (item['quantity'] as int? ?? 1);
+              }
+              return sum;
+            }),
+            'in_use': items.fold(0, (sum, item) {
+              if (item['status'] == 'in_use') {
+                return sum + (item['quantity'] as int? ?? 1);
+              }
+              return sum;
+            }),
+            'maintenance': items.fold(0, (sum, item) {
+              if (item['status'] == 'maintenance') {
+                return sum + (item['quantity'] as int? ?? 1);
+              }
+              return sum;
+            }),
           };
         });
       }
