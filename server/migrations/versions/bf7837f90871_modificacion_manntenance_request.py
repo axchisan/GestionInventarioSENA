@@ -1,8 +1,8 @@
-"""restablecimiento
+"""modificacion manntenance request
 
-Revision ID: f329c839c580
+Revision ID: bf7837f90871
 Revises: 
-Create Date: 2025-08-31 23:23:35.555846
+Create Date: 2025-09-08 12:00:59.731689
 
 """
 from typing import Sequence, Union
@@ -12,7 +12,7 @@ import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql
 
 # revision identifiers, used by Alembic.
-revision: str = 'f329c839c580'
+revision: str = 'bf7837f90871'
 down_revision: Union[str, Sequence[str], None] = None
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
@@ -210,13 +210,16 @@ def upgrade() -> None:
     )
     op.create_table('maintenance_requests',
     sa.Column('id', sa.UUID(), nullable=False),
-    sa.Column('item_id', sa.UUID(), nullable=False),
+    sa.Column('item_id', sa.UUID(), nullable=True),
     sa.Column('user_id', sa.UUID(), nullable=False),
     sa.Column('assigned_technician_id', sa.UUID(), nullable=True),
+    sa.Column('environment_id', sa.UUID(), nullable=True),
     sa.Column('title', sa.String(length=200), nullable=False),
     sa.Column('description', sa.Text(), nullable=False),
     sa.Column('priority', sa.String(length=20), nullable=False),
     sa.Column('status', sa.String(length=20), nullable=False),
+    sa.Column('category', sa.String(length=50), nullable=True),
+    sa.Column('location', sa.String(length=200), nullable=True),
     sa.Column('estimated_completion', sa.Date(), nullable=True),
     sa.Column('actual_completion', sa.Date(), nullable=True),
     sa.Column('cost', sa.Numeric(precision=10, scale=2), nullable=True),
@@ -227,7 +230,9 @@ def upgrade() -> None:
     sa.Column('updated_at', sa.TIMESTAMP(), server_default=sa.text('CURRENT_TIMESTAMP'), nullable=True),
     sa.CheckConstraint("priority IN ('low', 'medium', 'high', 'urgent')", name='check_priority'),
     sa.CheckConstraint("status IN ('pending', 'assigned', 'in_progress', 'completed', 'cancelled')", name='check_status'),
+    sa.CheckConstraint('(item_id IS NOT NULL) OR (environment_id IS NOT NULL)', name='check_item_or_environment'),
     sa.ForeignKeyConstraint(['assigned_technician_id'], ['users.id'], ondelete='SET NULL'),
+    sa.ForeignKeyConstraint(['environment_id'], ['environments.id'], ondelete='CASCADE'),
     sa.ForeignKeyConstraint(['item_id'], ['inventory_items.id'], ondelete='CASCADE'),
     sa.ForeignKeyConstraint(['user_id'], ['users.id'], ondelete='CASCADE'),
     sa.PrimaryKeyConstraint('id')

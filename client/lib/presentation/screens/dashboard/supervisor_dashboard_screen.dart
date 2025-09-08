@@ -6,6 +6,8 @@ import '../../../core/theme/app_colors.dart';
 import '../../../core/constants/api_constants.dart';
 import '../../../presentation/providers/auth_provider.dart';
 import '../../widgets/common/sena_app_bar.dart';
+import '../../widgets/common/notification_badge.dart';
+import '../../../core/services/notification_service.dart';
 
 class SupervisorDashboardScreen extends StatefulWidget {
   const SupervisorDashboardScreen({super.key});
@@ -18,6 +20,8 @@ class _SupervisorDashboardScreenState extends State<SupervisorDashboardScreen> {
   late final ApiService _apiService;
   Map<String, dynamic>? _environment;
   Map<String, dynamic>? _inventoryStats;
+  List<Map<String, dynamic>> _recentNotifications = [];
+  int _unreadNotificationsCount = 0;
   bool _isLoading = true;
 
   @override
@@ -28,6 +32,7 @@ class _SupervisorDashboardScreenState extends State<SupervisorDashboardScreen> {
   }
 
   Future<void> _fetchData() async {
+    setState(() => _isLoading = true);
     final authProvider = Provider.of<AuthProvider>(context, listen: false);
     final user = authProvider.currentUser;
     try {
@@ -49,8 +54,8 @@ class _SupervisorDashboardScreenState extends State<SupervisorDashboardScreen> {
           };
         });
       } else {
-        // Para supervisor sin ambiente específico, fetch general o de todos ambientes (ajustar si backend lo soporta)
-        final items = await _apiService.get(inventoryEndpoint); // Asume endpoint soporta sin environment_id para supervisor
+        // Para supervisor sin ambiente específico, fetch general o de todos ambientes
+        final items = await _apiService.get(inventoryEndpoint);
         setState(() {
           _inventoryStats = {
             'total': items.length,
@@ -60,7 +65,13 @@ class _SupervisorDashboardScreenState extends State<SupervisorDashboardScreen> {
           };
         });
       }
+      
+      final notifications = await NotificationService.getNotifications();
+      final unreadCount = await NotificationService.getUnreadCount();
+      
       setState(() {
+        _recentNotifications = notifications.take(3).toList();
+        _unreadNotificationsCount = unreadCount;
         _isLoading = false;
       });
     } catch (e) {
@@ -85,12 +96,21 @@ class _SupervisorDashboardScreenState extends State<SupervisorDashboardScreen> {
     final user = authProvider.currentUser;
 
     return Scaffold(
-      appBar: const SenaAppBar(
+      appBar: SenaAppBar(
         title: 'Panel de Supervisor',
         showBackButton: false,
+        actions: [
+          NotificationBadge(
+            onTap: () => context.push('/notifications'),
+            child: IconButton(
+              icon: const Icon(Icons.notifications_outlined),
+              onPressed: () => context.push('/notifications'),
+            ),
+          ),
+        ],
       ),
       body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
+          ? const Center(child: CircularProgressIndicator(color: AppColors.accent))
           : RefreshIndicator(
               onRefresh: _fetchData,
               child: SingleChildScrollView(
@@ -170,9 +190,9 @@ class _SupervisorDashboardScreenState extends State<SupervisorDashboardScreen> {
                           const SizedBox(width: 12),
                           Expanded(
                             child: _buildStatCard(
-                              'Pendientes',
-                              '15', // Esto podría fetch de otro endpoint, pero por ahora hardcoded; ajusta si necesitas
-                              Icons.pending_actions,
+                              'Notificaciones',
+                              _unreadNotificationsCount.toString(),
+                              Icons.notifications_active,
                               AppColors.warning,
                             ),
                           ),
@@ -300,14 +320,7 @@ class _SupervisorDashboardScreenState extends State<SupervisorDashboardScreen> {
                           AppColors.primary,
                           '/training-schedule',
                         ),
-                        _buildActionCard(
-                          context,
-                          'Notificaciones',
-                          'Revisa alertas',
-                          Icons.notifications,
-                          AppColors.error,
-                          '/notifications',
-                        ),
+                        _buildNotificationActionCard(context),
                         _buildActionCard(
                           context,
                           'Configuración',
@@ -325,20 +338,56 @@ class _SupervisorDashboardScreenState extends State<SupervisorDashboardScreen> {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            const Text(
-                              'Solicitudes Pendientes',
-                              style: TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.bold,
-                              ),
+                            Row(
+                              children: [
+                                const Text(
+                                  'Notificaciones Recientes',
+                                  style: TextStyle(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                                const Spacer(),
+                                if (_unreadNotificationsCount > 0)
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                    decoration: BoxDecoration(
+                                      color: AppColors.error,
+                                      borderRadius: BorderRadius.circular(12),
+                                    ),
+                                    child: Text(
+                                      _unreadNotificationsCount.toString(),
+                                      style: const TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                  ),
+                              ],
                             ),
                             const SizedBox(height: 12),
-                            _buildPendingItem('Préstamo pendiente', 'Instructor X - Ambiente 101', AppColors.warning),
-                            _buildPendingItem('Mantenimiento', 'Item dañado en Ambiente 205', AppColors.error),
+                            if (_recentNotifications.isNotEmpty) ...[
+                              ..._recentNotifications.map((notification) => 
+                                _buildNotificationItem(
+                                  notification['title'] ?? 'Sin título',
+                                  notification['message'] ?? 'Sin mensaje',
+                                  _getNotificationColor(notification['type'] ?? 'system'),
+                                  !(notification['is_read'] ?? false),
+                                ),
+                              ),
+                            ] else ...[
+                              _buildNotificationItem(
+                                'No hay notificaciones',
+                                'Todas las notificaciones aparecerán aquí',
+                                AppColors.grey500,
+                                false,
+                              ),
+                            ],
                             const SizedBox(height: 8),
                             TextButton(
-                              onPressed: () => context.push('/inventory-alerts'), // Ajustado a alertas
-                              child: const Text('Ver todas las solicitudes'),
+                              onPressed: () => context.push('/notifications'),
+                              child: const Text('Ver todas las notificaciones'),
                             ),
                           ],
                         ),
@@ -349,6 +398,149 @@ class _SupervisorDashboardScreenState extends State<SupervisorDashboardScreen> {
               ),
             ),
       drawer: _buildDrawer(context),
+    );
+  }
+
+  Widget _buildNotificationActionCard(BuildContext context) {
+    return Card(
+      child: InkWell(
+        onTap: () => context.push('/notifications'),
+        borderRadius: BorderRadius.circular(12),
+        child: Padding(
+          padding: const EdgeInsets.all(16.0),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Stack(
+                children: [
+                  Icon(Icons.notifications, size: 40, color: AppColors.error),
+                  if (_unreadNotificationsCount > 0)
+                    Positioned(
+                      right: 0,
+                      top: 0,
+                      child: Container(
+                        padding: const EdgeInsets.all(2),
+                        decoration: BoxDecoration(
+                          color: AppColors.error,
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(color: Colors.white, width: 1),
+                        ),
+                        constraints: const BoxConstraints(
+                          minWidth: 16,
+                          minHeight: 16,
+                        ),
+                        child: Text(
+                          _unreadNotificationsCount > 99 ? '99+' : _unreadNotificationsCount.toString(),
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 10,
+                            fontWeight: FontWeight.bold,
+                          ),
+                          textAlign: TextAlign.center,
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              const Text(
+                'Notificaciones',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                _unreadNotificationsCount > 0 
+                    ? '$_unreadNotificationsCount sin leer'
+                    : 'Revisa alertas',
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  fontSize: 10,
+                  color: AppColors.grey600,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Color _getNotificationColor(String type) {
+    switch (type) {
+      case 'verification_pending':
+        return AppColors.warning;
+      case 'verification_update':
+        return AppColors.accent;
+      case 'maintenance_update':
+        return AppColors.info;
+      case 'loan_approved':
+        return AppColors.success;
+      case 'loan_rejected':
+      case 'loan_overdue':
+        return AppColors.error;
+      default:
+        return AppColors.info;
+    }
+  }
+
+  Widget _buildNotificationItem(String title, String subtitle, Color statusColor, bool isUnread) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8.0),
+      child: Row(
+        children: [
+          Container(
+            width: 8,
+            height: 8,
+            decoration: BoxDecoration(
+              color: statusColor,
+              shape: BoxShape.circle,
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        title,
+                        style: TextStyle(
+                          fontWeight: isUnread ? FontWeight.bold : FontWeight.w500,
+                          fontSize: 14,
+                        ),
+                      ),
+                    ),
+                    if (isUnread)
+                      Container(
+                        width: 6,
+                        height: 6,
+                        decoration: const BoxDecoration(
+                          color: AppColors.accent,
+                          shape: BoxShape.circle,
+                        ),
+                      ),
+                  ],
+                ),
+                Text(
+                  subtitle,
+                  style: TextStyle(
+                    color: AppColors.grey600,
+                    fontSize: 12,
+                    fontWeight: isUnread ? FontWeight.w500 : FontWeight.normal,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Icon(Icons.chevron_right, color: AppColors.grey400, size: 16),
+        ],
+      ),
     );
   }
 
@@ -537,6 +729,40 @@ class _SupervisorDashboardScreenState extends State<SupervisorDashboardScreen> {
             leading: const Icon(Icons.history),
             title: const Text('Auditoría'),
             onTap: () => context.push('/audit-log'),
+          ),
+          ListTile(
+            leading: Stack(
+              children: [
+                const Icon(Icons.notifications),
+                if (_unreadNotificationsCount > 0)
+                  Positioned(
+                    right: 0,
+                    top: 0,
+                    child: Container(
+                      padding: const EdgeInsets.all(2),
+                      decoration: BoxDecoration(
+                        color: AppColors.error,
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      constraints: const BoxConstraints(
+                        minWidth: 12,
+                        minHeight: 12,
+                      ),
+                      child: Text(
+                        _unreadNotificationsCount > 9 ? '9+' : _unreadNotificationsCount.toString(),
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 8,
+                          fontWeight: FontWeight.bold,
+                        ),
+                        textAlign: TextAlign.center,
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+            title: const Text('Notificaciones'),
+            onTap: () => context.push('/notifications'),
           ),
           const Divider(),
           ListTile(

@@ -99,7 +99,7 @@ class NavigationService {
       GoRoute(
         path: '/maintenance-request',
         name: 'maintenance-request',
-        builder: (context, state) => const MaintenanceRequestScreen(),
+        builder: (context, state) => const MaintenanceRequestScreen(environmentId: '',),
       ),
       GoRoute(
         path: '/admin-dashboard',
