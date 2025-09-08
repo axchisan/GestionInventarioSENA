@@ -3,12 +3,15 @@ import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
 import 'dart:convert';
-import 'dart:io'; 
+import 'dart:io';
 import '../../../core/services/api_service.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/constants/api_constants.dart';
 import '../../../presentation/providers/auth_provider.dart';
 import '../../widgets/common/sena_app_bar.dart';
+import '../maintenance/maintenance_request_screen.dart';
+import '../../../core/services/notification_service.dart';
+import '../../widgets/common/notification_badge.dart';
 
 class InventoryCheckScreen extends StatefulWidget {
   const InventoryCheckScreen({super.key});
@@ -24,14 +27,20 @@ class _InventoryCheckScreenState extends State<InventoryCheckScreen> {
   String _selectedCategory = 'Todos';
   String _selectedStatus = 'Todos';
   String? _selectedScheduleId;
+  DateTime _selectedDate = DateTime.now();
+  Map<String, dynamic>? _selectedSchedule;
+  Map<String, dynamic>? _currentScheduleCheck;
+  List<dynamic> _scheduleStats = [];
+  bool _showScheduleDetails = false;
   List<dynamic> _items = [];
   List<dynamic> _schedules = [];
   List<dynamic> _checks = [];
   List<dynamic> _pendingChecks = [];
-  List<dynamic> _notifications = []; // Nueva: Para notificaciones
+  List<dynamic> _notifications = [];
   bool _isLoading = true;
   bool _hasCheckedToday = false;
   final DateFormat _colombianTimeFormat = DateFormat('hh:mm a');
+  final DateFormat _dateFormat = DateFormat('yyyy-MM-dd');
 
   final Map<String, String> _categoryTranslations = {
     'computer': 'Computador',
@@ -52,8 +61,6 @@ class _InventoryCheckScreenState extends State<InventoryCheckScreen> {
     'damaged': 'Dañado',
     'lost': 'Perdido',
     'good': 'Bueno',
-    // ignore: equal_keys_in_map
-    'damaged': 'Dañado',
     'missing': 'Faltante',
     'pending': 'Pendiente',
     'instructor_review': 'Revisión Instructor',
@@ -97,26 +104,42 @@ class _InventoryCheckScreenState extends State<InventoryCheckScreen> {
       );
       final checks = await _apiService.get(
         inventoryChecksEndpoint,
-        queryParams: {'environment_id': user.environmentId.toString()},
+        queryParams: {
+          'environment_id': user.environmentId.toString(),
+          'date': _dateFormat.format(_selectedDate),
+        },
       );
       final notifications = await _apiService.get(
-        '/api/notifications/', // Nuevo endpoint para notificaciones del user
+        '/api/notifications/',
       );
-      final pendingChecks = checks.where((check) => ['pending', 'instructor_review', 'supervisor_review'].contains(check['status'])).toList();
-      final todayCheck = checks.firstWhere(
-        (check) => check['check_date'] == DateTime.now().toIso8601String().split('T')[0],
-        orElse: () => null,
-      );
-      // ignore: unused_element
-      setState() {
+      
+      List<dynamic> filteredChecks = checks;
+      if (_selectedScheduleId != null) {
+        filteredChecks = checks.where((check) => 
+          check['schedule_id'] == _selectedScheduleId).toList();
+      }
+      
+      final pendingChecks = filteredChecks.where((check) => 
+        ['pending', 'instructor_review', 'supervisor_review'].contains(check['status'])).toList();
+      
+      bool hasCheckedScheduleToday = false;
+      if (_selectedScheduleId != null) {
+        hasCheckedScheduleToday = filteredChecks.any((check) => 
+          check['check_date'] == _dateFormat.format(_selectedDate) &&
+          check['schedule_id'] == _selectedScheduleId);
+      }
+      
+      await _fetchScheduleStats();
+      
+      setState(() {
         _items = items;
         _schedules = schedules;
-        _checks = checks;
+        _checks = filteredChecks;
         _pendingChecks = pendingChecks;
         _notifications = notifications;
-        _hasCheckedToday = todayCheck != null;
+        _hasCheckedToday = hasCheckedScheduleToday;
         _isLoading = false;
-      };
+      });
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Error al cargar datos: $e')),
@@ -124,6 +147,54 @@ class _InventoryCheckScreenState extends State<InventoryCheckScreen> {
       setState(() {
         _isLoading = false;
       });
+    }
+  }
+
+  Future<void> _fetchScheduleStats() async {
+    if (_selectedScheduleId == null) return;
+    
+    try {
+      final authProvider = Provider.of<AuthProvider>(context, listen: false);
+      final user = authProvider.currentUser;
+      
+      final stats = await _apiService.get(
+        '/api/inventory-checks/schedule-stats',
+        queryParams: {
+          'environment_id': user!.environmentId.toString(),
+          'schedule_id': _selectedScheduleId!,
+          'date': _dateFormat.format(_selectedDate),
+        },
+      );
+      
+      setState(() {
+        _scheduleStats = stats;
+      });
+    } catch (e) {
+      print('Error al cargar estadísticas del horario: $e');
+    }
+  }
+
+  Future<void> _fetchScheduleCheck() async {
+    if (_selectedScheduleId == null) return;
+    
+    try {
+      final authProvider = Provider.of<AuthProvider>(context, listen: false);
+      final user = authProvider.currentUser;
+      
+      final checkData = await _apiService.get(
+        '/api/inventory-checks/by-schedule',
+        queryParams: {
+          'environment_id': user!.environmentId.toString(),
+          'schedule_id': _selectedScheduleId!,
+          'date': _dateFormat.format(_selectedDate),
+        },
+      );
+      
+      setState(() {
+        _currentScheduleCheck = checkData.isNotEmpty ? checkData.first : null;
+      });
+    } catch (e) {
+      print('Error al cargar verificación del horario: $e');
     }
   }
 
@@ -139,10 +210,10 @@ class _InventoryCheckScreenState extends State<InventoryCheckScreen> {
 
   String _formatColombianTime(String timeStr) {
     try {
-      final dateTime = DateFormat('HH:mm').parse(timeStr); // Parsea 24h
-      return _colombianTimeFormat.format(dateTime); // Formato 12h AM/PM
+      final dateTime = DateFormat('HH:mm').parse(timeStr);
+      return _colombianTimeFormat.format(dateTime);
     } catch (e) {
-      return timeStr; // Fallback
+      return timeStr;
     }
   }
 
@@ -150,9 +221,70 @@ class _InventoryCheckScreenState extends State<InventoryCheckScreen> {
   Widget build(BuildContext context) {
     final authProvider = Provider.of<AuthProvider>(context);
     final role = authProvider.currentUser?.role ?? '';
+    final environmentId = authProvider.currentUser?.environmentId ?? '';
 
     return Scaffold(
-      appBar: const SenaAppBar(title: 'Verificación de Inventario'),
+      appBar: SenaAppBar(
+        title: 'Verificación de Inventario',
+        actions: [
+          // Botón de notificaciones con badge
+          NotificationBadge(
+            onTap: () => _showNotificationsModal(),
+            child: IconButton(
+              icon: const Icon(Icons.notifications_outlined),
+              onPressed: () => _showNotificationsModal(),
+            ),
+          ),
+          
+          // Botón de verificaciones pendientes
+          if (_pendingChecks.isNotEmpty)
+            Stack(
+              children: [
+                IconButton(
+                  icon: const Icon(Icons.pending_actions),
+                  onPressed: () => _showPendingChecksModal(),
+                ),
+                Positioned(
+                  right: 6,
+                  top: 6,
+                  child: Container(
+                    padding: const EdgeInsets.all(2),
+                    decoration: BoxDecoration(
+                      color: AppColors.warning,
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    constraints: const BoxConstraints(
+                      minWidth: 16,
+                      minHeight: 16,
+                    ),
+                    child: Text(
+                      _pendingChecks.length.toString(),
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 10,
+                        fontWeight: FontWeight.bold,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          
+          // Botón de historial
+          IconButton(
+            icon: const Icon(Icons.history),
+            onPressed: () => _showHistoryModal(),
+          ),
+          
+          // Botón de solicitud de mantenimiento
+          IconButton(
+            icon: const Icon(Icons.build),
+            onPressed: () => _navigateToMaintenanceRequest(environmentId),
+            tooltip: 'Solicitar Mantenimiento',
+          ),
+        ],
+      ),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
           : RefreshIndicator(
@@ -161,15 +293,54 @@ class _InventoryCheckScreenState extends State<InventoryCheckScreen> {
                 children: [
                   Container(
                     padding: const EdgeInsets.all(16.0),
-                    color: AppColors.grey100,
+                    decoration: BoxDecoration(
+                      color: AppColors.grey100,
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.05),
+                          blurRadius: 4,
+                          offset: const Offset(0, 2),
+                        ),
+                      ],
+                    ),
                     child: Column(
                       children: [
+                        Container(
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: AppColors.primary.withOpacity(0.1),
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: AppColors.primary.withOpacity(0.3)),
+                          ),
+                          child: Row(
+                            children: [
+                              Icon(Icons.calendar_today, color: AppColors.primary),
+                              const SizedBox(width: 8),
+                              Text(
+                                'Fecha: ${DateFormat('dd/MM/yyyy').format(_selectedDate)}',
+                                style: TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  color: AppColors.primary,
+                                ),
+                              ),
+                              const Spacer(),
+                              TextButton.icon(
+                                onPressed: () => _selectDate(),
+                                icon: const Icon(Icons.edit_calendar),
+                                label: const Text('Cambiar'),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 16),
                         TextField(
                           controller: _searchController,
-                          decoration: const InputDecoration(
+                          decoration: InputDecoration(
                             hintText: 'Buscar por nombre o código...',
-                            prefixIcon: Icon(Icons.search),
-                            border: OutlineInputBorder(),
+                            prefixIcon: const Icon(Icons.search),
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
                             filled: true,
                             fillColor: Colors.white,
                           ),
@@ -181,9 +352,11 @@ class _InventoryCheckScreenState extends State<InventoryCheckScreen> {
                             Expanded(
                               child: DropdownButtonFormField<String>(
                                 value: _selectedCategory,
-                                decoration: const InputDecoration(
+                                decoration: InputDecoration(
                                   labelText: 'Categoría',
-                                  border: OutlineInputBorder(),
+                                  border: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
                                   filled: true,
                                   fillColor: Colors.white,
                                 ),
@@ -207,9 +380,11 @@ class _InventoryCheckScreenState extends State<InventoryCheckScreen> {
                             Expanded(
                               child: DropdownButtonFormField<String>(
                                 value: _selectedStatus,
-                                decoration: const InputDecoration(
+                                decoration: InputDecoration(
                                   labelText: 'Estado',
-                                  border: OutlineInputBorder(),
+                                  border: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
                                   filled: true,
                                   fillColor: Colors.white,
                                 ),
@@ -233,32 +408,118 @@ class _InventoryCheckScreenState extends State<InventoryCheckScreen> {
                         ),
                         if (role == 'student' || role == 'instructor' || role == 'supervisor') ...[
                           const SizedBox(height: 16),
-                          DropdownButtonFormField<String>(
-                            value: _selectedScheduleId,
-                            decoration: const InputDecoration(
-                              labelText: 'Turno/Horario',
-                              border: OutlineInputBorder(),
-                              filled: true,
-                              fillColor: Colors.white,
+                          Container(
+                            decoration: BoxDecoration(
+                              border: Border.all(color: AppColors.grey300),
+                              borderRadius: BorderRadius.circular(12),
                             ),
-                            items: _schedules.map((schedule) {
-                              return DropdownMenuItem(
-                                value: schedule['id'].toString(),
-                                child: Text('${schedule['program']} - ${_formatColombianTime(schedule['start_time'])} - ${_formatColombianTime(schedule['end_time'])}'),
-                              );
-                            }).toList(),
-                            onChanged: (value) {
-                              setState(() {
-                                _selectedScheduleId = value;
-                              });
-                            },
+                            child: Column(
+                              children: [
+                                DropdownButtonFormField<String>(
+                                  value: _selectedScheduleId,
+                                  decoration: InputDecoration(
+                                    labelText: 'Turno/Horario',
+                                    border: OutlineInputBorder(
+                                      borderRadius: BorderRadius.circular(12),
+                                    ),
+                                    filled: true,
+                                    fillColor: Colors.white,
+                                  ),
+                                  items: _schedules.map((schedule) {
+                                    return DropdownMenuItem(
+                                      value: schedule['id'].toString(),
+                                      child: Column(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: [
+                                          Text('${schedule['program']} - ${schedule['ficha']}'),
+                                          Text(
+                                            '${_formatColombianTime(schedule['start_time'])} - ${_formatColombianTime(schedule['end_time'])}',
+                                            style: const TextStyle(fontSize: 12, color: Colors.grey),
+                                          ),
+                                        ],
+                                      ),
+                                    );
+                                  }).toList(),
+                                  onChanged: (value) {
+                                    setState(() {
+                                      _selectedScheduleId = value;
+                                      _selectedSchedule = _schedules.firstWhere(
+                                        (s) => s['id'].toString() == value,
+                                        orElse: () => null,
+                                      );
+                                    });
+                                    if (value != null) {
+                                      _fetchScheduleCheck();
+                                      _fetchData();
+                                    }
+                                  },
+                                ),
+                                if (_selectedSchedule != null) ...[
+                                  Container(
+                                    padding: const EdgeInsets.all(12),
+                                    decoration: BoxDecoration(
+                                      color: AppColors.grey100,
+                                      borderRadius: const BorderRadius.only(
+                                        bottomLeft: Radius.circular(12),
+                                        bottomRight: Radius.circular(12),
+                                      ),
+                                    ),
+                                    child: Row(
+                                      children: [
+                                        Expanded(
+                                          child: _buildScheduleInfo(
+                                            Icons.people,
+                                            'Estudiantes',
+                                            '${_selectedSchedule!['student_count']}',
+                                          ),
+                                        ),
+                                        Expanded(
+                                          child: _buildScheduleInfo(
+                                            Icons.access_time,
+                                            'Duración',
+                                            _calculateDuration(_selectedSchedule!['start_time'], _selectedSchedule!['end_time']),
+                                          ),
+                                        ),
+                                        Expanded(
+                                          child: _buildScheduleInfo(
+                                            Icons.assignment_turned_in,
+                                            'Estado',
+                                            _hasCheckedToday ? 'Verificado' : 'Pendiente',
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ],
+                              ],
+                            ),
                           ),
                         ],
-                        if (_hasCheckedToday) ...[
-                          const SizedBox(height: 8),
-                          const Text(
-                            'Inventario ya verificado hoy. Puedes ver historial o actualizar individualmente.',
-                            style: TextStyle(color: AppColors.success),
+                        if (_hasCheckedToday && _selectedScheduleId != null) ...[
+                          const SizedBox(height: 12),
+                          Container(
+                            padding: const EdgeInsets.all(12),
+                            decoration: BoxDecoration(
+                              color: AppColors.success.withOpacity(0.1),
+                              borderRadius: BorderRadius.circular(8),
+                              border: Border.all(color: AppColors.success),
+                            ),
+                            child: Row(
+                              children: [
+                                Icon(Icons.check_circle, color: AppColors.success),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: Text(
+                                    'Inventario ya verificado para este horario hoy. Puedes ver detalles o actualizar individualmente.',
+                                    style: TextStyle(color: AppColors.success),
+                                  ),
+                                ),
+                                TextButton(
+                                  onPressed: () => _showScheduleDetailsModal(),
+                                  child: const Text('Ver Detalles'),
+                                ),
+                              ],
+                            ),
                           ),
                         ],
                       ],
@@ -270,79 +531,11 @@ class _InventoryCheckScreenState extends State<InventoryCheckScreen> {
                       itemCount: _filteredItems.length,
                       itemBuilder: (context, index) {
                         final item = _filteredItems[index];
+                        final role = authProvider.currentUser?.role ?? '';
                         return _buildItemCard(item, role);
                       },
                     ),
                   ),
-                  if (role == 'instructor' || role == 'supervisor') ...[
-                    const SizedBox(height: 16),
-                    const Text('Verificaciones Pendientes', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-                    Expanded(
-                      child: ListView.builder(
-                        itemCount: _pendingChecks.length,
-                        itemBuilder: (context, index) {
-                          final check = _pendingChecks[index];
-                          return Card(
-                            child: ListTile(
-                              title: Text('Check ID: ${check['id']}'),
-                              subtitle: Text('Estado: ${_statusTranslations[check['status']] ?? check['status']}'),
-                              trailing: role == 'instructor' && check['status'] == 'instructor_review'
-                                  ? ElevatedButton(
-                                      onPressed: () => _confirmInstructorCheck(check),
-                                      child: const Text('Confirmar'),
-                                    )
-                                  : role == 'supervisor' && check['status'] == 'supervisor_review'
-                                      ? ElevatedButton(
-                                          onPressed: () => _reviewSupervisorCheck(check),
-                                          child: const Text('Revisar'),
-                                        )
-                                      : null,
-                              onTap: () => _showCheckDetails(check),
-                            ),
-                          );
-                        },
-                      ),
-                    ),
-                  ],
-                  if (_hasCheckedToday || _checks.isNotEmpty) ...[
-                    const SizedBox(height: 16),
-                    const Text('Historial de Verificaciones', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-                    Expanded(
-                      child: ListView.builder(
-                        itemCount: _checks.length,
-                        itemBuilder: (context, index) {
-                          final check = _checks[index];
-                          return Card(
-                            child: ListTile(
-                              title: Text('Check ID: ${check['id']} - ${_formatColombianTime(check['check_time'] ?? '00:00:00')}'),
-                              subtitle: Text('Estado: ${_statusTranslations[check['status']] ?? check['status']}'),
-                              onTap: () => _showCheckDetails(check),
-                            ),
-                          );
-                        },
-                      ),
-                    ),
-                  ],
-                  // Nueva sección para notificaciones
-                  if (_notifications.isNotEmpty) ...[
-                    const SizedBox(height: 16),
-                    const Text('Notificaciones', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-                    Expanded(
-                      child: ListView.builder(
-                        itemCount: _notifications.length,
-                        itemBuilder: (context, index) {
-                          final notif = _notifications[index];
-                          return Card(
-                            child: ListTile(
-                              title: Text(notif['title']),
-                              subtitle: Text(notif['message']),
-                              trailing: notif['is_read'] ? Icon(Icons.check) : Icon(Icons.notifications_active),
-                            ),
-                          );
-                        },
-                      ),
-                    ),
-                  ],
                 ],
               ),
             ),
@@ -353,14 +546,15 @@ class _InventoryCheckScreenState extends State<InventoryCheckScreen> {
             FloatingActionButton(
               heroTag: 'add',
               onPressed: () {
-                context.push('/add-inventory-item', extra: {'environmentId': authProvider.currentUser?.environmentId});
+                context.push('/add-inventory-item', extra: {'environmentId': environmentId});
               },
               backgroundColor: AppColors.primary,
               child: const Icon(Icons.add, color: Colors.white),
             ),
             const SizedBox(height: 16),
           ],
-          if ((role == 'student' || role == 'instructor' || role == 'supervisor') && !_hasCheckedToday) ...[
+          if ((role == 'student' || role == 'instructor' || role == 'supervisor') && 
+              !_hasCheckedToday && _selectedScheduleId != null) ...[
             FloatingActionButton(
               heroTag: 'check',
               onPressed: _showCheckDialog,
@@ -369,13 +563,700 @@ class _InventoryCheckScreenState extends State<InventoryCheckScreen> {
             ),
             const SizedBox(height: 16),
           ],
+          // Botón flotante para mantenimiento general
           FloatingActionButton(
-            heroTag: 'report',
-            onPressed: _showReportDamageDialog,
-            backgroundColor: AppColors.error,
-            child: const Icon(Icons.report_problem, color: Colors.white),
+            heroTag: 'maintenance',
+            onPressed: () => _navigateToMaintenanceRequest(environmentId),
+            backgroundColor: AppColors.secondary,
+            child: const Icon(Icons.build, color: Colors.white),
+            tooltip: 'Solicitud de Mantenimiento',
           ),
         ],
+      ),
+    );
+  }
+
+  void _navigateToMaintenanceRequest(String environmentId, {String? itemId, String? itemName}) async {
+    final result = await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => MaintenanceRequestScreen(
+          environmentId: environmentId,
+          preselectedItemId: itemId,
+          preselectedItemName: itemName,
+        ),
+      ),
+    );
+    
+    if (result == true) {
+      // Actualizar datos después de crear solicitud de mantenimiento
+      _fetchData();
+      
+      // Mostrar confirmación
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Solicitud de mantenimiento enviada exitosamente'),
+          backgroundColor: AppColors.success,
+        ),
+      );
+    }
+  }
+
+  void _showNotificationsModal() {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => Container(
+        height: MediaQuery.of(context).size.height * 0.8,
+        decoration: const BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+        ),
+        child: Column(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: const BoxDecoration(
+                color: AppColors.primary,
+                borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.notifications, color: Colors.white),
+                  const SizedBox(width: 8),
+                  const Expanded(
+                    child: Text(
+                      'Notificaciones',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.close, color: Colors.white),
+                    onPressed: () => Navigator.pop(context),
+                  ),
+                ],
+              ),
+            ),
+            Expanded(
+              child: FutureBuilder<List<Map<String, dynamic>>>(
+                future: NotificationService.getNotifications(),
+                builder: (context, snapshot) {
+                  if (snapshot.connectionState == ConnectionState.waiting) {
+                    return const Center(
+                      child: CircularProgressIndicator(color: AppColors.primary),
+                    );
+                  }
+                  
+                  if (snapshot.hasError) {
+                    return Center(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          const Icon(Icons.error, size: 48, color: AppColors.error),
+                          const SizedBox(height: 16),
+                          Text('Error: ${snapshot.error}'),
+                        ],
+                      ),
+                    );
+                  }
+                  
+                  final notifications = snapshot.data ?? [];
+                  
+                  if (notifications.isEmpty) {
+                    return const Center(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(Icons.notifications_none, size: 48, color: AppColors.grey400),
+                          SizedBox(height: 16),
+                          Text('No hay notificaciones'),
+                        ],
+                      ),
+                    );
+                  }
+                  
+                  return ListView.builder(
+                    padding: const EdgeInsets.all(16),
+                    itemCount: notifications.length,
+                    itemBuilder: (context, index) {
+                      final notification = notifications[index];
+                      return _buildNotificationCard(notification);
+                    },
+                  );
+                },
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildNotificationCard(Map<String, dynamic> notification) {
+    final isRead = notification['is_read'] ?? false;
+    final type = notification['type'] ?? 'system';
+    final createdAt = DateTime.tryParse(notification['created_at'] ?? '') ?? DateTime.now();
+    
+    Color typeColor;
+    IconData typeIcon;
+    
+    switch (type) {
+      case 'verification_pending':
+        typeColor = AppColors.warning;
+        typeIcon = Icons.schedule;
+        break;
+      case 'verification_update':
+        typeColor = AppColors.primary;
+        typeIcon = Icons.inventory;
+        break;
+      case 'maintenance_update':
+        typeColor = AppColors.info;
+        typeIcon = Icons.build;
+        break;
+      default:
+        typeColor = AppColors.info;
+        typeIcon = Icons.info;
+        break;
+    }
+    
+    return Card(
+      margin: const EdgeInsets.only(bottom: 8),
+      color: isRead ? null : AppColors.primary.withOpacity(0.05),
+      child: ListTile(
+        leading: Container(
+          padding: const EdgeInsets.all(8),
+          decoration: BoxDecoration(
+            color: typeColor.withOpacity(0.1),
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Icon(typeIcon, color: typeColor, size: 20),
+        ),
+        title: Text(
+          notification['title'] ?? 'Sin título',
+          style: TextStyle(
+            fontWeight: isRead ? FontWeight.normal : FontWeight.bold,
+          ),
+        ),
+        subtitle: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(notification['message'] ?? 'Sin mensaje'),
+            const SizedBox(height: 4),
+            Text(
+              _formatTimestamp(createdAt),
+              style: const TextStyle(fontSize: 12, color: AppColors.grey500),
+            ),
+          ],
+        ),
+        trailing: !isRead
+            ? Container(
+                width: 8,
+                height: 8,
+                decoration: const BoxDecoration(
+                  color: AppColors.primary,
+                  shape: BoxShape.circle,
+                ),
+              )
+            : null,
+        onTap: () async {
+          if (!isRead) {
+            await NotificationService.markAsRead(notification['id']);
+          }
+        },
+      ),
+    );
+  }
+
+  String _formatTimestamp(DateTime timestamp) {
+    final now = DateTime.now();
+    final difference = now.difference(timestamp);
+    
+    if (difference.inMinutes < 60) {
+      return 'Hace ${difference.inMinutes} min';
+    } else if (difference.inHours < 24) {
+      return 'Hace ${difference.inHours} h';
+    } else if (difference.inDays < 7) {
+      return 'Hace ${difference.inDays} días';
+    } else {
+      return DateFormat('dd/MM/yyyy').format(timestamp);
+    }
+  }
+
+  void _showScheduleDetailsModal() {
+    if (_selectedSchedule == null) return;
+    
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => Container(
+        height: MediaQuery.of(context).size.height * 0.8,
+        decoration: const BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+        ),
+        child: Column(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: AppColors.primary,
+                borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.schedule, color: Colors.white),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          '${_selectedSchedule!['program']} - ${_selectedSchedule!['ficha']}',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        Text(
+                          '${_formatColombianTime(_selectedSchedule!['start_time'])} - ${_formatColombianTime(_selectedSchedule!['end_time'])}',
+                          style: const TextStyle(color: Colors.white70),
+                        ),
+                      ],
+                    ),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.close, color: Colors.white),
+                    onPressed: () => Navigator.pop(context),
+                  ),
+                ],
+              ),
+            ),
+            Expanded(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Información del horario
+                    Card(
+                      child: Padding(
+                        padding: const EdgeInsets.all(16),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text(
+                              'Información del Horario',
+                              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                            ),
+                            const SizedBox(height: 12),
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: _buildScheduleInfo(
+                                    Icons.people,
+                                    'Estudiantes',
+                                    '${_selectedSchedule!['student_count']}',
+                                  ),
+                                ),
+                                Expanded(
+                                  child: _buildScheduleInfo(
+                                    Icons.calendar_today,
+                                    'Fecha',
+                                    DateFormat('dd/MM/yyyy').format(_selectedDate),
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 8),
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: _buildScheduleInfo(
+                                    Icons.access_time,
+                                    'Duración',
+                                    _calculateDuration(_selectedSchedule!['start_time'], _selectedSchedule!['end_time']),
+                                  ),
+                                ),
+                                Expanded(
+                                  child: _buildScheduleInfo(
+                                    Icons.topic,
+                                    'Tema',
+                                    _selectedSchedule!['topic'] ?? 'No especificado',
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    // Estado de verificación
+                    Card(
+                      child: Padding(
+                        padding: const EdgeInsets.all(16),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text(
+                              'Estado de Verificación',
+                              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                            ),
+                            const SizedBox(height: 12),
+                            if (_currentScheduleCheck != null) ...[
+                              Container(
+                                padding: const EdgeInsets.all(12),
+                                decoration: BoxDecoration(
+                                  color: AppColors.success.withOpacity(0.1),
+                                  borderRadius: BorderRadius.circular(8),
+                                  border: Border.all(color: AppColors.success),
+                                ),
+                                child: Column(
+                                  children: [
+                                    Row(
+                                      children: [
+                                        Icon(Icons.check_circle, color: AppColors.success),
+                                        const SizedBox(width: 8),
+                                        const Text(
+                                          'Verificación Completada',
+                                          style: TextStyle(fontWeight: FontWeight.bold),
+                                        ),
+                                      ],
+                                    ),
+                                    const SizedBox(height: 8),
+                                    Row(
+                                      children: [
+                                        Expanded(
+                                          child: _buildStatItem(
+                                            'Total Items',
+                                            '${_currentScheduleCheck!['total_items'] ?? 0}',
+                                            AppColors.primary,
+                                          ),
+                                        ),
+                                        Expanded(
+                                          child: _buildStatItem(
+                                            'Buenos',
+                                            '${_currentScheduleCheck!['items_good'] ?? 0}',
+                                            AppColors.success,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                    const SizedBox(height: 8),
+                                    Row(
+                                      children: [
+                                        Expanded(
+                                          child: _buildStatItem(
+                                            'Dañados',
+                                            '${_currentScheduleCheck!['items_damaged'] ?? 0}',
+                                            AppColors.warning,
+                                          ),
+                                        ),
+                                        Expanded(
+                                          child: _buildStatItem(
+                                            'Faltantes',
+                                            '${_currentScheduleCheck!['items_missing'] ?? 0}',
+                                            AppColors.error,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ] else ...[
+                              Container(
+                                padding: const EdgeInsets.all(12),
+                                decoration: BoxDecoration(
+                                  color: AppColors.warning.withOpacity(0.1),
+                                  borderRadius: BorderRadius.circular(8),
+                                  border: Border.all(color: AppColors.warning),
+                                ),
+                                child: Row(
+                                  children: [
+                                    Icon(Icons.pending, color: AppColors.warning),
+                                    const SizedBox(width: 8),
+                                    const Text(
+                                      'Verificación Pendiente',
+                                      style: TextStyle(fontWeight: FontWeight.bold),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _selectDate() async {
+    final DateTime? picked = await showDatePicker(
+      context: context,
+      initialDate: _selectedDate,
+      firstDate: DateTime.now().subtract(const Duration(days: 30)),
+      lastDate: DateTime.now().add(const Duration(days: 7)),
+      locale: const Locale('es', 'CO'),
+    );
+    if (picked != null && picked != _selectedDate) {
+      setState(() {
+        _selectedDate = picked;
+        _hasCheckedToday = false;
+        _currentScheduleCheck = null;
+      });
+      _fetchData();
+    }
+  }
+
+  Widget _buildScheduleInfo(IconData icon, String label, String value) {
+    return Column(
+      children: [
+        Icon(icon, size: 20, color: AppColors.primary),
+        const SizedBox(height: 4),
+        Text(
+          label,
+          style: const TextStyle(fontSize: 12, color: Colors.grey),
+        ),
+        Text(
+          value,
+          style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildStatItem(String label, String value, Color color) {
+    return Column(
+      children: [
+        Text(
+          value,
+          style: TextStyle(
+            fontSize: 20,
+            fontWeight: FontWeight.bold,
+            color: color,
+          ),
+        ),
+        Text(
+          label,
+          style: const TextStyle(fontSize: 12, color: Colors.grey),
+        ),
+      ],
+    );
+  }
+
+  String _calculateDuration(String startTime, String endTime) {
+    try {
+      final start = DateFormat('HH:mm').parse(startTime);
+      final end = DateFormat('HH:mm').parse(endTime);
+      final duration = end.difference(start);
+      final hours = duration.inHours;
+      final minutes = duration.inMinutes % 60;
+      return '${hours}h ${minutes}m';
+    } catch (e) {
+      return 'N/A';
+    }
+  }
+
+  void _showPendingChecksModal() {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => Container(
+        height: MediaQuery.of(context).size.height * 0.7,
+        decoration: const BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+        ),
+        child: Column(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: AppColors.warning,
+                borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.pending_actions, color: Colors.white),
+                  const SizedBox(width: 8),
+                  const Text(
+                    'Verificaciones Pendientes',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const Spacer(),
+                  IconButton(
+                    icon: const Icon(Icons.close, color: Colors.white),
+                    onPressed: () => Navigator.pop(context),
+                  ),
+                ],
+              ),
+            ),
+            Expanded(
+              child: _pendingChecks.isEmpty
+                  ? const Center(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(Icons.check_circle_outline, size: 64, color: Colors.grey),
+                          SizedBox(height: 16),
+                          Text('No hay verificaciones pendientes', style: TextStyle(color: Colors.grey)),
+                        ],
+                      ),
+                    )
+                  : ListView.builder(
+                      padding: const EdgeInsets.all(16),
+                      itemCount: _pendingChecks.length,
+                      itemBuilder: (context, index) {
+                        final check = _pendingChecks[index];
+                        final role = Provider.of<AuthProvider>(context, listen: false).currentUser?.role ?? '';
+                        return Card(
+                          margin: const EdgeInsets.only(bottom: 8),
+                          child: ListTile(
+                            leading: CircleAvatar(
+                              backgroundColor: getStatusColor(check['status']),
+                              child: const Icon(Icons.assignment, color: Colors.white),
+                            ),
+                            title: Text('Verificación #${check['id'].toString().substring(0, 8)}'),
+                            subtitle: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text('Estado: ${_statusTranslations[check['status']] ?? check['status']}'),
+                                Text('Fecha: ${check['check_date']}'),
+                                if (check['check_time'] != null)
+                                  Text('Hora: ${_formatColombianTime(check['check_time'])}'),
+                              ],
+                            ),
+                            trailing: role == 'instructor' && check['status'] == 'instructor_review'
+                                ? ElevatedButton(
+                                    onPressed: () => _confirmInstructorCheck(check),
+                                    style: ElevatedButton.styleFrom(backgroundColor: AppColors.success),
+                                    child: const Text('Confirmar', style: TextStyle(color: Colors.white)),
+                                  )
+                                : role == 'supervisor' && check['status'] == 'supervisor_review'
+                                    ? ElevatedButton(
+                                        onPressed: () => _reviewSupervisorCheck(check),
+                                        style: ElevatedButton.styleFrom(backgroundColor: AppColors.primary),
+                                        child: const Text('Revisar', style: TextStyle(color: Colors.white)),
+                                      )
+                                    : null,
+                            onTap: () => _showCheckDetails(check),
+                          ),
+                        );
+                      },
+                    ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showHistoryModal() {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => Container(
+        height: MediaQuery.of(context).size.height * 0.7,
+        decoration: const BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+        ),
+        child: Column(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: AppColors.grey600,
+                borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.history, color: Colors.white),
+                  const SizedBox(width: 8),
+                  const Text(
+                    'Historial de Verificaciones',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const Spacer(),
+                  IconButton(
+                    icon: const Icon(Icons.close, color: Colors.white),
+                    onPressed: () => Navigator.pop(context),
+                  ),
+                ],
+              ),
+            ),
+            Expanded(
+              child: _checks.isEmpty
+                  ? const Center(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(Icons.history_toggle_off, size: 64, color: Colors.grey),
+                          SizedBox(height: 16),
+                          Text('No hay historial disponible', style: TextStyle(color: Colors.grey)),
+                        ],
+                      ),
+                    )
+                  : ListView.builder(
+                      padding: const EdgeInsets.all(16),
+                      itemCount: _checks.length,
+                      itemBuilder: (context, index) {
+                        final check = _checks[index];
+                        return Card(
+                          margin: const EdgeInsets.only(bottom: 8),
+                          child: ListTile(
+                            leading: CircleAvatar(
+                              backgroundColor: getStatusColor(check['status']),
+                              child: const Icon(Icons.assignment_turned_in, color: Colors.white),
+                            ),
+                            title: Text('Verificación #${check['id'].toString().substring(0, 8)}'),
+                            subtitle: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text('Estado: ${_statusTranslations[check['status']] ?? check['status']}'),
+                                Text('Fecha: ${check['check_date']}'),
+                                if (check['check_time'] != null)
+                                  Text('Hora: ${_formatColombianTime(check['check_time'])}'),
+                              ],
+                            ),
+                            trailing: Icon(
+                              Icons.arrow_forward_ios,
+                              size: 16,
+                              color: Colors.grey,
+                            ),
+                            onTap: () => _showCheckDetails(check),
+                          ),
+                        );
+                      },
+                    ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -383,10 +1264,16 @@ class _InventoryCheckScreenState extends State<InventoryCheckScreen> {
   Widget _buildItemCard(Map<String, dynamic> item, String role) {
     Color statusColor = getStatusColor(item['status']);
     final isGroup = item['item_type'] == 'group';
+    final itemName = item['name'] ?? 'Sin nombre';
+    final itemCode = item['code'] ?? item['id'] ?? 'Sin código';
+    final checkData = _getItemCheckData(item['id']);
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
+      elevation: 2,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       child: InkWell(
         onTap: () => _showItemDetails(item),
+        borderRadius: BorderRadius.circular(12),
         child: Padding(
           padding: const EdgeInsets.all(16.0),
           child: Column(
@@ -394,19 +1281,33 @@ class _InventoryCheckScreenState extends State<InventoryCheckScreen> {
             children: [
               Row(
                 children: [
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: statusColor.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Icon(
+                      _getCategoryIcon(item['category'] ?? 'other'),
+                      color: statusColor,
+                      size: 24,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          item['name'],
+                          itemName,
                           style: const TextStyle(
                             fontSize: 16,
                             fontWeight: FontWeight.bold,
                           ),
                         ),
+                        const SizedBox(height: 4),
                         Text(
-                          isGroup ? 'Grupo: Encontrados ${item['quantity'] - (item['quantity_damaged'] ?? 0) - (item['quantity_missing'] ?? 0)}, Dañados ${item['quantity_damaged'] ?? 0}, Faltantes ${item['quantity_missing'] ?? 0}' : 'ID: ${item['id']}',
+                          isGroup ? 'Grupo: Encontrados ${item['quantity'] - (item['quantity_damaged'] ?? 0) - (item['quantity_missing'] ?? 0)}, Dañados ${item['quantity_damaged'] ?? 0}, Faltantes ${item['quantity_missing'] ?? 0}' : 'Código: $itemCode',
                           style: const TextStyle(
                             color: AppColors.grey600,
                             fontFamily: 'monospace',
@@ -414,6 +1315,15 @@ class _InventoryCheckScreenState extends State<InventoryCheckScreen> {
                         ),
                       ],
                     ),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.build, color: AppColors.secondary),
+                    onPressed: () => _navigateToMaintenanceRequest(
+                      Provider.of<AuthProvider>(context, listen: false).currentUser?.environmentId ?? '',
+                      itemId: item['id'],
+                      itemName: itemName,
+                    ),
+                    tooltip: 'Solicitar mantenimiento para este item',
                   ),
                   Container(
                     padding: const EdgeInsets.symmetric(
@@ -474,6 +1384,10 @@ class _InventoryCheckScreenState extends State<InventoryCheckScreen> {
                   ),
                 ],
               ),
+              if (checkData != null) ...[
+                const SizedBox(height: 12),
+                _buildCheckDataSection(checkData, item),
+              ],
               const SizedBox(height: 16),
               Row(
                 children: [
@@ -482,15 +1396,21 @@ class _InventoryCheckScreenState extends State<InventoryCheckScreen> {
                       onPressed: () => _updateItemStatus(item),
                       icon: const Icon(Icons.edit),
                       label: const Text('Actualizar Estado'),
+                      style: OutlinedButton.styleFrom(
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                      ),
                     ),
                   ),
                   if (role == 'supervisor' || role == 'admin') ...[
                     const SizedBox(width: 12),
                     Expanded(
                       child: OutlinedButton.icon(
-                        onPressed: () => _editItemDialog(item), // Nueva: Edición en dialog
+                        onPressed: () => _editItemDialog(item),
                         icon: const Icon(Icons.edit_document),
                         label: const Text('Editar Item'),
+                        style: OutlinedButton.styleFrom(
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                        ),
                       ),
                     ),
                     const SizedBox(width: 12),
@@ -499,6 +1419,10 @@ class _InventoryCheckScreenState extends State<InventoryCheckScreen> {
                         onPressed: () => _deleteItem(item),
                         icon: const Icon(Icons.delete),
                         label: const Text('Eliminar'),
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: AppColors.error,
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                        ),
                       ),
                     ),
                   ],
@@ -507,283 +1431,6 @@ class _InventoryCheckScreenState extends State<InventoryCheckScreen> {
             ],
           ),
         ),
-      ),
-    );
-  }
-
-  void _editItemDialog(Map<String, dynamic> item) {
-    // Lógica de edición movida aquí desde EditInventoryItemScreen
-    String name = item['name'] ?? '';
-    String internalCode = item['internal_code'] ?? '';
-    String category = item['category'] ?? 'other';
-    int quantity = item['quantity'] ?? 1;
-    String itemType = item['item_type'] ?? 'individual';
-    String status = item['status'] ?? 'available';
-    String serialNumber = item['serial_number'] ?? '';
-    String brand = item['brand'] ?? '';
-    String model = item['model'] ?? '';
-    DateTime? purchaseDate = item['purchase_date'] != null ? DateTime.parse(item['purchase_date']) : null;
-    DateTime? warrantyExpiry = item['warranty_expiry'] != null ? DateTime.parse(item['warranty_expiry']) : null;
-    DateTime? lastMaintenance = item['last_maintenance'] != null ? DateTime.parse(item['last_maintenance']) : null;
-    DateTime? nextMaintenance = item['next_maintenance'] != null ? DateTime.parse(item['next_maintenance']) : null;
-    String imageUrl = item['image_url'] ?? '';
-    String notes = item['notes'] ?? '';
-
-    showDialog(
-      context: context,
-      builder: (context) => StatefulBuilder(
-        builder: (context, setDialogState) => AlertDialog(
-          title: const Text('Editar Item'),
-          content: SingleChildScrollView(
-            child: Column(
-              children: [
-                TextField(
-                  decoration: const InputDecoration(labelText: 'Nombre'),
-                  onChanged: (value) => name = value,
-                  controller: TextEditingController(text: name),
-                ),
-                TextField(
-                  decoration: const InputDecoration(labelText: 'Código Interno'),
-                  onChanged: (value) => internalCode = value,
-                  controller: TextEditingController(text: internalCode),
-                ),
-                DropdownButtonFormField<String>(
-                  value: category,
-                  items: ['computer', 'projector', 'keyboard', 'mouse', 'tv', 'camera', 'microphone', 'tablet', 'other']
-                      .map((cat) => DropdownMenuItem(value: cat, child: Text(cat))).toList(),
-                  onChanged: (value) => setDialogState(() => category = value!),
-                  decoration: const InputDecoration(labelText: 'Categoría'),
-                ),
-                TextField(
-                  decoration: const InputDecoration(labelText: 'Cantidad'),
-                  keyboardType: TextInputType.number,
-                  onChanged: (value) => quantity = int.tryParse(value) ?? 1,
-                  controller: TextEditingController(text: quantity.toString()),
-                ),
-                DropdownButtonFormField<String>(
-                  value: itemType,
-                  items: ['individual', 'group'].map((type) => DropdownMenuItem(value: type, child: Text(type))).toList(),
-                  onChanged: (value) => setDialogState(() => itemType = value!),
-                  decoration: const InputDecoration(labelText: 'Tipo'),
-                ),
-                DropdownButtonFormField<String>(
-                  value: status,
-                  items: ['available', 'in_use', 'maintenance', 'damaged', 'lost']
-                      .map((st) => DropdownMenuItem(value: st, child: Text(st))).toList(),
-                  onChanged: (value) => setDialogState(() => status = value!),
-                  decoration: const InputDecoration(labelText: 'Estado'),
-                ),
-                TextField(
-                  decoration: const InputDecoration(labelText: 'Número de Serie (opcional)'),
-                  onChanged: (value) => serialNumber = value,
-                  controller: TextEditingController(text: serialNumber),
-                ),
-                TextField(
-                  decoration: const InputDecoration(labelText: 'Marca (opcional)'),
-                  onChanged: (value) => brand = value,
-                  controller: TextEditingController(text: brand),
-                ),
-                TextField(
-                  decoration: const InputDecoration(labelText: 'Modelo (opcional)'),
-                  onChanged: (value) => model = value,
-                  controller: TextEditingController(text: model),
-                ),
-                ListTile(
-                  title: Text('Fecha de Compra: ${purchaseDate?.toString() ?? 'No seleccionada'}'),
-                  onTap: () async {
-                    final picked = await showDatePicker(context: context, initialDate: purchaseDate ?? DateTime.now(), firstDate: DateTime(2000), lastDate: DateTime(2100));
-                    if (picked != null) setDialogState(() => purchaseDate = picked);
-                  },
-                ),
-                ListTile(
-                  title: Text('Vencimiento Garantía: ${warrantyExpiry?.toString() ?? 'No seleccionada'}'),
-                  onTap: () async {
-                    final picked = await showDatePicker(context: context, initialDate: warrantyExpiry ?? DateTime.now(), firstDate: DateTime(2000), lastDate: DateTime(2100));
-                    if (picked != null) setDialogState(() => warrantyExpiry = picked);
-                  },
-                ),
-                ListTile(
-                  title: Text('Último Mantenimiento: ${lastMaintenance?.toString() ?? 'No seleccionada'}'),
-                  onTap: () async {
-                    final picked = await showDatePicker(context: context, initialDate: lastMaintenance ?? DateTime.now(), firstDate: DateTime(2000), lastDate: DateTime(2100));
-                    if (picked != null) setDialogState(() => lastMaintenance = picked);
-                  },
-                ),
-                ListTile(
-                  title: Text('Próximo Mantenimiento: ${nextMaintenance?.toString() ?? 'No seleccionada'}'),
-                  onTap: () async {
-                    final picked = await showDatePicker(context: context, initialDate: nextMaintenance ?? DateTime.now(), firstDate: DateTime(2000), lastDate: DateTime(2100));
-                    if (picked != null) setDialogState(() => nextMaintenance = picked);
-                  },
-                ),
-                TextField(
-                  decoration: const InputDecoration(labelText: 'URL Imagen (opcional)'),
-                  onChanged: (value) => imageUrl = value,
-                  controller: TextEditingController(text: imageUrl),
-                ),
-                TextField(
-                  decoration: const InputDecoration(labelText: 'Notas (opcional)'),
-                  onChanged: (value) => notes = value,
-                  controller: TextEditingController(text: notes),
-                ),
-              ],
-            ),
-          ),
-          actions: [
-            TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancelar')),
-            ElevatedButton(
-              onPressed: () async {
-                try {
-                  await _apiService.put(
-                    '$inventoryEndpoint${item['id']}',
-                    {
-                      'name': name,
-                      'internal_code': internalCode,
-                      'category': category,
-                      'quantity': quantity,
-                      'item_type': itemType,
-                      'status': status,
-                      'serial_number': serialNumber.isEmpty ? null : serialNumber,
-                      'brand': brand.isEmpty ? null : brand,
-                      'model': model.isEmpty ? null : model,
-                      'purchase_date': purchaseDate?.toIso8601String(),
-                      'warranty_expiry': warrantyExpiry?.toIso8601String(),
-                      'last_maintenance': lastMaintenance?.toIso8601String(),
-                      'next_maintenance': nextMaintenance?.toIso8601String(),
-                      'image_url': imageUrl.isEmpty ? null : imageUrl,
-                      'notes': notes.isEmpty ? null : notes,
-                    },
-                  );
-                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Item actualizado')));
-                  Navigator.pop(context);
-                  _fetchData();
-                } catch (e) {
-                  ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e')));
-                }
-              },
-              child: const Text('Actualizar'),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  void _deleteItem(Map<String, dynamic> item) {
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Confirmar'),
-        content: const Text('¿Eliminar item?'),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancelar')),
-          ElevatedButton(
-            onPressed: () async {
-              try {
-                await _apiService.delete('$inventoryEndpoint${item['id']}');
-                _fetchData();
-                Navigator.pop(ctx);
-              } catch (e) {
-                ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e')));
-              }
-            },
-            child: const Text('Eliminar'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Color getStatusColor(String status) {
-    switch (status.toLowerCase()) {
-      case 'available':
-      case 'good':
-        return AppColors.success;
-      case 'in_use':
-        return AppColors.warning;
-      case 'maintenance':
-      case 'damaged':
-        return AppColors.error;
-      case 'lost':
-      case 'missing':
-        return AppColors.error;
-      case 'pending':
-        return AppColors.grey500;
-      case 'complete':
-        return AppColors.success;
-      case 'issues':
-      case 'incomplete':
-        return AppColors.error;
-      case 'instructor_review':
-        return AppColors.warning;
-      case 'supervisor_review':
-        return AppColors.warning;
-      default:
-        return AppColors.grey500;
-    }
-  }
-
-  Widget _buildInfoItem(IconData icon, String label, String value) {
-    return Row(
-      children: [
-        Icon(icon, size: 16, color: AppColors.grey600),
-        const SizedBox(width: 4),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                label,
-                style: const TextStyle(fontSize: 10, color: AppColors.grey600),
-              ),
-              Text(
-                value,
-                style: const TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w500,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-
-  void _showItemDetails(Map<String, dynamic> item) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text(item['name']),
-        content: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text('ID: ${item['id']}'),
-              Text('Categoría: ${_categoryTranslations[item['category']] ?? item['category']}'),
-              Text('Estado: ${_statusTranslations[item['status']] ?? item['status']}'),
-              Text('Cantidad: ${item['quantity'] ?? 1} (Encontrados: ${item['quantity_found'] ?? 0}, Dañados: ${item['quantity_damaged'] ?? 0}, Faltantes: ${item['quantity_missing'] ?? 0})'),
-              Text('Tipo: ${item['item_type'] == 'group' ? 'Grupo' : 'Individual'}'),
-              Text('Número de Serie: ${item['serial_number'] ?? 'N/A'}'),
-              Text('Marca: ${item['brand'] ?? 'N/A'}'),
-              Text('Modelo: ${item['model'] ?? 'N/A'}'),
-              Text('Fecha de Compra: ${item['purchase_date'] ?? 'N/A'}'),
-              Text('Vencimiento Garantía: ${item['warranty_expiry'] ?? 'N/A'}'),
-              Text('Último Mantenimiento: ${item['last_maintenance'] ?? 'N/A'}'),
-              Text('Próximo Mantenimiento: ${item['next_maintenance'] ?? 'N/A'}'),
-              Text('Notas: ${item['notes'] ?? 'N/A'}'),
-              Text('Última Verificación: ${item['updated_at'] ?? 'N/A'}'),
-              if (item['image_url'] != null) Image.network(item['image_url']),
-            ],
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cerrar'),
-          ),
-        ],
       ),
     );
   }
@@ -806,103 +1453,232 @@ class _InventoryCheckScreenState extends State<InventoryCheckScreen> {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                DropdownButtonFormField<String>(
-                  decoration: const InputDecoration(
-                    labelText: 'Estado',
-                    border: OutlineInputBorder(),
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: AppColors.grey100,
+                    borderRadius: BorderRadius.circular(8),
                   ),
-                  value: newStatus,
-                  items: ['good', 'damaged', 'missing'].map((status) {
-                    return DropdownMenuItem(
-                      value: status,
-                      child: Text(_statusTranslations[status] ?? status),
-                    );
-                  }).toList(),
-                  onChanged: (value) {
-                    setDialogState(() {
-                      newStatus = value!;
-                    });
-                  },
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'Estado General',
+                        style: TextStyle(fontWeight: FontWeight.bold),
+                      ),
+                      const SizedBox(height: 8),
+                      DropdownButtonFormField<String>(
+                        decoration: const InputDecoration(
+                          border: OutlineInputBorder(),
+                          contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                        ),
+                        value: newStatus,
+                        items: [
+                          DropdownMenuItem(
+                            value: 'good',
+                            child: Row(
+                              children: [
+                                Icon(Icons.check_circle, color: AppColors.success, size: 20),
+                                const SizedBox(width: 8),
+                                Text(_statusTranslations['good'] ?? 'Bueno'),
+                              ],
+                            ),
+                          ),
+                          DropdownMenuItem(
+                            value: 'damaged',
+                            child: Row(
+                              children: [
+                                Icon(Icons.warning, color: AppColors.warning, size: 20),
+                                const SizedBox(width: 8),
+                                Text(_statusTranslations['damaged'] ?? 'Dañado'),
+                              ],
+                            ),
+                          ),
+                          DropdownMenuItem(
+                            value: 'missing',
+                            child: Row(
+                              children: [
+                                Icon(Icons.error, color: AppColors.error, size: 20),
+                                const SizedBox(width: 8),
+                                Text(_statusTranslations['missing'] ?? 'Faltante'),
+                              ],
+                            ),
+                          ),
+                        ],
+                        onChanged: (value) {
+                          setDialogState(() {
+                            newStatus = value!;
+                            if (newStatus == 'good') {
+                              quantityFound = quantityExpected;
+                              quantityDamaged = 0;
+                              quantityMissing = 0;
+                            } else if (newStatus == 'damaged') {
+                              quantityFound = 0;
+                              quantityDamaged = quantityExpected;
+                              quantityMissing = 0;
+                            } else if (newStatus == 'missing') {
+                              quantityFound = 0;
+                              quantityDamaged = 0;
+                              quantityMissing = quantityExpected;
+                            }
+                          });
+                        },
+                      ),
+                    ],
+                  ),
                 ),
                 const SizedBox(height: 16),
                 if (isGroup) ...[
-                  Column(
-                    children: [
-                      Row(
-                        children: [
-                          const Text('Encontrados: '),
-                          IconButton(
-                            icon: const Icon(Icons.remove),
-                            onPressed: () {
-                              setDialogState(() {
-                                if (quantityFound > 0) quantityFound--;
-                              });
-                            },
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      border: Border.all(color: AppColors.grey300),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Icon(Icons.inventory, color: AppColors.primary),
+                            const SizedBox(width: 8),
+                            Text(
+                              'Gestión de Cantidades',
+                              style: TextStyle(
+                                fontWeight: FontWeight.bold,
+                                color: AppColors.primary,
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 12),
+                        Container(
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                            color: AppColors.primary.withOpacity(0.1),
+                            borderRadius: BorderRadius.circular(6),
                           ),
-                          Text(quantityFound.toString()),
-                          IconButton(
-                            icon: const Icon(Icons.add),
-                            onPressed: () {
-                              setDialogState(() {
-                                if (quantityFound + quantityDamaged + quantityMissing < quantityExpected) quantityFound++;
-                              });
-                            },
+                          child: Row(
+                            children: [
+                              Icon(Icons.info, color: AppColors.primary, size: 16),
+                              const SizedBox(width: 8),
+                              Text(
+                                'Total esperado: $quantityExpected',
+                                style: TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  color: AppColors.primary,
+                                ),
+                              ),
+                            ],
                           ),
-                        ],
-                      ),
-                      Row(
-                        children: [
-                          const Text('Dañados: '),
-                          IconButton(
-                            icon: const Icon(Icons.remove),
-                            onPressed: () {
-                              setDialogState(() {
-                                if (quantityDamaged > 0) quantityDamaged--;
-                              });
-                            },
+                        ),
+                        const SizedBox(height: 16),
+                        // Encontrados
+                        _buildQuantityControl(
+                          'Encontrados',
+                          quantityFound,
+                          AppColors.success,
+                          Icons.check_circle,
+                          (increment) {
+                            setDialogState(() {
+                              if (increment && quantityFound + quantityDamaged + quantityMissing < quantityExpected) {
+                                quantityFound++;
+                              } else if (!increment && quantityFound > 0) {
+                                quantityFound--;
+                                if (quantityFound + quantityDamaged + quantityMissing < quantityExpected) {
+                                  // Priorizar dañados sobre faltantes
+                                  if (newStatus == 'damaged' || quantityDamaged > 0) {
+                                    quantityDamaged++;
+                                  } else {
+                                    quantityMissing++;
+                                  }
+                                }
+                              }
+                            });
+                          },
+                        ),
+                        const SizedBox(height: 12),
+                        // Dañados
+                        _buildQuantityControl(
+                          'Dañados',
+                          quantityDamaged,
+                          AppColors.warning,
+                          Icons.warning,
+                          (increment) {
+                            setDialogState(() {
+                              if (increment && quantityFound + quantityDamaged + quantityMissing < quantityExpected) {
+                                quantityDamaged++;
+                              } else if (!increment && quantityDamaged > 0) {
+                                quantityDamaged--;
+                                if (quantityFound + quantityDamaged + quantityMissing < quantityExpected) {
+                                  quantityFound++;
+                                }
+                              }
+                            });
+                          },
+                        ),
+                        const SizedBox(height: 12),
+                        // Faltantes
+                        _buildQuantityControl(
+                          'Faltantes',
+                          quantityMissing,
+                          AppColors.error,
+                          Icons.error,
+                          (increment) {
+                            setDialogState(() {
+                              if (increment && quantityFound + quantityDamaged + quantityMissing < quantityExpected) {
+                                quantityMissing++;
+                              } else if (!increment && quantityMissing > 0) {
+                                quantityMissing--;
+                                if (quantityFound + quantityDamaged + quantityMissing < quantityExpected) {
+                                  quantityFound++;
+                                }
+                              }
+                            });
+                          },
+                        ),
+                        const SizedBox(height: 16),
+                        Container(
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                            color: _getQuantityStatusColor(quantityFound, quantityDamaged, quantityMissing, quantityExpected).withOpacity(0.1),
+                            borderRadius: BorderRadius.circular(6),
+                            border: Border.all(
+                              color: _getQuantityStatusColor(quantityFound, quantityDamaged, quantityMissing, quantityExpected),
+                            ),
                           ),
-                          Text(quantityDamaged.toString()),
-                          IconButton(
-                            icon: const Icon(Icons.add),
-                            onPressed: () {
-                              setDialogState(() {
-                                if (quantityFound + quantityDamaged + quantityMissing < quantityExpected) quantityDamaged++;
-                              });
-                            },
+                          child: Row(
+                            children: [
+                              Icon(
+                                _getQuantityStatusIcon(quantityFound, quantityDamaged, quantityMissing, quantityExpected),
+                                color: _getQuantityStatusColor(quantityFound, quantityDamaged, quantityMissing, quantityExpected),
+                                size: 16,
+                              ),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Text(
+                                  'Total reportado: ${quantityFound + quantityDamaged + quantityMissing}/$quantityExpected',
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    color: _getQuantityStatusColor(quantityFound, quantityDamaged, quantityMissing, quantityExpected),
+                                  ),
+                                ),
+                              ),
+                            ],
                           ),
-                        ],
-                      ),
-                      Row(
-                        children: [
-                          const Text('Faltantes: '),
-                          IconButton(
-                            icon: const Icon(Icons.remove),
-                            onPressed: () {
-                              setDialogState(() {
-                                if (quantityMissing > 0) quantityMissing--;
-                              });
-                            },
-                          ),
-                          Text(quantityMissing.toString()),
-                          IconButton(
-                            icon: const Icon(Icons.add),
-                            onPressed: () {
-                              setDialogState(() {
-                                if (quantityFound + quantityDamaged + quantityMissing < quantityExpected) quantityMissing++;
-                              });
-                            },
-                          ),
-                        ],
-                      ),
-                      Text('Total esperado: $quantityExpected'),
-                      Text('Total reportado: ${quantityFound + quantityDamaged + quantityMissing}'),
-                    ],
+                        ),
+                      ],
+                    ),
                   ),
                 ],
+                const SizedBox(height: 16),
                 TextField(
-                  decoration: const InputDecoration(
-                    labelText: 'Notas',
-                    border: OutlineInputBorder(),
+                  decoration: InputDecoration(
+                    labelText: 'Notas adicionales',
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    prefixIcon: const Icon(Icons.note_add),
                   ),
                   maxLines: 3,
                   onChanged: (value) {
@@ -919,11 +1695,17 @@ class _InventoryCheckScreenState extends State<InventoryCheckScreen> {
             ),
             ElevatedButton(
               onPressed: () async {
-                if (isGroup && quantityFound + quantityDamaged + quantityMissing != quantityExpected) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Las cantidades deben sumar el esperado')),
-                  );
-                  return;
+                if (isGroup) {
+                  final totalReported = quantityFound + quantityDamaged + quantityMissing;
+                  if (totalReported != quantityExpected) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text('Las cantidades deben sumar $quantityExpected. Actual: $totalReported'),
+                        backgroundColor: AppColors.error,
+                      ),
+                    );
+                    return;
+                  }
                 }
                 try {
                   final authProvider = Provider.of<AuthProvider>(context, listen: false);
@@ -941,10 +1723,7 @@ class _InventoryCheckScreenState extends State<InventoryCheckScreen> {
                       'environment_id': authProvider.currentUser!.environmentId,
                     },
                   );
-                  // Actualiza InventoryItem con quantity y status
-                  String updatedStatus = newStatus;
-                  if (quantityMissing > 0) updatedStatus = 'lost';
-                  else if (quantityDamaged > 0) updatedStatus = 'damaged';
+                  String updatedStatus = _determineItemStatus(quantityFound, quantityDamaged, quantityMissing);
                   await _apiService.put(
                     '$inventoryEndpoint${item['id']}',
                     {
@@ -953,16 +1732,26 @@ class _InventoryCheckScreenState extends State<InventoryCheckScreen> {
                     },
                   );
                   ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('Item actualizado: ${_statusTranslations[newStatus] ?? newStatus}')),
+                    SnackBar(
+                      content: Text('Item actualizado: ${_statusTranslations[newStatus] ?? newStatus}'),
+                      backgroundColor: AppColors.success,
+                    ),
                   );
                   Navigator.pop(context);
                   _fetchData();
                 } catch (e) {
                   ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('Error: $e')),
+                    SnackBar(
+                      content: Text('Error: $e'),
+                      backgroundColor: AppColors.error,
+                    ),
                   );
                 }
               },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.primary,
+                foregroundColor: Colors.white,
+              ),
               child: const Text('Actualizar'),
             ),
           ],
@@ -971,30 +1760,127 @@ class _InventoryCheckScreenState extends State<InventoryCheckScreen> {
     );
   }
 
-  void _showCheckDialog() {
-    if (_selectedScheduleId == null) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Selecciona un horario')));
-      return;
+  Widget _buildQuantityControl(String label, int quantity, Color color, IconData icon, Function(bool) onChanged) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.05),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: color.withOpacity(0.3)),
+      ),
+      child: Row(
+        children: [
+          Icon(icon, color: color, size: 20),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              label,
+              style: TextStyle(
+                fontWeight: FontWeight.w500,
+                color: color,
+              ),
+            ),
+          ),
+          Container(
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(color: color.withOpacity(0.3)),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                IconButton(
+                  icon: const Icon(Icons.remove, size: 18),
+                  onPressed: quantity > 0 ? () => onChanged(false) : null,
+                  color: color,
+                  constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
+                ),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                  child: Text(
+                    quantity.toString(),
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 16,
+                      color: color,
+                    ),
+                  ),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.add, size: 18),
+                  onPressed: () => onChanged(true),
+                  color: color,
+                  constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Color _getQuantityStatusColor(int found, int damaged, int missing, int expected) {
+    final total = found + damaged + missing;
+    if (total == expected) {
+      if (missing > 0) return AppColors.error;
+      if (damaged > 0) return AppColors.warning;
+      return AppColors.success;
     }
+    return AppColors.grey500;
+  }
+
+  IconData _getQuantityStatusIcon(int found, int damaged, int missing, int expected) {
+    final total = found + damaged + missing;
+    if (total == expected) {
+      if (missing > 0) return Icons.error;
+      if (damaged > 0) return Icons.warning;
+      return Icons.check_circle;
+    }
+    return Icons.help;
+  }
+
+  String _determineItemStatus(int found, int damaged, int missing) {
+    if (missing > 0) return 'lost';
+    if (damaged > 0 && found == 0) return 'damaged';
+    if (damaged > 0 && found > 0) return 'maintenance';
+    return 'available';
+  }
+
+  void _markNotificationAsRead(String notificationId) async {
+    try {
+      await _apiService.put('/api/notifications/$notificationId/read', {});
+      _fetchData();
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error al marcar notificación: $e')),
+      );
+    }
+  }
+
+  void _confirmInstructorCheck(Map<String, dynamic> check) async {
+    try {
+      await _apiService.put('/api/inventory-checks/${check['id']}/confirm', {});
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Verificación confirmada por instructor')),
+      );
+      _fetchData();
+      Navigator.pop(context);
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error: $e')),
+      );
+    }
+  }
+
+  void _reviewSupervisorCheck(Map<String, dynamic> check) async {
+    // Implementar lógica de revisión del supervisor
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Verificación Masiva'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Text('¿Marcar todo como en orden hoy?'),
-            const SizedBox(height: 16),
-            TextField(
-              controller: _cleaningNotesController,
-              decoration: const InputDecoration(
-                labelText: 'Notas de Aseo/Basura',
-                border: OutlineInputBorder(),
-              ),
-              maxLines: 3,
-            ),
-          ],
-        ),
+        title: const Text('Revisión de Supervisor'),
+        content: const Text('¿Aprobar esta verificación?'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
@@ -1003,224 +1889,22 @@ class _InventoryCheckScreenState extends State<InventoryCheckScreen> {
           ElevatedButton(
             onPressed: () async {
               try {
-                final authProvider = Provider.of<AuthProvider>(context, listen: false);
-                await _apiService.post(
-                  inventoryChecksEndpoint,
-                  {
-                    'environment_id': authProvider.currentUser!.environmentId,
-                    'schedule_id': _selectedScheduleId,
-                    'student_id': authProvider.currentUser!.id,
-                    'cleaning_notes': _cleaningNotesController.text,
-                  },
-                );
+                await _apiService.put('/api/inventory-checks/${check['id']}/supervisor-approve', {});
                 ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Verificación masiva completada. Estado: instructor_review')),
+                  const SnackBar(content: Text('Verificación aprobada por supervisor')),
                 );
-                Navigator.pop(context);
                 _fetchData();
+                Navigator.pop(context);
+                Navigator.pop(context);
               } catch (e) {
                 ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(content: Text('Error: $e')),
                 );
               }
             },
-            child: const Text('Confirmar'),
+            child: const Text('Aprobar'),
           ),
         ],
-      ),
-    );
-  }
-
-  void _showReportDamageDialog() {
-    String description = '';
-    String priority = 'medium';
-    String itemId = ''; // Asumir selección, o pasar desde item si en context
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Reportar Daño/Faltante'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(
-              decoration: const InputDecoration(labelText: 'Descripción'),
-              onChanged: (value) => description = value,
-            ),
-            DropdownButtonFormField<String>(
-              value: priority,
-              items: ['low', 'medium', 'high', 'urgent'].map((p) => DropdownMenuItem(value: p, child: Text(p))).toList(),
-              onChanged: (value) => priority = value!,
-              decoration: const InputDecoration(labelText: 'Prioridad'),
-            ),
-            TextField(
-              decoration: const InputDecoration(labelText: 'ID del Item'),
-              onChanged: (value) => itemId = value,
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancelar')),
-          ElevatedButton(
-            onPressed: () async {
-              try {
-                await _apiService.post('/api/maintenance-requests/', {
-                  'item_id': itemId,
-                  'title': 'Daño reportado',
-                  'description': description,
-                  'priority': priority,
-                  'user_id': Provider.of<AuthProvider>(context, listen: false).currentUser!.id,
-                });
-                Navigator.pop(context);
-                _fetchData();
-                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Reporte enviado')));
-              } catch (e) {
-                ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e')));
-              }
-            },
-            child: const Text('Reportar'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _confirmInstructorCheck(Map<String, dynamic> check) async {
-    bool isClean = true;
-    bool isOrganized = true;
-    bool inventoryComplete = true;
-    String comments = '';
-
-    showDialog(
-      context: context,
-      builder: (context) => StatefulBuilder(
-        builder: (context, setDialogState) => AlertDialog(
-          title: const Text('Confirmar Verificación (Instructor)'),
-          content: SingleChildScrollView(
-            child: Column(
-              children: [
-                CheckboxListTile(
-                  title: const Text('Aula aseada'),
-                  value: isClean,
-                  onChanged: (value) => setDialogState(() => isClean = value!),
-                ),
-                CheckboxListTile(
-                  title: const Text('Sillas y mesas organizadas'),
-                  value: isOrganized,
-                  onChanged: (value) => setDialogState(() => isOrganized = value!),
-                ),
-                CheckboxListTile(
-                  title: const Text('Inventario completo'),
-                  value: inventoryComplete,
-                  onChanged: (value) => setDialogState(() => inventoryComplete = value!),
-                ),
-                TextField(
-                  decoration: const InputDecoration(
-                    labelText: 'Observaciones',
-                    border: OutlineInputBorder(),
-                  ),
-                  onChanged: (value) => comments = value,
-                ),
-              ],
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('Cancelar'),
-            ),
-            ElevatedButton(
-              onPressed: () async {
-                try {
-                  await _apiService.put(
-                    '$inventoryChecksEndpoint${check['id']}/confirm',
-                    {
-                      'is_clean': isClean,
-                      'is_organized': isOrganized,
-                      'inventory_complete': inventoryComplete,
-                      'comments': comments,
-                    },
-                  );
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Confirmado por Instructor. Estado: supervisor_review')),
-                  );
-                  Navigator.pop(context);
-                  _fetchData();
-                } catch (e) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('Error: $e')),
-                  );
-                }
-              },
-              child: const Text('Confirmar'),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  void _reviewSupervisorCheck(Map<String, dynamic> check) async {
-    String status = 'approved';
-    String comments = '';
-
-    showDialog(
-      context: context,
-      builder: (context) => StatefulBuilder(
-        builder: (context, setDialogState) => AlertDialog(
-          title: const Text('Revisar Verificación (Supervisor)'),
-          content: SingleChildScrollView(
-            child: Column(
-              children: [
-                DropdownButtonFormField<String>(
-                  value: status,
-                  items: ['approved', 'rejected'].map((st) {
-                    return DropdownMenuItem(value: st, child: Text(_statusTranslations[st] ?? st));
-                  }).toList(),
-                  onChanged: (value) => setDialogState(() => status = value!),
-                  decoration: const InputDecoration(labelText: 'Estado'),
-                ),
-                const SizedBox(height: 16),
-                TextField(
-                  decoration: const InputDecoration(
-                    labelText: 'Comentarios',
-                    border: OutlineInputBorder(),
-                  ),
-                  onChanged: (value) => comments = value,
-                ),
-              ],
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('Cancelar'),
-            ),
-            ElevatedButton(
-              onPressed: () async {
-                try {
-                  await _apiService.post(
-                    '/api/supervisor-reviews/',
-                    {
-                      'check_id': check['id'],
-                      'status': status,
-                      'comments': comments,
-                    },
-                  );
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Revisado por Supervisor. Estado: complete o issues')),
-                  );
-                  Navigator.pop(context);
-                  _fetchData();
-                } catch (e) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('Error: $e')),
-                  );
-                }
-              },
-              child: const Text('Enviar'),
-            ),
-          ],
-        ),
       ),
     );
   }
@@ -1229,29 +1913,26 @@ class _InventoryCheckScreenState extends State<InventoryCheckScreen> {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Detalles de Verificación'),
+        title: Text('Verificación #${check['id'].toString().substring(0, 8)}'),
         content: SingleChildScrollView(
           child: Column(
+            mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text('ID: ${check['id']}'),
-              Text('Fecha: ${check['check_date']}'),
-              Text('Hora: ${_formatColombianTime(check['check_time'] ?? '00:00:00')}'),
               Text('Estado: ${_statusTranslations[check['status']] ?? check['status']}'),
-              Text('Notas de Limpieza: ${check['cleaning_notes'] ?? 'N/A'}'),
-              Text('Comentarios: ${check['comments'] ?? 'N/A'}'),
-              Text('Aseada: ${check['is_clean'] == true ? 'Sí' : check['is_clean'] == false ? 'No' : 'Pendiente'}'),
-              Text('Organizada: ${check['is_organized'] == true ? 'Sí' : check['is_organized'] == false ? 'No' : 'Pendiente'}'),
-              Text('Inventario Completo: ${check['inventory_complete'] == true ? 'Sí' : check['inventory_complete'] == false ? 'No' : 'Pendiente'}'),
-              const SizedBox(height: 8),
-              const Text('Items:'),
-              ...(check['items'] ?? []).map((item) => Text('${item['item_id']}: ${_statusTranslations[item['status']]} (Encontrados: ${item['quantity_found'] ?? 0}, Dañados: ${item['quantity_damaged'] ?? 0}, Faltantes: ${item['quantity_missing'] ?? 0})')),
-              if ((check['supervisor_reviews'] ?? []).isNotEmpty) ...[
-                const SizedBox(height: 8),
-                const Text('Revisión Supervisor:'),
-                Text('Estado: ${_statusTranslations[check['supervisor_reviews'][0]['status']]}'),
-                Text('Comentarios: ${check['supervisor_reviews'][0]['comments'] ?? 'N/A'}'),
-              ],
+              Text('Fecha: ${check['check_date']}'),
+              if (check['check_time'] != null)
+                Text('Hora: ${_formatColombianTime(check['check_time'])}'),
+              Text('Total Items: ${check['total_items'] ?? 0}'),
+              Text('Items Buenos: ${check['items_good'] ?? 0}'),
+              Text('Items Dañados: ${check['items_damaged'] ?? 0}'),
+              Text('Items Faltantes: ${check['items_missing'] ?? 0}'),
+              Text('Limpio: ${check['is_clean'] == true ? 'Sí' : 'No'}'),
+              Text('Organizado: ${check['is_organized'] == true ? 'Sí' : 'No'}'),
+              if (check['cleaning_notes'] != null)
+                Text('Notas de Limpieza: ${check['cleaning_notes']}'),
+              if (check['comments'] != null)
+                Text('Comentarios: ${check['comments']}'),
             ],
           ),
         ),
@@ -1263,6 +1944,329 @@ class _InventoryCheckScreenState extends State<InventoryCheckScreen> {
         ],
       ),
     );
+  }
+
+  void _showItemDetails(Map<String, dynamic> item) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(item['name']),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('ID: ${item['id']}'),
+              Text('Categoría: ${_categoryTranslations[item['category']] ?? item['category']}'),
+              Text('Estado: ${_statusTranslations[item['status']] ?? item['status']}'),
+              Text('Ubicación: ${item['environment_id'] ?? 'N/A'}'),
+              Text('Descripción: ${item['description'] ?? 'N/A'}'),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cerrar'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _editItemDialog(Map<String, dynamic> item) {
+    // Implementar lógica de edición del item
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Editar Item'),
+        content: const Text('Implementar lógica de edición aquí'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancelar'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Guardar'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _deleteItem(Map<String, dynamic> item) async {
+    // Implementar lógica de eliminación del item
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Eliminar Item'),
+        content: const Text('¿Seguro que quieres eliminar este item?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancelar'),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              try {
+                await _apiService.delete('$inventoryEndpoint${item['id']}');
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Item eliminado')),
+                );
+                _fetchData();
+                Navigator.pop(context);
+              } catch (e) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(content: Text('Error: $e')),
+                );
+              }
+            },
+            child: const Text('Eliminar'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showCheckDialog() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Verificación de Inventario'),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text('¿El ambiente está limpio y organizado?'),
+              const SizedBox(height: 16),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceAround,
+                children: [
+                  Column(
+                    children: [
+                      IconButton(
+                        icon: const Icon(Icons.check_circle_outline, size: 48, color: AppColors.success),
+                        onPressed: () {
+                          Navigator.pop(context);
+                          _saveCheck(true, true);
+                        },
+                      ),
+                      const Text('Sí'),
+                    ],
+                  ),
+                  Column(
+                    children: [
+                      IconButton(
+                        icon: const Icon(Icons.cancel_outlined, size: 48, color: AppColors.error),
+                        onPressed: () {
+                          Navigator.pop(context);
+                          _saveCheck(false, false);
+                        },
+                      ),
+                      const Text('No'),
+                    ],
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              TextField(
+                controller: _cleaningNotesController,
+                decoration: const InputDecoration(
+                  labelText: 'Notas de limpieza (opcional)',
+                  border: OutlineInputBorder(),
+                ),
+                maxLines: 3,
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancelar'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.pop(context);
+              _saveCheck(true, true);
+            },
+            child: const Text('Guardar'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showReportDamageDialog() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Reportar Daño'),
+        content: const Text('Implementar lógica de reporte de daño aquí'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancelar'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Reportar'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _saveCheck(bool isClean, bool isOrganized) async {
+    final authProvider = Provider.of<AuthProvider>(context, listen: false);
+    final user = authProvider.currentUser;
+    if (user == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Usuario no autenticado')),
+      );
+      return;
+    }
+
+    try {
+      final totalItems = _items.length;
+      final itemsGood = _items.where((item) => item['status'] == 'good').length;
+      final itemsDamaged = _items.where((item) => item['status'] == 'damaged').length;
+      final itemsMissing = _items.where((item) => item['status'] == 'missing').length;
+
+      final checkData = {
+        'environment_id': user.environmentId,
+        'check_date': DateTime.now().toIso8601String().split('T')[0],
+        'check_time': DateFormat('HH:mm').format(DateTime.now()),
+        'total_items': totalItems,
+        'items_good': itemsGood,
+        'items_damaged': itemsDamaged,
+        'items_missing': itemsMissing,
+        'is_clean': isClean,
+        'is_organized': isOrganized,
+        'cleaning_notes': _cleaningNotesController.text,
+        'schedule_id': _selectedScheduleId,
+      };
+
+      await _apiService.post(inventoryChecksEndpoint, checkData);
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Verificación guardada')),
+      );
+      _fetchData();
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error al guardar verificación: $e')),
+      );
+    }
+  }
+
+  Widget _buildInfoItem(IconData icon, String label, String value) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Icon(icon, size: 16, color: AppColors.primary),
+            const SizedBox(width: 4),
+            Text(
+              label,
+              style: const TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w500,
+                color: AppColors.grey600,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 4),
+        Text(
+          value,
+          style: const TextStyle(
+            fontSize: 14,
+            fontWeight: FontWeight.w500,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildCheckDataSection(Map<String, dynamic> checkData, Map<String, dynamic> item) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          'Última Verificación:',
+          style: TextStyle(
+            fontWeight: FontWeight.bold,
+            fontSize: 14,
+          ),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          'Fecha: ${checkData['check_date']}',
+          style: const TextStyle(fontSize: 12),
+        ),
+        Text(
+          'Estado: ${_statusTranslations[checkData['status']] ?? checkData['status']}',
+          style: const TextStyle(fontSize: 12),
+        ),
+        if (checkData['notes'] != null && checkData['notes'].isNotEmpty)
+          Text(
+            'Notas: ${checkData['notes']}',
+            style: const TextStyle(fontSize: 12),
+          ),
+      ],
+    );
+  }
+
+  Map<String, dynamic>? _getItemCheckData(String itemId) {
+    // Buscar la información de verificación del item en la lista de verificaciones
+    try {
+      return _checks.firstWhere((check) => check['item_id'] == itemId);
+    } catch (e) {
+      return null;
+    }
+  }
+
+  IconData _getCategoryIcon(String category) {
+    switch (category) {
+      case 'computer':
+        return Icons.computer;
+      case 'projector':
+        return Icons.tv;
+      case 'keyboard':
+        return Icons.keyboard;
+      case 'mouse':
+        return Icons.mouse;
+      default:
+        return Icons.devices_other;
+    }
+  }
+
+  Color getStatusColor(String status) {
+    switch (status) {
+      case 'available':
+      case 'good':
+      case 'complete':
+        return AppColors.success;
+      case 'in_use':
+        return AppColors.info;
+      case 'maintenance':
+      case 'instructor_review':
+      case 'supervisor_review':
+        return AppColors.warning;
+      case 'damaged':
+      case 'missing':
+      case 'lost':
+      case 'issues':
+      case 'incomplete':
+        return AppColors.error;
+      case 'pending':
+        return AppColors.grey500;
+      default:
+        return AppColors.grey500;
+    }
   }
 
   @override
