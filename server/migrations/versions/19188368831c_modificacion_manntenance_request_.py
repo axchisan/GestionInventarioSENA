@@ -1,8 +1,8 @@
-"""modificacion manntenance request
+"""modificacion manntenance request inventory_items etc
 
-Revision ID: bf7837f90871
+Revision ID: 19188368831c
 Revises: 
-Create Date: 2025-09-08 12:00:59.731689
+Create Date: 2025-09-08 21:43:43.529544
 
 """
 from typing import Sequence, Union
@@ -12,7 +12,7 @@ import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql
 
 # revision identifiers, used by Alembic.
-revision: str = 'bf7837f90871'
+revision: str = '19188368831c'
 down_revision: Union[str, Sequence[str], None] = None
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
@@ -68,7 +68,7 @@ def upgrade() -> None:
     sa.Column('updated_at', sa.TIMESTAMP(), server_default=sa.text('CURRENT_TIMESTAMP'), nullable=True),
     sa.CheckConstraint("category IN ('computer', 'projector', 'keyboard', 'mouse', 'tv', 'camera', 'microphone', 'tablet', 'other')", name='check_category'),
     sa.CheckConstraint("item_type IN ('individual', 'group')", name='check_item_type'),
-    sa.CheckConstraint("status IN ('available', 'in_use', 'maintenance', 'damaged', 'lost')", name='check_status'),
+    sa.CheckConstraint("status IN ('available', 'in_use', 'maintenance', 'damaged', 'lost', 'missing', 'good')", name='check_status'),
     sa.CheckConstraint('quantity >= 1', name='check_quantity'),
     sa.ForeignKeyConstraint(['environment_id'], ['environments.id'], ondelete='CASCADE'),
     sa.PrimaryKeyConstraint('id'),

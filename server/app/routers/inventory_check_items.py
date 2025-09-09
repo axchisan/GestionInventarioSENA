@@ -55,7 +55,18 @@ async def create_individual_check_item(
 
     # Actualizar quantity en InventoryItem
     inventory_item.quantity = request.quantity_found + request.quantity_damaged
-    inventory_item.status = request.status if request.status in ['damaged', 'missing'] else inventory_item.status
+    
+    # Only update status if it's a valid status for inventory items
+    valid_statuses = ['available', 'in_use', 'maintenance', 'damaged', 'lost', 'missing', 'good']
+    if request.status in valid_statuses:
+        inventory_item.status = request.status
+    elif request.quantity_damaged > 0:
+        inventory_item.status = 'damaged'
+    elif request.quantity_missing > 0:
+        inventory_item.status = 'missing'
+    else:
+        inventory_item.status = 'good'
+    
     db.commit()
 
     return {"status": "success", "item_id": check_item.item_id}

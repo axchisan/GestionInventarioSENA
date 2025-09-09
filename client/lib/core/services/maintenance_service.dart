@@ -4,7 +4,7 @@ import '../constants/api_constants.dart';
 import 'session_service.dart';
 
 class MaintenanceService {
-  static const String _maintenanceEndpoint = '/api/maintenance-requests';
+  static const String _maintenanceEndpoint = '/api/maintenance-requests/';
 
   static Future<bool> createMaintenanceRequest({
     String? itemId,
@@ -21,18 +21,22 @@ class MaintenanceService {
       if (token == null) throw Exception('No token found');
 
       final requestBody = {
-        'type': type.toLowerCase(),
-        'priority': priority.toLowerCase(),
+        'title': itemName ?? 'Solicitud de mantenimiento $type',
         'description': description,
+        'priority': priority.toLowerCase(),
         'environment_id': environmentId,
       };
 
       if (itemId != null) {
         requestBody['item_id'] = itemId;
-      } else {
-        if (category != null) requestBody['category'] = category;
-        if (location != null) requestBody['location'] = location;
-        if (itemName != null) requestBody['item_name'] = itemName;
+      }
+      
+      if (category != null) {
+        requestBody['category'] = category;
+      }
+      
+      if (location != null) {
+        requestBody['location'] = location;
       }
 
       final response = await http.post(
@@ -82,7 +86,7 @@ class MaintenanceService {
       if (token == null) throw Exception('No token found');
 
       final response = await http.get(
-        Uri.parse('$baseUrl$inventoryEndpoint/environment/$environmentId'),
+        Uri.parse('$baseUrl$inventoryEndpoint?environment_id=$environmentId'),
         headers: {
           'Authorization': 'Bearer $token',
           'Content-Type': 'application/json',

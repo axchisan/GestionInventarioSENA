@@ -34,7 +34,7 @@ class InventoryItem(Base):
 
     __table_args__ = (
         CheckConstraint("category IN ('computer', 'projector', 'keyboard', 'mouse', 'tv', 'camera', 'microphone', 'tablet', 'other')", name="check_category"),
-        CheckConstraint("status IN ('available', 'in_use', 'maintenance', 'damaged', 'lost')", name="check_status"),
+        CheckConstraint("status IN ('available', 'in_use', 'maintenance', 'damaged', 'lost', 'missing', 'good')", name="check_status"),
         CheckConstraint("item_type IN ('individual', 'group')", name="check_item_type"),
         CheckConstraint("quantity >= 1", name="check_quantity"),
     )

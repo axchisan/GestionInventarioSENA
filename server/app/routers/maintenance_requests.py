@@ -36,13 +36,23 @@ def create_maintenance_request(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    item = db.query(InventoryItem).filter(InventoryItem.id == request_data.item_id).first()
-    if not item:
-        raise HTTPException(status_code=404, detail="Ítem no encontrado")
+    if request_data.item_id:
+        item = db.query(InventoryItem).filter(InventoryItem.id == request_data.item_id).first()
+        if not item:
+            raise HTTPException(status_code=404, detail="Ítem no encontrado")
 
     new_request = MaintenanceRequest(
-        **request_data.dict(),
-        user_id=current_user.id
+        item_id=request_data.item_id,
+        environment_id=request_data.environment_id,
+        title=request_data.title,
+        description=request_data.description,
+        priority=request_data.priority,
+        category=request_data.category,
+        location=request_data.location,
+        images_urls=request_data.images_urls,
+        quantity_affected=request_data.quantity_affected or 1,
+        user_id=current_user.id,
+        status="pending"
     )
     db.add(new_request)
     db.commit()

@@ -616,6 +616,7 @@ class _SupervisorDashboardScreenState extends State<SupervisorDashboardScreen> {
     );
   }
 
+  // ignore: unused_element
   Widget _buildPendingItem(String title, String subtitle, Color statusColor) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 8.0),
