@@ -29,6 +29,7 @@ class _MaintenanceRequestScreenState extends State<MaintenanceRequestScreen>
   // Controladores para solicitud específica
   final _descriptionController = TextEditingController();
   final _locationController = TextEditingController();
+  final _searchController = TextEditingController();
   
   // Controladores para solicitud general
   final _generalDescriptionController = TextEditingController();
@@ -42,7 +43,9 @@ class _MaintenanceRequestScreenState extends State<MaintenanceRequestScreen>
   String? _selectedItemName;
   bool _isSubmitting = false;
   List<Map<String, dynamic>> _inventoryItems = [];
+  List<Map<String, dynamic>> _filteredItems = [];
   bool _isLoadingItems = false;
+  String _searchQuery = '';
 
   @override
   void initState() {
@@ -67,6 +70,7 @@ class _MaintenanceRequestScreenState extends State<MaintenanceRequestScreen>
       final items = await MaintenanceService.getInventoryItems(widget.environmentId);
       setState(() {
         _inventoryItems = items;
+        _filteredItems = items;
         _isLoadingItems = false;
       });
     } catch (e) {
@@ -76,16 +80,50 @@ class _MaintenanceRequestScreenState extends State<MaintenanceRequestScreen>
           SnackBar(
             content: Text('Error al cargar items: $e'),
             backgroundColor: AppColors.error,
+            action: SnackBarAction(
+              label: 'Reintentar',
+              textColor: Colors.white,
+              onPressed: _loadInventoryItems,
+            ),
           ),
         );
       }
     }
   }
 
+  void _filterItems(String query) {
+    setState(() {
+      _searchQuery = query;
+      if (query.isEmpty) {
+        _filteredItems = _inventoryItems;
+      } else {
+        _filteredItems = _inventoryItems.where((item) {
+          final name = (item['name'] ?? '').toString().toLowerCase();
+          final code = (item['code'] ?? item['internal_code'] ?? '').toString().toLowerCase();
+          final category = (item['category'] ?? '').toString().toLowerCase();
+          final searchLower = query.toLowerCase();
+          
+          return name.contains(searchLower) || 
+                 code.contains(searchLower) || 
+                 category.contains(searchLower);
+        }).toList();
+      }
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: const SenaAppBar(title: 'Solicitud de Mantenimiento'),
+      appBar: SenaAppBar(
+        title: 'Solicitud de Mantenimiento',
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.refresh),
+            onPressed: _loadInventoryItems,
+            tooltip: 'Actualizar lista de items',
+          ),
+        ],
+      ),
       body: Column(
         children: [
           Container(
@@ -130,24 +168,138 @@ class _MaintenanceRequestScreenState extends State<MaintenanceRequestScreen>
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Selección de item
+            // Selección de item mejorada
             Card(
               child: Padding(
                 padding: const EdgeInsets.all(16.0),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text(
-                      'Seleccionar Item del Inventario',
-                      style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
+                    Row(
+                      children: [
+                        const Icon(Icons.inventory, color: AppColors.primary),
+                        const SizedBox(width: 8),
+                        const Expanded(
+                          child: Text(
+                            'Seleccionar Item del Inventario',
+                            style: TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                        if (_inventoryItems.isNotEmpty)
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                            decoration: BoxDecoration(
+                              color: AppColors.primary.withOpacity(0.1),
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: Text(
+                              '${_filteredItems.length} items',
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: AppColors.primary,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                          ),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+                    
+                    // Barra de búsqueda
+                    TextField(
+                      controller: _searchController,
+                      decoration: InputDecoration(
+                        hintText: 'Buscar por nombre, código o categoría...',
+                        prefixIcon: const Icon(Icons.search),
+                        suffixIcon: _searchQuery.isNotEmpty
+                            ? IconButton(
+                                icon: const Icon(Icons.clear),
+                                onPressed: () {
+                                  _searchController.clear();
+                                  _filterItems('');
+                                },
+                              )
+                            : null,
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        filled: true,
+                        fillColor: AppColors.grey100,
                       ),
+                      onChanged: _filterItems,
                     ),
                     const SizedBox(height: 16),
                     
                     if (_isLoadingItems)
-                      const Center(child: CircularProgressIndicator(color: AppColors.primary))
+                      const Center(
+                        child: Padding(
+                          padding: EdgeInsets.all(32.0),
+                          child: Column(
+                            children: [
+                              CircularProgressIndicator(color: AppColors.primary),
+                              SizedBox(height: 16),
+                              Text('Cargando items del inventario...'),
+                            ],
+                          ),
+                        ),
+                      )
+                    else if (_filteredItems.isEmpty && _inventoryItems.isNotEmpty)
+                      Container(
+                        padding: const EdgeInsets.all(24),
+                        decoration: BoxDecoration(
+                          color: AppColors.warning.withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: AppColors.warning.withOpacity(0.3)),
+                        ),
+                        child: Column(
+                          children: [
+                            Icon(Icons.search_off, color: AppColors.warning, size: 48),
+                            const SizedBox(height: 8),
+                            Text(
+                              'No se encontraron items',
+                              style: TextStyle(
+                                fontWeight: FontWeight.bold,
+                                color: AppColors.warning,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              'Intenta con otros términos de búsqueda',
+                              style: TextStyle(color: AppColors.grey600),
+                            ),
+                          ],
+                        ),
+                      )
+                    else if (_inventoryItems.isEmpty)
+                      Container(
+                        padding: const EdgeInsets.all(24),
+                        decoration: BoxDecoration(
+                          color: AppColors.info.withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: AppColors.info.withOpacity(0.3)),
+                        ),
+                        child: Column(
+                          children: [
+                            Icon(Icons.inventory_2_outlined, color: AppColors.info, size: 48),
+                            const SizedBox(height: 8),
+                            Text(
+                              'No hay items disponibles',
+                              style: TextStyle(
+                                fontWeight: FontWeight.bold,
+                                color: AppColors.info,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              'No se encontraron items en este ambiente',
+                              style: TextStyle(color: AppColors.grey600),
+                            ),
+                          ],
+                        ),
+                      )
                     else
                       DropdownButtonFormField<String>(
                         value: _selectedItemId,
@@ -156,32 +308,81 @@ class _MaintenanceRequestScreenState extends State<MaintenanceRequestScreen>
                           border: OutlineInputBorder(),
                           prefixIcon: Icon(Icons.inventory),
                         ),
-                        items: _inventoryItems.map((item) {
+                        isExpanded: true,
+                        items: _filteredItems.map((item) {
                           return DropdownMenuItem<String>(
                             value: item['id'].toString(),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Text(
-                                  item['name'] ?? 'Sin nombre',
-                                  style: const TextStyle(fontWeight: FontWeight.w500),
-                                ),
-                                Text(
-                                  'Código: ${item['code'] ?? 'N/A'} - Stock: ${item['quantity'] ?? 0}',
-                                  style: const TextStyle(
-                                    fontSize: 12,
-                                    color: AppColors.grey600,
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(vertical: 8),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Text(
+                                    item['name'] ?? 'Sin nombre',
+                                    style: const TextStyle(
+                                      fontWeight: FontWeight.w500,
+                                      fontSize: 14,
+                                    ),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
                                   ),
-                                ),
-                              ],
+                                  const SizedBox(height: 2),
+                                  Row(
+                                    children: [
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                        decoration: BoxDecoration(
+                                          color: _getCategoryColor(item['category']).withOpacity(0.1),
+                                          borderRadius: BorderRadius.circular(4),
+                                        ),
+                                        child: Text(
+                                          _getCategoryName(item['category']),
+                                          style: TextStyle(
+                                            fontSize: 10,
+                                            color: _getCategoryColor(item['category']),
+                                            fontWeight: FontWeight.w500,
+                                          ),
+                                        ),
+                                      ),
+                                      const SizedBox(width: 8),
+                                      Expanded(
+                                        child: Text(
+                                          'Código: ${item['code'] ?? item['internal_code'] ?? 'N/A'}',
+                                          style: const TextStyle(
+                                            fontSize: 11,
+                                            color: AppColors.grey600,
+                                          ),
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
+                                      ),
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                        decoration: BoxDecoration(
+                                          color: _getStatusColor(item['status']).withOpacity(0.1),
+                                          borderRadius: BorderRadius.circular(4),
+                                        ),
+                                        child: Text(
+                                          'Stock: ${item['quantity'] ?? 0}',
+                                          style: TextStyle(
+                                            fontSize: 10,
+                                            color: _getStatusColor(item['status']),
+                                            fontWeight: FontWeight.w500,
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ],
+                              ),
                             ),
                           );
                         }).toList(),
                         onChanged: (value) {
                           setState(() {
                             _selectedItemId = value;
-                            final selectedItem = _inventoryItems.firstWhere(
+                            final selectedItem = _filteredItems.firstWhere(
                               (item) => item['id'].toString() == value,
                             );
                             _selectedItemName = selectedItem['name'];
@@ -200,22 +401,46 @@ class _MaintenanceRequestScreenState extends State<MaintenanceRequestScreen>
                       Container(
                         padding: const EdgeInsets.all(12),
                         decoration: BoxDecoration(
-                          color: AppColors.info.withOpacity(0.1),
+                          color: AppColors.success.withOpacity(0.1),
                           borderRadius: BorderRadius.circular(8),
-                          border: Border.all(color: AppColors.info.withOpacity(0.3)),
+                          border: Border.all(color: AppColors.success.withOpacity(0.3)),
                         ),
                         child: Row(
                           children: [
-                            const Icon(Icons.info, color: AppColors.info, size: 20),
+                            Icon(Icons.check_circle, color: AppColors.success, size: 20),
                             const SizedBox(width: 8),
                             Expanded(
-                              child: Text(
-                                'Item seleccionado: $_selectedItemName',
-                                style: const TextStyle(
-                                  color: AppColors.info,
-                                  fontWeight: FontWeight.w500,
-                                ),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    'Item seleccionado',
+                                    style: TextStyle(
+                                      color: AppColors.success,
+                                      fontWeight: FontWeight.w500,
+                                      fontSize: 12,
+                                    ),
+                                  ),
+                                  Text(
+                                    _selectedItemName ?? '',
+                                    style: TextStyle(
+                                      color: AppColors.success,
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 14,
+                                    ),
+                                  ),
+                                ],
                               ),
+                            ),
+                            IconButton(
+                              icon: Icon(Icons.clear, color: AppColors.success),
+                              onPressed: () {
+                                setState(() {
+                                  _selectedItemId = null;
+                                  _selectedItemName = null;
+                                });
+                              },
+                              tooltip: 'Limpiar selección',
                             ),
                           ],
                         ),
@@ -239,6 +464,61 @@ class _MaintenanceRequestScreenState extends State<MaintenanceRequestScreen>
       ),
     );
   }
+
+  Color _getCategoryColor(String? category) {
+    switch (category) {
+      case 'computer':
+        return AppColors.primary;
+      case 'projector':
+        return AppColors.info;
+      case 'keyboard':
+      case 'mouse':
+        return AppColors.secondary;
+      case 'tv':
+        return AppColors.warning;
+      default:
+        return AppColors.grey500;
+    }
+  }
+
+  String _getCategoryName(String? category) {
+    switch (category) {
+      case 'computer':
+        return 'Computador';
+      case 'projector':
+        return 'Proyector';
+      case 'keyboard':
+        return 'Teclado';
+      case 'mouse':
+        return 'Ratón';
+      case 'tv':
+        return 'Televisor';
+      case 'camera':
+        return 'Cámara';
+      case 'microphone':
+        return 'Micrófono';
+      case 'tablet':
+        return 'Tableta';
+      default:
+        return 'Otro';
+    }
+  }
+
+  Color _getStatusColor(String? status) {
+    switch (status) {
+      case 'available':
+        return AppColors.success;
+      case 'in_use':
+        return AppColors.info;
+      case 'maintenance':
+        return AppColors.warning;
+      case 'damaged':
+        return AppColors.error;
+      default:
+        return AppColors.grey500;
+    }
+  }
+
 
   Widget _buildGeneralRequestForm() {
     return SingleChildScrollView(
@@ -713,6 +993,7 @@ class _MaintenanceRequestScreenState extends State<MaintenanceRequestScreen>
     _tabController.dispose();
     _descriptionController.dispose();
     _locationController.dispose();
+    _searchController.dispose();
     _generalDescriptionController.dispose();
     _generalLocationController.dispose();
     _itemNameController.dispose();

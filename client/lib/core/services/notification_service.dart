@@ -4,7 +4,7 @@ import '../constants/api_constants.dart';
 import 'session_service.dart';
 
 class NotificationService {
-  static const String _notificationsEndpoint = '/api/notifications';
+  static const String _notificationsEndpoint = '/api/notifications/';
 
   static Future<List<Map<String, dynamic>>> getNotifications() async {
     try {
@@ -23,7 +23,7 @@ class NotificationService {
         final List<dynamic> data = json.decode(response.body);
         return data.cast<Map<String, dynamic>>();
       } else {
-        throw Exception('Failed to load notifications');
+        throw Exception('Failed to load notifications: ${response.statusCode} - ${response.body}');
       }
     } catch (e) {
       print('Error getting notifications: $e');
@@ -37,7 +37,7 @@ class NotificationService {
       if (token == null) throw Exception('No token found');
 
       final response = await http.put(
-        Uri.parse('$baseUrl$_notificationsEndpoint/$notificationId'),
+        Uri.parse('$baseUrl$_notificationsEndpoint$notificationId'),
         headers: {
           'Authorization': 'Bearer $token',
           'Content-Type': 'application/json',
@@ -71,6 +71,10 @@ class NotificationService {
         case 'verification_update':
           title = 'Verificación Actualizada';
           message = 'La verificación de inventario en $environmentName ha sido actualizada';
+          break;
+        case 'maintenance_update':
+          title = 'Solicitud de Mantenimiento';
+          message = 'Se ha creado una nueva solicitud de mantenimiento';
           break;
         default:
           return;

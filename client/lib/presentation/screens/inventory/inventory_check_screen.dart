@@ -30,12 +30,15 @@ class _InventoryCheckScreenState extends State<InventoryCheckScreen> {
   DateTime _selectedDate = DateTime.now();
   Map<String, dynamic>? _selectedSchedule;
   Map<String, dynamic>? _currentScheduleCheck;
+  // ignore: unused_field
   List<dynamic> _scheduleStats = [];
+  // ignore: unused_field
   bool _showScheduleDetails = false;
   List<dynamic> _items = [];
   List<dynamic> _schedules = [];
   List<dynamic> _checks = [];
   List<dynamic> _pendingChecks = [];
+  // ignore: unused_field
   List<dynamic> _notifications = [];
   bool _isLoading = true;
   bool _hasCheckedToday = false;
@@ -1848,6 +1851,7 @@ class _InventoryCheckScreenState extends State<InventoryCheckScreen> {
     return 'available';
   }
 
+  // ignore: unused_element
   void _markNotificationAsRead(String notificationId) async {
     try {
       await _apiService.put('/api/notifications/$notificationId/read', {});
@@ -2098,6 +2102,7 @@ class _InventoryCheckScreenState extends State<InventoryCheckScreen> {
     );
   }
 
+  // ignore: unused_element
   void _showReportDamageDialog() {
     showDialog(
       context: context,
@@ -2136,6 +2141,7 @@ class _InventoryCheckScreenState extends State<InventoryCheckScreen> {
 
       final checkData = {
         'environment_id': user.environmentId,
+        'student_id': user.id,
         'check_date': DateTime.now().toIso8601String().split('T')[0],
         'check_time': DateFormat('HH:mm').format(DateTime.now()),
         'total_items': totalItems,
