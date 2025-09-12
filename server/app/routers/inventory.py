@@ -5,7 +5,7 @@ from uuid import UUID
 
 from ..database import get_db
 from ..models.inventory_items import InventoryItem
-from ..schemas.inventory_item import InventoryItemCreate, InventoryItemResponse, InventoryItemUpdate
+from ..schemas.inventory_item import InventoryItemCreate, InventoryItemResponse, InventoryItemUpdate, InventoryItemVerificationUpdate
 from ..routers.auth import get_current_user
 from ..models.users import User
 
@@ -84,11 +84,48 @@ def update_inventory_item(
     for key, value in update_data.items():
         setattr(item, key, value)
 
-    # Mejora: Si quantity cambia y hay damaged/missing, ajustar status
-    if 'quantity' in update_data and item.quantity_damaged > 0:
+    if 'quantity_damaged' in update_data or 'quantity_missing' in update_data:
+        if item.quantity_missing > 0:
+            item.status = 'missing'
+        elif item.quantity_damaged > 0:
+            item.status = 'damaged'
+        elif item.quantity_damaged == 0 and item.quantity_missing == 0:
+            item.status = 'available'
+
+    db.commit()
+    db.refresh(item)
+    return item
+
+@router.put("/{item_id}/verification", response_model=InventoryItemResponse)
+def update_inventory_item_verification(
+    item_id: UUID,
+    item_data: InventoryItemVerificationUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Update inventory item during verification process with minimal required fields"""
+    if current_user.role not in ["student", "instructor", "supervisor", "admin", "admin_general"]:
+        raise HTTPException(status_code=403, detail="Rol no autorizado")
+
+    item = db.query(InventoryItem).filter(InventoryItem.id == item_id).first()
+    if not item:
+        raise HTTPException(status_code=404, detail="Ítem no encontrado")
+
+    if item_data.quantity is not None:
+        item.quantity = item_data.quantity
+    if item_data.quantity_damaged is not None:
+        item.quantity_damaged = item_data.quantity_damaged
+    if item_data.quantity_missing is not None:
+        item.quantity_missing = item_data.quantity_missing
+    if item_data.status is not None:
+        item.status = item_data.status
+
+    if item.quantity_missing > 0:
+        item.status = 'missing'
+    elif item.quantity_damaged > 0:
         item.status = 'damaged'
-    elif 'quantity' in update_data and item.quantity_missing > 0:
-        item.status = 'lost'
+    elif item.quantity_damaged == 0 and item.quantity_missing == 0:
+        item.status = 'available'
 
     db.commit()
     db.refresh(item)

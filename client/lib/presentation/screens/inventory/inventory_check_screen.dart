@@ -220,6 +220,26 @@ class _InventoryCheckScreenState extends State<InventoryCheckScreen> {
     }
   }
 
+  String _determineItemStatus(int quantityFound, int quantityDamaged, int quantityMissing) {
+    // If there are damaged items, prioritize maintenance status
+    if (quantityDamaged > 0) {
+      return 'maintenance';
+    }
+    
+    // If there are missing items, mark as missing
+    if (quantityMissing > 0) {
+      return 'missing';
+    }
+    
+    // If all items are found and none are damaged or missing, mark as available
+    if (quantityFound > 0 && quantityDamaged == 0 && quantityMissing == 0) {
+      return 'available';
+    }
+    
+    // Default case - if no items found at all
+    return 'missing';
+  }
+
   @override
   Widget build(BuildContext context) {
     final authProvider = Provider.of<AuthProvider>(context);
@@ -1456,81 +1476,6 @@ class _InventoryCheckScreenState extends State<InventoryCheckScreen> {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: AppColors.grey100,
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text(
-                        'Estado General',
-                        style: TextStyle(fontWeight: FontWeight.bold),
-                      ),
-                      const SizedBox(height: 8),
-                      DropdownButtonFormField<String>(
-                        decoration: const InputDecoration(
-                          border: OutlineInputBorder(),
-                          contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                        ),
-                        value: newStatus,
-                        items: [
-                          DropdownMenuItem(
-                            value: 'good',
-                            child: Row(
-                              children: [
-                                Icon(Icons.check_circle, color: AppColors.success, size: 20),
-                                const SizedBox(width: 8),
-                                Text(_statusTranslations['good'] ?? 'Bueno'),
-                              ],
-                            ),
-                          ),
-                          DropdownMenuItem(
-                            value: 'damaged',
-                            child: Row(
-                              children: [
-                                Icon(Icons.warning, color: AppColors.warning, size: 20),
-                                const SizedBox(width: 8),
-                                Text(_statusTranslations['damaged'] ?? 'Dañado'),
-                              ],
-                            ),
-                          ),
-                          DropdownMenuItem(
-                            value: 'missing',
-                            child: Row(
-                              children: [
-                                Icon(Icons.error, color: AppColors.error, size: 20),
-                                const SizedBox(width: 8),
-                                Text(_statusTranslations['missing'] ?? 'Faltante'),
-                              ],
-                            ),
-                          ),
-                        ],
-                        onChanged: (value) {
-                          setDialogState(() {
-                            newStatus = value!;
-                            if (newStatus == 'good') {
-                              quantityFound = quantityExpected;
-                              quantityDamaged = 0;
-                              quantityMissing = 0;
-                            } else if (newStatus == 'damaged') {
-                              quantityFound = 0;
-                              quantityDamaged = quantityExpected;
-                              quantityMissing = 0;
-                            } else if (newStatus == 'missing') {
-                              quantityFound = 0;
-                              quantityDamaged = 0;
-                              quantityMissing = quantityExpected;
-                            }
-                          });
-                        },
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 16),
                 if (isGroup) ...[
                   Container(
                     padding: const EdgeInsets.all(12),
@@ -1555,138 +1500,159 @@ class _InventoryCheckScreenState extends State<InventoryCheckScreen> {
                           ],
                         ),
                         const SizedBox(height: 12),
-                        Container(
-                          padding: const EdgeInsets.all(8),
-                          decoration: BoxDecoration(
-                            color: AppColors.primary.withOpacity(0.1),
-                            borderRadius: BorderRadius.circular(6),
-                          ),
-                          child: Row(
-                            children: [
-                              Icon(Icons.info, color: AppColors.primary, size: 16),
-                              const SizedBox(width: 8),
-                              Text(
-                                'Total esperado: $quantityExpected',
-                                style: TextStyle(
-                                  fontWeight: FontWeight.bold,
-                                  color: AppColors.primary,
+                        Text('Cantidad esperada: $quantityExpected'),
+                        const SizedBox(height: 8),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: TextFormField(
+                                decoration: const InputDecoration(
+                                  labelText: 'Encontrados',
+                                  border: OutlineInputBorder(),
                                 ),
+                                keyboardType: TextInputType.number,
+                                initialValue: quantityFound.toString(),
+                                onChanged: (value) {
+                                  setDialogState(() {
+                                    quantityFound = int.tryParse(value) ?? 0;
+                                    _validateQuantities(quantityExpected, quantityFound, quantityDamaged, quantityMissing, setDialogState);
+                                  });
+                                },
                               ),
-                            ],
-                          ),
-                        ),
-                        const SizedBox(height: 16),
-                        // Encontrados
-                        _buildQuantityControl(
-                          'Encontrados',
-                          quantityFound,
-                          AppColors.success,
-                          Icons.check_circle,
-                          (increment) {
-                            setDialogState(() {
-                              if (increment && quantityFound + quantityDamaged + quantityMissing < quantityExpected) {
-                                quantityFound++;
-                              } else if (!increment && quantityFound > 0) {
-                                quantityFound--;
-                                if (quantityFound + quantityDamaged + quantityMissing < quantityExpected) {
-                                  // Priorizar dañados sobre faltantes
-                                  if (newStatus == 'damaged' || quantityDamaged > 0) {
-                                    quantityDamaged++;
-                                  } else {
-                                    quantityMissing++;
-                                  }
-                                }
-                              }
-                            });
-                          },
-                        ),
-                        const SizedBox(height: 12),
-                        // Dañados
-                        _buildQuantityControl(
-                          'Dañados',
-                          quantityDamaged,
-                          AppColors.warning,
-                          Icons.warning,
-                          (increment) {
-                            setDialogState(() {
-                              if (increment && quantityFound + quantityDamaged + quantityMissing < quantityExpected) {
-                                quantityDamaged++;
-                              } else if (!increment && quantityDamaged > 0) {
-                                quantityDamaged--;
-                                if (quantityFound + quantityDamaged + quantityMissing < quantityExpected) {
-                                  quantityFound++;
-                                }
-                              }
-                            });
-                          },
-                        ),
-                        const SizedBox(height: 12),
-                        // Faltantes
-                        _buildQuantityControl(
-                          'Faltantes',
-                          quantityMissing,
-                          AppColors.error,
-                          Icons.error,
-                          (increment) {
-                            setDialogState(() {
-                              if (increment && quantityFound + quantityDamaged + quantityMissing < quantityExpected) {
-                                quantityMissing++;
-                              } else if (!increment && quantityMissing > 0) {
-                                quantityMissing--;
-                                if (quantityFound + quantityDamaged + quantityMissing < quantityExpected) {
-                                  quantityFound++;
-                                }
-                              }
-                            });
-                          },
-                        ),
-                        const SizedBox(height: 16),
-                        Container(
-                          padding: const EdgeInsets.all(8),
-                          decoration: BoxDecoration(
-                            color: _getQuantityStatusColor(quantityFound, quantityDamaged, quantityMissing, quantityExpected).withOpacity(0.1),
-                            borderRadius: BorderRadius.circular(6),
-                            border: Border.all(
-                              color: _getQuantityStatusColor(quantityFound, quantityDamaged, quantityMissing, quantityExpected),
                             ),
-                          ),
-                          child: Row(
-                            children: [
-                              Icon(
-                                _getQuantityStatusIcon(quantityFound, quantityDamaged, quantityMissing, quantityExpected),
-                                color: _getQuantityStatusColor(quantityFound, quantityDamaged, quantityMissing, quantityExpected),
-                                size: 16,
-                              ),
-                              const SizedBox(width: 8),
-                              Expanded(
-                                child: Text(
-                                  'Total reportado: ${quantityFound + quantityDamaged + quantityMissing}/$quantityExpected',
-                                  style: TextStyle(
-                                    fontWeight: FontWeight.bold,
-                                    color: _getQuantityStatusColor(quantityFound, quantityDamaged, quantityMissing, quantityExpected),
-                                  ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: TextFormField(
+                                decoration: const InputDecoration(
+                                  labelText: 'Dañados',
+                                  border: OutlineInputBorder(),
                                 ),
+                                keyboardType: TextInputType.number,
+                                initialValue: quantityDamaged.toString(),
+                                onChanged: (value) {
+                                  setDialogState(() {
+                                    quantityDamaged = int.tryParse(value) ?? 0;
+                                    _validateQuantities(quantityExpected, quantityFound, quantityDamaged, quantityMissing, setDialogState);
+                                  });
+                                },
                               ),
-                            ],
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 8),
+                        TextFormField(
+                          decoration: const InputDecoration(
+                            labelText: 'Faltantes',
+                            border: OutlineInputBorder(),
                           ),
+                          keyboardType: TextInputType.number,
+                          initialValue: quantityMissing.toString(),
+                          onChanged: (value) {
+                            setDialogState(() {
+                              quantityMissing = int.tryParse(value) ?? 0;
+                              _validateQuantities(quantityExpected, quantityFound, quantityDamaged, quantityMissing, setDialogState);
+                            });
+                          },
+                        ),
+                        const SizedBox(height: 8),
+                        Container(
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                            color: _getQuantityValidationColor(quantityExpected, quantityFound, quantityDamaged, quantityMissing),
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                          child: Text(
+                            _getQuantityValidationMessage(quantityExpected, quantityFound, quantityDamaged, quantityMissing),
+                            style: const TextStyle(color: Colors.white, fontSize: 12),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ] else ...[
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: AppColors.grey100,
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          'Estado del Item',
+                          style: TextStyle(fontWeight: FontWeight.bold),
+                        ),
+                        const SizedBox(height: 8),
+                        DropdownButtonFormField<String>(
+                          decoration: const InputDecoration(
+                            border: OutlineInputBorder(),
+                            contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                          ),
+                          value: newStatus,
+                          items: [
+                            DropdownMenuItem(
+                              value: 'good',
+                              child: Row(
+                                children: [
+                                  Icon(Icons.check_circle, color: AppColors.success, size: 20),
+                                  const SizedBox(width: 8),
+                                  Text(_statusTranslations['good'] ?? 'Bueno'),
+                                ],
+                              ),
+                            ),
+                            DropdownMenuItem(
+                              value: 'damaged',
+                              child: Row(
+                                children: [
+                                  Icon(Icons.warning, color: AppColors.warning, size: 20),
+                                  const SizedBox(width: 8),
+                                  Text(_statusTranslations['damaged'] ?? 'Dañado'),
+                                ],
+                              ),
+                            ),
+                            DropdownMenuItem(
+                              value: 'missing',
+                              child: Row(
+                                children: [
+                                  Icon(Icons.error, color: AppColors.error, size: 20),
+                                  const SizedBox(width: 8),
+                                  Text(_statusTranslations['missing'] ?? 'Faltante'),
+                                ],
+                              ),
+                            ),
+                          ],
+                          onChanged: (value) {
+                            setDialogState(() {
+                              newStatus = value!;
+                              if (newStatus == 'good') {
+                                quantityFound = quantityExpected;
+                                quantityDamaged = 0;
+                                quantityMissing = 0;
+                              } else if (newStatus == 'damaged') {
+                                quantityFound = 0;
+                                quantityDamaged = quantityExpected;
+                                quantityMissing = 0;
+                              } else if (newStatus == 'missing') {
+                                quantityFound = 0;
+                                quantityDamaged = 0;
+                                quantityMissing = quantityExpected;
+                              }
+                            });
+                          },
                         ),
                       ],
                     ),
                   ),
                 ],
                 const SizedBox(height: 16),
-                TextField(
-                  decoration: InputDecoration(
-                    labelText: 'Notas adicionales',
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    prefixIcon: const Icon(Icons.note_add),
+                TextFormField(
+                  decoration: const InputDecoration(
+                    labelText: 'Notas (opcional)',
+                    border: OutlineInputBorder(),
                   ),
                   maxLines: 3,
-                  onChanged: (value) {
-                    notes = value;
-                  },
+                  onChanged: (value) => notes = value,
                 ),
               ],
             ),
@@ -1699,11 +1665,11 @@ class _InventoryCheckScreenState extends State<InventoryCheckScreen> {
             ElevatedButton(
               onPressed: () async {
                 if (isGroup) {
-                  final totalReported = quantityFound + quantityDamaged + quantityMissing;
-                  if (totalReported != quantityExpected) {
+                  final total = quantityFound + quantityDamaged + quantityMissing;
+                  if (total != quantityExpected) {
                     ScaffoldMessenger.of(context).showSnackBar(
                       SnackBar(
-                        content: Text('Las cantidades deben sumar $quantityExpected. Actual: $totalReported'),
+                        content: Text('La suma debe ser igual a $quantityExpected (actual: $total)'),
                         backgroundColor: AppColors.error,
                       ),
                     );
@@ -1712,7 +1678,7 @@ class _InventoryCheckScreenState extends State<InventoryCheckScreen> {
                 }
                 try {
                   final authProvider = Provider.of<AuthProvider>(context, listen: false);
-                  // Crea InventoryCheckItem
+                  // Create InventoryCheckItem
                   await _apiService.post(
                     '/api/inventory-check-items/',
                     {
@@ -1726,17 +1692,20 @@ class _InventoryCheckScreenState extends State<InventoryCheckScreen> {
                       'environment_id': authProvider.currentUser!.environmentId,
                     },
                   );
-                  String updatedStatus = _determineItemStatus(quantityFound, quantityDamaged, quantityMissing);
+                  
                   await _apiService.put(
-                    '$inventoryEndpoint${item['id']}',
+                    '/api/inventory/${item['id']}/verification',
                     {
-                      'quantity': quantityFound + quantityDamaged,
-                      'status': updatedStatus,
+                      'quantity': quantityFound,
+                      'quantity_damaged': quantityDamaged,
+                      'quantity_missing': quantityMissing,
+                      'status': _determineItemStatus(quantityFound, quantityDamaged, quantityMissing),
                     },
                   );
+                  
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(
-                      content: Text('Item actualizado: ${_statusTranslations[newStatus] ?? newStatus}'),
+                      content: Text('Item actualizado correctamente'),
                       backgroundColor: AppColors.success,
                     ),
                   );
@@ -1751,11 +1720,7 @@ class _InventoryCheckScreenState extends State<InventoryCheckScreen> {
                   );
                 }
               },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.primary,
-                foregroundColor: Colors.white,
-              ),
-              child: const Text('Actualizar'),
+              child: const Text('Guardar'),
             ),
           ],
         ),
@@ -1763,92 +1728,144 @@ class _InventoryCheckScreenState extends State<InventoryCheckScreen> {
     );
   }
 
-  Widget _buildQuantityControl(String label, int quantity, Color color, IconData icon, Function(bool) onChanged) {
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: color.withOpacity(0.05),
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: color.withOpacity(0.3)),
-      ),
-      child: Row(
-        children: [
-          Icon(icon, color: color, size: 20),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Text(
-              label,
-              style: TextStyle(
-                fontWeight: FontWeight.w500,
-                color: color,
-              ),
-            ),
-          ),
-          Container(
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(20),
-              border: Border.all(color: color.withOpacity(0.3)),
-            ),
-            child: Row(
+  void _validateQuantities(int expected, int found, int damaged, int missing, StateSetter setDialogState) {
+    // Auto-adjust if total exceeds expected
+    final total = found + damaged + missing;
+    if (total > expected) {
+      final excess = total - expected;
+      if (missing >= excess) {
+        missing -= excess;
+      } else if (damaged >= excess) {
+        damaged -= excess;
+      } else {
+        found -= excess;
+      }
+      setDialogState(() {});
+    }
+  }
+
+  Color _getQuantityValidationColor(int expected, int found, int damaged, int missing) {
+    final total = found + damaged + missing;
+    if (total == expected) {
+      return AppColors.success;
+    } else if (total < expected) {
+      return AppColors.warning;
+    } else {
+      return AppColors.error;
+    }
+  }
+
+  String _getQuantityValidationMessage(int expected, int found, int damaged, int missing) {
+    final total = found + damaged + missing;
+    if (total == expected) {
+      return 'Cantidades correctas ✓';
+    } else if (total < expected) {
+      return 'Faltan ${expected - total} items por contabilizar';
+    } else {
+      return 'Exceso de ${total - expected} items';
+    }
+  }
+
+  void _confirmInstructorCheck(Map<String, dynamic> check) async {
+    bool? isClean;
+    bool? isOrganized;
+    bool? inventoryComplete;
+    String comments = '';
+
+    showDialog(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          title: const Text('Confirmación de Instructor'),
+          content: SingleChildScrollView(
+            child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                IconButton(
-                  icon: const Icon(Icons.remove, size: 18),
-                  onPressed: quantity > 0 ? () => onChanged(false) : null,
-                  color: color,
-                  constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
+                const Text(
+                  'Por favor confirme los siguientes aspectos:',
+                  style: TextStyle(fontWeight: FontWeight.bold),
                 ),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12),
-                  child: Text(
-                    quantity.toString(),
-                    style: TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 16,
-                      color: color,
-                    ),
+                const SizedBox(height: 16),
+                CheckboxListTile(
+                  title: const Text('Aula aseada'),
+                  value: isClean ?? false,
+                  onChanged: (value) {
+                    setDialogState(() {
+                      isClean = value;
+                    });
+                  },
+                ),
+                CheckboxListTile(
+                  title: const Text('Aula organizada'),
+                  value: isOrganized ?? false,
+                  onChanged: (value) {
+                    setDialogState(() {
+                      isOrganized = value;
+                    });
+                  },
+                ),
+                CheckboxListTile(
+                  title: const Text('Inventario completo'),
+                  value: inventoryComplete ?? false,
+                  onChanged: (value) {
+                    setDialogState(() {
+                      inventoryComplete = value;
+                    });
+                  },
+                ),
+                const SizedBox(height: 16),
+                TextFormField(
+                  decoration: const InputDecoration(
+                    labelText: 'Comentarios adicionales',
+                    border: OutlineInputBorder(),
                   ),
-                ),
-                IconButton(
-                  icon: const Icon(Icons.add, size: 18),
-                  onPressed: () => onChanged(true),
-                  color: color,
-                  constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
+                  maxLines: 3,
+                  onChanged: (value) => comments = value,
                 ),
               ],
             ),
           ),
-        ],
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Cancelar'),
+            ),
+            ElevatedButton(
+              onPressed: () async {
+                if (isClean == null || isOrganized == null || inventoryComplete == null) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Debe marcar todas las casillas de verificación'),
+                      backgroundColor: Colors.red,
+                    ),
+                  );
+                  return;
+                }
+                
+                try {
+                  await _apiService.put('/api/inventory-checks/${check['id']}/confirm', {
+                    'is_clean': isClean,
+                    'is_organized': isOrganized,
+                    'inventory_complete': inventoryComplete,
+                    'comments': comments,
+                  });
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Verificación confirmada por instructor')),
+                  );
+                  _fetchData();
+                  Navigator.pop(context);
+                } catch (e) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('Error: $e')),
+                  );
+                }
+              },
+              child: const Text('Confirmar'),
+            ),
+          ],
+        ),
       ),
     );
-  }
-
-  Color _getQuantityStatusColor(int found, int damaged, int missing, int expected) {
-    final total = found + damaged + missing;
-    if (total == expected) {
-      if (missing > 0) return AppColors.error;
-      if (damaged > 0) return AppColors.warning;
-      return AppColors.success;
-    }
-    return AppColors.grey500;
-  }
-
-  IconData _getQuantityStatusIcon(int found, int damaged, int missing, int expected) {
-    final total = found + damaged + missing;
-    if (total == expected) {
-      if (missing > 0) return Icons.error;
-      if (damaged > 0) return Icons.warning;
-      return Icons.check_circle;
-    }
-    return Icons.help;
-  }
-
-  String _determineItemStatus(int found, int damaged, int missing) {
-    if (missing > 0) return 'lost';
-    if (damaged > 0 && found == 0) return 'damaged';
-    if (damaged > 0 && found > 0) return 'maintenance';
-    return 'available';
   }
 
   // ignore: unused_element
@@ -1859,21 +1876,6 @@ class _InventoryCheckScreenState extends State<InventoryCheckScreen> {
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Error al marcar notificación: $e')),
-      );
-    }
-  }
-
-  void _confirmInstructorCheck(Map<String, dynamic> check) async {
-    try {
-      await _apiService.put('/api/inventory-checks/${check['id']}/confirm', {});
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Verificación confirmada por instructor')),
-      );
-      _fetchData();
-      Navigator.pop(context);
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error: $e')),
       );
     }
   }

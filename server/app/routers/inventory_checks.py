@@ -100,15 +100,21 @@ async def confirm_inventory_check(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    if current_user.role != "instructor":
-        raise HTTPException(status_code=403, detail="Solo instructores pueden confirmar verificaciones")
+    if current_user.role not in ["instructor", "supervisor"]:
+        raise HTTPException(status_code=403, detail="Solo instructores y supervisores pueden confirmar verificaciones")
 
     inventory_check = db.query(InventoryCheck).filter(InventoryCheck.id == check_id).first()
     if not inventory_check:
         raise HTTPException(status_code=404, detail="Verificación no encontrada")
 
-    if inventory_check.instructor_id is not None:
+    if inventory_check.instructor_id is not None and current_user.role == "instructor":
         raise HTTPException(status_code=400, detail="Ya confirmada por instructor")
+
+    if request.is_clean is None or request.is_organized is None or request.inventory_complete is None:
+        raise HTTPException(
+            status_code=422, 
+            detail="Todos los campos de confirmación son requeridos: is_clean, is_organized, inventory_complete"
+        )
 
     inventory_check.instructor_id = current_user.id
     inventory_check.is_clean = request.is_clean
@@ -116,13 +122,18 @@ async def confirm_inventory_check(
     inventory_check.inventory_complete = request.inventory_complete
     inventory_check.comments = request.comments
     inventory_check.instructor_confirmed_at = datetime.utcnow()
-    if not request.inventory_complete or inventory_check.status == "issues":
-        inventory_check.status = "issues"
+    
+    if current_user.role == "supervisor":
+        inventory_check.status = "complete" if request.inventory_complete and inventory_check.items_damaged == 0 and inventory_check.items_missing == 0 else "issues"
     else:
-        inventory_check.status = "supervisor_review"
+        if not request.inventory_complete or inventory_check.items_damaged > 0 or inventory_check.items_missing > 0:
+            inventory_check.status = "issues"
+        else:
+            inventory_check.status = "supervisor_review"
 
     db.commit()
     db.refresh(inventory_check)
+    
     notification = Notification(
         user_id=current_user.id, 
         type="verification_update",
@@ -135,6 +146,30 @@ async def confirm_inventory_check(
     db.commit()
 
     return inventory_check
+
+@router.put("/{check_id}/assign-role")
+async def assign_verification_role(
+    check_id: UUID,
+    role_assignment: dict,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Allow supervisors to assign verification to instructors or take over verification"""
+    if current_user.role not in ["supervisor", "admin"]:
+        raise HTTPException(status_code=403, detail="Solo supervisores pueden asignar verificaciones")
+
+    inventory_check = db.query(InventoryCheck).filter(InventoryCheck.id == check_id).first()
+    if not inventory_check:
+        raise HTTPException(status_code=404, detail="Verificación no encontrada")
+
+    target_role = role_assignment.get("target_role")
+    if target_role == "supervisor_takeover":
+        inventory_check.status = "supervisor_review"
+    elif target_role == "instructor_assign":
+        inventory_check.status = "instructor_review"
+
+    db.commit()
+    return {"status": "success", "message": f"Verificación asignada a {target_role}"}
 
 @router.get("/", response_model=List[InventoryCheckResponse])
 def get_inventory_checks(
