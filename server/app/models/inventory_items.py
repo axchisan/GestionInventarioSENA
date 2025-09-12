@@ -25,6 +25,8 @@ class InventoryItem(Base):
     image_url = Column(String(500), nullable=True)
     notes = Column(Text, nullable=True)
     quantity = Column(Integer, default=1, nullable=False)  
+    quantity_damaged = Column(Integer, default=0, nullable=False)
+    quantity_missing = Column(Integer, default=0, nullable=False)
     item_type = Column(String(10), default='individual', nullable=False)  
 
     created_at = Column(TIMESTAMP, server_default=func.current_timestamp())
@@ -36,5 +38,7 @@ class InventoryItem(Base):
         CheckConstraint("category IN ('computer', 'projector', 'keyboard', 'mouse', 'tv', 'camera', 'microphone', 'tablet', 'other')", name="check_category"),
         CheckConstraint("status IN ('available', 'in_use', 'maintenance', 'damaged', 'lost', 'missing', 'good')", name="check_status"),
         CheckConstraint("item_type IN ('individual', 'group')", name="check_item_type"),
-        CheckConstraint("quantity >= 1", name="check_quantity"),
+        CheckConstraint("quantity >= 0", name="check_quantity"),
+        CheckConstraint("quantity_damaged >= 0", name="check_quantity_damaged"),
+        CheckConstraint("quantity_missing >= 0", name="check_quantity_missing"),
     )

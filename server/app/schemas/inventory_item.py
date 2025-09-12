@@ -36,7 +36,10 @@ class InventoryItemUpdate(BaseModel):
     image_url: Optional[str]
     notes: Optional[str]
     quantity: Optional[int]
+    quantity_damaged: Optional[int]  # Added fields for tracking damaged and missing quantities
+    quantity_missing: Optional[int]  # Added fields for tracking damaged and missing quantities
     item_type: Optional[str]
+
 class InventoryItemResponse(BaseModel):
     id: UUID
     environment_id: Optional[UUID]
@@ -54,9 +57,17 @@ class InventoryItemResponse(BaseModel):
     image_url: Optional[str]
     notes: Optional[str]
     quantity: int
+    quantity_damaged: int  # Added fields for tracking damaged and missing quantities
+    quantity_missing: int  # Added fields for tracking damaged and missing quantities
     item_type: str
     created_at: datetime
     updated_at: datetime
 
     class Config:
         from_attributes = True
+
+class InventoryItemVerificationUpdate(BaseModel):  # Added new schema for inventory verification updates
+    quantity: Optional[int]
+    quantity_damaged: Optional[int] = 0
+    quantity_missing: Optional[int] = 0
+    status: Optional[str]
