@@ -1,9 +1,10 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
-from datetime import datetime, date
+from datetime import datetime, date, time
 from uuid import UUID
 from typing import List, Optional
+import pytz # type: ignore
 
 from ..database import get_db
 from ..models.inventory_checks import InventoryCheck
@@ -18,6 +19,22 @@ from ..routers.auth import get_current_user
 from ..schemas.inventory_check import InventoryCheckCreateRequest, InventoryCheckResponse, InventoryCheckInstructorConfirmRequest
 
 router = APIRouter(tags=["inventory-checks"])
+
+COLOMBIA_TZ = pytz.timezone('America/Bogota')
+
+def get_colombia_time():
+    """Get current time in Colombian timezone"""
+    return datetime.now(COLOMBIA_TZ)
+
+def parse_time_string(time_str: str) -> time:
+    """Parse time string and return time object in Colombian timezone"""
+    try:
+        # Parse the time string (expected format: "HH:MM")
+        parsed_time = datetime.strptime(time_str, "%H:%M").time()
+        return parsed_time
+    except ValueError:
+        # Fallback to current Colombian time
+        return get_colombia_time().time()
 
 class VerificationByScheduleRequest(BaseModel):
     """Request for creating verification by schedule (for any role)"""
@@ -70,19 +87,21 @@ async def create_inventory_check(
     items_missing = sum(item.quantity_missing for item in check_items if item.status == "missing")
     total_items = len(check_items)
 
+    colombia_now = get_colombia_time()
+    
     inventory_check = InventoryCheck(
         environment_id=request.environment_id,
         student_id=request.student_id,
         schedule_id=request.schedule_id,
         check_date=date.today(),
-        check_time=datetime.utcnow().time(),
+        check_time=colombia_now.time(),
         status="student_pending",
         total_items=total_items,
         items_good=items_good,
         items_damaged=items_damaged,
         items_missing=items_missing,
         cleaning_notes=request.cleaning_notes,
-        student_confirmed_at=datetime.utcnow()
+        student_confirmed_at=colombia_now
     )
     db.add(inventory_check)
     db.commit()
@@ -127,6 +146,8 @@ async def create_verification_by_schedule(
     if not schedule:
         raise HTTPException(status_code=404, detail="Horario no encontrado")
 
+    colombia_now = get_colombia_time()
+
     # Check if verification already exists for today
     existing_check = db.query(InventoryCheck).filter(
         InventoryCheck.environment_id == request.environment_id,
@@ -138,7 +159,7 @@ async def create_verification_by_schedule(
         # Update existing verification based on user role
         if current_user.role == "student":
             if existing_check.status not in ["student_pending"]:
-                existing_check.student_confirmed_at = datetime.utcnow()
+                existing_check.student_confirmed_at = colombia_now
                 existing_check.cleaning_notes = request.cleaning_notes or existing_check.cleaning_notes
         
         elif current_user.role == "instructor":
@@ -148,7 +169,7 @@ async def create_verification_by_schedule(
                 existing_check.is_organized = request.is_organized
                 existing_check.inventory_complete = request.inventory_complete
                 existing_check.instructor_comments = request.comments
-                existing_check.instructor_confirmed_at = datetime.utcnow()
+                existing_check.instructor_confirmed_at = colombia_now
                 
                 # Update status based on verification results
                 if not request.inventory_complete or existing_check.items_damaged > 0 or existing_check.items_missing > 0:
@@ -163,11 +184,11 @@ async def create_verification_by_schedule(
                 existing_check.is_clean = request.is_clean
                 existing_check.is_organized = request.is_organized
                 existing_check.inventory_complete = request.inventory_complete
-                existing_check.instructor_confirmed_at = datetime.utcnow()
+                existing_check.instructor_confirmed_at = colombia_now
             
             existing_check.supervisor_id = current_user.id
             existing_check.supervisor_comments = request.comments
-            existing_check.supervisor_confirmed_at = datetime.utcnow()
+            existing_check.supervisor_confirmed_at = colombia_now
             
             # Final status determination
             if request.inventory_complete and existing_check.items_damaged == 0 and existing_check.items_missing == 0:
@@ -212,7 +233,7 @@ async def create_verification_by_schedule(
             supervisor_id=supervisor_id,
             schedule_id=request.schedule_id,
             check_date=date.today(),
-            check_time=datetime.utcnow().time(),
+            check_time=colombia_now.time(),
             status=initial_status,
             total_items=total_items,
             items_good=items_good,
@@ -227,14 +248,14 @@ async def create_verification_by_schedule(
 
         # Set confirmation timestamps based on role
         if current_user.role == "student":
-            inventory_check.student_confirmed_at = datetime.utcnow()
+            inventory_check.student_confirmed_at = colombia_now
         elif current_user.role == "instructor":
-            inventory_check.instructor_confirmed_at = datetime.utcnow()
-            inventory_check.student_confirmed_at = datetime.utcnow()  # Assume student step completed
+            inventory_check.instructor_confirmed_at = colombia_now
+            inventory_check.student_confirmed_at = colombia_now  # Assume student step completed
         elif current_user.role == "supervisor":
-            inventory_check.supervisor_confirmed_at = datetime.utcnow()
-            inventory_check.instructor_confirmed_at = datetime.utcnow()
-            inventory_check.student_confirmed_at = datetime.utcnow()
+            inventory_check.supervisor_confirmed_at = colombia_now
+            inventory_check.instructor_confirmed_at = colombia_now
+            inventory_check.student_confirmed_at = colombia_now
 
         db.add(inventory_check)
         db.commit()
@@ -301,11 +322,7 @@ async def confirm_inventory_check(
     if not inventory_check:
         raise HTTPException(status_code=404, detail="Verificación no encontrada")
 
-    if request.is_clean is None or request.is_organized is None or request.inventory_complete is None:
-        raise HTTPException(
-            status_code=422, 
-            detail="Todos los campos de confirmación son requeridos: is_clean, is_organized, inventory_complete"
-        )
+    colombia_now = get_colombia_time()
 
     if current_user.role == "instructor":
         if inventory_check.instructor_id is not None and inventory_check.instructor_id != current_user.id:
@@ -316,7 +333,7 @@ async def confirm_inventory_check(
         inventory_check.is_organized = request.is_organized
         inventory_check.inventory_complete = request.inventory_complete
         inventory_check.instructor_comments = request.comments
-        inventory_check.instructor_confirmed_at = datetime.utcnow()
+        inventory_check.instructor_confirmed_at = colombia_now
         
         # Update status
         if not request.inventory_complete or inventory_check.items_damaged > 0 or inventory_check.items_missing > 0:
@@ -328,14 +345,14 @@ async def confirm_inventory_check(
         # Supervisor can complete instructor step if not done
         if not inventory_check.instructor_id:
             inventory_check.instructor_id = current_user.id
-            inventory_check.instructor_confirmed_at = datetime.utcnow()
+            inventory_check.instructor_confirmed_at = colombia_now
         
         inventory_check.supervisor_id = current_user.id
         inventory_check.is_clean = request.is_clean
         inventory_check.is_organized = request.is_organized
         inventory_check.inventory_complete = request.inventory_complete
         inventory_check.supervisor_comments = request.comments
-        inventory_check.supervisor_confirmed_at = datetime.utcnow()
+        inventory_check.supervisor_confirmed_at = colombia_now
         
         # Final status
         if request.inventory_complete and inventory_check.items_damaged == 0 and inventory_check.items_missing == 0:
@@ -552,9 +569,11 @@ async def supervisor_approve_check(
     approved = approval_data.get("approved", False)
     comments = approval_data.get("comments", "")
     
+    colombia_now = get_colombia_time()
+    
     inventory_check.supervisor_id = current_user.id
     inventory_check.supervisor_comments = comments
-    inventory_check.supervisor_confirmed_at = datetime.utcnow()
+    inventory_check.supervisor_confirmed_at = colombia_now
     
     if approved:
         inventory_check.status = "complete"

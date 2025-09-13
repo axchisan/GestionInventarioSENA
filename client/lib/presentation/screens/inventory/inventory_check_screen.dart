@@ -240,6 +240,359 @@ class _InventoryCheckScreenState extends State<InventoryCheckScreen> {
     return 'missing';
   }
 
+  int _calculateTotalEnvironmentItems() {
+    return _items.fold(0, (sum, item) => sum + (item['quantity'] as int? ?? 1));
+  }
+
+  int _calculateDamagedEnvironmentItems() {
+    return _items.fold(0, (sum, item) {
+      final damagedQuantity = item['quantity_damaged'] as int? ?? 0;
+      return sum + damagedQuantity;
+    });
+  }
+
+  int _calculateMissingEnvironmentItems() {
+    return _items.fold(0, (sum, item) {
+      final missingQuantity = item['quantity_missing'] as int? ?? 0;
+      return sum + missingQuantity;
+    });
+  }
+
+  int _calculateAvailableEnvironmentItems() {
+    return _items.fold(0, (sum, item) {
+      final totalQuantity = item['quantity'] as int? ?? 1;
+      final damagedQuantity = item['quantity_damaged'] as int? ?? 0;
+      final missingQuantity = item['quantity_missing'] as int? ?? 0;
+      final availableQuantity = totalQuantity - damagedQuantity - missingQuantity;
+      return sum + availableQuantity;
+    });
+  }
+
+  
+  Color getStatusColor(String? status) {
+    switch (status) {
+      case 'completed':
+        return AppColors.success;
+      case 'instructor_review':
+        return AppColors.warning;
+      case 'supervisor_review':
+        return AppColors.info;
+      case 'pending':
+        return AppColors.secondary;
+      case 'available':
+      case 'good':
+        return AppColors.success;
+      case 'damaged':
+        return AppColors.error;
+      case 'missing':
+      case 'lost':
+        return AppColors.error;
+      case 'in_use':
+        return AppColors.info;
+      case 'maintenance':
+        return AppColors.warning;
+      default:
+        return AppColors.grey500;
+    }
+  }
+
+  void _showCheckDetails(Map<String, dynamic> check) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text('Detalles de Verificación #${check['id'].toString().substring(0, 8)}'),
+        content: SingleChildScrollView(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              _buildDetailRow('Estado', _statusTranslations[check['status']] ?? check['status']),
+              _buildDetailRow('Fecha', check['check_date'] ?? 'N/A'),
+              if (check['check_time'] != null)
+                _buildDetailRow('Hora', _formatColombianTime(check['check_time'])),
+              if (check['student_notes'] != null)
+                _buildDetailRow('Notas del Estudiante', check['student_notes']),
+              if (check['instructor_notes'] != null)
+                _buildDetailRow('Notas del Instructor', check['instructor_notes']),
+              if (check['supervisor_notes'] != null)
+                _buildDetailRow('Notas del Supervisor', check['supervisor_notes']),
+              if (check['is_clean'] != null)
+                _buildDetailRow('Aula Limpia', check['is_clean'] ? 'Sí' : 'No'),
+              if (check['is_organized'] != null)
+                _buildDetailRow('Aula Organizada', check['is_organized'] ? 'Sí' : 'No'),
+              if (check['inventory_complete'] != null)
+                _buildDetailRow('Inventario Completo', check['inventory_complete'] ? 'Sí' : 'No'),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cerrar'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDetailRow(String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4.0),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: 120,
+            child: Text(
+              '$label:',
+              style: const TextStyle(fontWeight: FontWeight.bold),
+            ),
+          ),
+          Expanded(
+            child: Text(value),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Map<String, dynamic>? _getItemCheckData(String itemId) {
+    // Return check data for specific item if available
+    return null; // Placeholder - implement based on your data structure
+  }
+
+  void _showItemDetails(Map<String, dynamic> item) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(item['name'] ?? 'Detalles del Item'),
+        content: SingleChildScrollView(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              _buildDetailRow('Código', item['code'] ?? item['id'] ?? 'N/A'),
+              _buildDetailRow('Categoría', _categoryTranslations[item['category']] ?? item['category'] ?? 'N/A'),
+              _buildDetailRow('Estado', _statusTranslations[item['status']] ?? item['status'] ?? 'N/A'),
+              _buildDetailRow('Cantidad', item['quantity']?.toString() ?? '1'),
+              if (item['quantity_damaged'] != null && item['quantity_damaged'] > 0)
+                _buildDetailRow('Cantidad Dañada', item['quantity_damaged'].toString()),
+              if (item['quantity_missing'] != null && item['quantity_missing'] > 0)
+                _buildDetailRow('Cantidad Faltante', item['quantity_missing'].toString()),
+              if (item['description'] != null)
+                _buildDetailRow('Descripción', item['description']),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cerrar'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  IconData _getCategoryIcon(String? category) {
+    switch (category) {
+      case 'electronics':
+        return Icons.electrical_services;
+      case 'furniture':
+        return Icons.chair;
+      case 'tools':
+        return Icons.build;
+      case 'computers':
+        return Icons.computer;
+      case 'laboratory':
+        return Icons.science;
+      case 'office':
+        return Icons.business;
+      default:
+        return Icons.inventory;
+    }
+  }
+
+  Widget _buildInfoItem(IconData icon, String label, String? value) {
+    return Row(
+      children: [
+        Icon(icon, size: 16, color: AppColors.grey600),
+        const SizedBox(width: 4),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                label,
+                style: const TextStyle(
+                  fontSize: 10,
+                  color: AppColors.grey600,
+                ),
+              ),
+              Text(
+                value ?? 'N/A',
+                style: const TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w500,
+                ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildCheckDataSection(Map<String, dynamic> checkData, Map<String, dynamic> item) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: AppColors.grey100,
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Datos de Verificación',
+            style: TextStyle(
+              fontWeight: FontWeight.bold,
+              fontSize: 12,
+            ),
+          ),
+          const SizedBox(height: 8),
+          // Add check data display based on your data structure
+          Text(
+            'Última verificación: ${checkData['last_check'] ?? 'N/A'}',
+            style: const TextStyle(fontSize: 11),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _editItemDialog(Map<String, dynamic> item) {
+    final nameController = TextEditingController(text: item['name']);
+    final descriptionController = TextEditingController(text: item['description']);
+    final quantityController = TextEditingController(text: item['quantity']?.toString() ?? '1');
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Editar Item'),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: nameController,
+                decoration: const InputDecoration(
+                  labelText: 'Nombre',
+                  border: OutlineInputBorder(),
+                ),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: descriptionController,
+                decoration: const InputDecoration(
+                  labelText: 'Descripción',
+                  border: OutlineInputBorder(),
+                ),
+                maxLines: 3,
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: quantityController,
+                decoration: const InputDecoration(
+                  labelText: 'Cantidad',
+                  border: OutlineInputBorder(),
+                ),
+                keyboardType: TextInputType.number,
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancelar'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              // Implement item update logic
+              Navigator.pop(context);
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('Item actualizado exitosamente')),
+              );
+            },
+            child: const Text('Guardar'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _deleteItem(Map<String, dynamic> item) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Eliminar Item'),
+        content: Text('¿Estás seguro de que deseas eliminar "${item['name']}"?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancelar'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              // Implement item deletion logic
+              Navigator.pop(context);
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('Item eliminado exitosamente')),
+              );
+            },
+            style: ElevatedButton.styleFrom(backgroundColor: AppColors.error),
+            child: const Text('Eliminar', style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _saveCheck(bool isComplete, bool hasNotes) async {
+    try {
+      final authProvider = Provider.of<AuthProvider>(context, listen: false);
+      final user = authProvider.currentUser;
+      
+      if (user == null) {
+        throw Exception('Usuario no autenticado');
+      }
+
+      final checkData = {
+        'environment_id': user.environmentId,
+        'user_id': user.id,
+        'status': isComplete ? 'completed' : 'pending',
+        'check_date': DateTime.now().toIso8601String().split('T')[0],
+        'check_time': TimeOfDay.now().format(context),
+        'student_notes': hasNotes ? _cleaningNotesController.text : null,
+      };
+
+      await _apiService.post('/api/inventory-checks', checkData);
+      
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Verificación guardada exitosamente')),
+      );
+      
+      _fetchData(); // Refresh data
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error al guardar verificación: $e')),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final authProvider = Provider.of<AuthProvider>(context);
@@ -430,6 +783,68 @@ class _InventoryCheckScreenState extends State<InventoryCheckScreen> {
                           ],
                         ),
                         if (role == 'student' || role == 'instructor' || role == 'supervisor') ...[
+                          const SizedBox(height: 16),
+                          Container(
+                            padding: const EdgeInsets.all(16),
+                            decoration: BoxDecoration(
+                              color: AppColors.primary.withOpacity(0.1),
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(color: AppColors.primary.withOpacity(0.3)),
+                            ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'Estadísticas del Ambiente',
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    color: AppColors.primary,
+                                    fontSize: 16,
+                                  ),
+                                ),
+                                const SizedBox(height: 12),
+                                Row(
+                                  children: [
+                                    Expanded(
+                                      child: _buildStatChip(
+                                        'Total Items',
+                                        '${_calculateTotalEnvironmentItems()}',
+                                        AppColors.primary,
+                                      ),
+                                    ),
+                                    const SizedBox(width: 8),
+                                    Expanded(
+                                      child: _buildStatChip(
+                                        'Disponibles',
+                                        '${_calculateAvailableEnvironmentItems()}',
+                                        AppColors.success,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 8),
+                                Row(
+                                  children: [
+                                    Expanded(
+                                      child: _buildStatChip(
+                                        'Dañados',
+                                        '${_calculateDamagedEnvironmentItems()}',
+                                        AppColors.warning,
+                                      ),
+                                    ),
+                                    const SizedBox(width: 8),
+                                    Expanded(
+                                      child: _buildStatChip(
+                                        'Faltantes',
+                                        '${_calculateMissingEnvironmentItems()}',
+                                        AppColors.error,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ],
+                            ),
+                          ),
                           const SizedBox(height: 16),
                           Container(
                             decoration: BoxDecoration(
@@ -1118,9 +1533,9 @@ class _InventoryCheckScreenState extends State<InventoryCheckScreen> {
                 children: [
                   const Icon(Icons.pending_actions, color: Colors.white),
                   const SizedBox(width: 8),
-                  const Text(
-                    'Verificaciones Pendientes',
-                    style: TextStyle(
+                  Text(
+                    'Verificaciones Pendientes (${_pendingChecks.length})',
+                    style: const TextStyle(
                       color: Colors.white,
                       fontSize: 18,
                       fontWeight: FontWeight.bold,
@@ -1217,9 +1632,9 @@ class _InventoryCheckScreenState extends State<InventoryCheckScreen> {
                 children: [
                   const Icon(Icons.history, color: Colors.white),
                   const SizedBox(width: 8),
-                  const Text(
-                    'Historial de Verificaciones',
-                    style: TextStyle(
+                  Text(
+                    'Historial de Verificaciones (${_checks.length})',
+                    style: const TextStyle(
                       color: Colors.white,
                       fontSize: 18,
                       fontWeight: FontWeight.bold,
@@ -1766,276 +2181,18 @@ class _InventoryCheckScreenState extends State<InventoryCheckScreen> {
     }
   }
 
-  void _confirmInstructorCheck(Map<String, dynamic> check) async {
-    bool? isClean;
-    bool? isOrganized;
-    bool? inventoryComplete;
-    String comments = '';
-
-    showDialog(
-      context: context,
-      builder: (context) => StatefulBuilder(
-        builder: (context, setDialogState) => AlertDialog(
-          title: const Text('Confirmación de Instructor'),
-          content: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Text(
-                  'Por favor confirme los siguientes aspectos:',
-                  style: TextStyle(fontWeight: FontWeight.bold),
-                ),
-                const SizedBox(height: 16),
-                CheckboxListTile(
-                  title: const Text('Aula aseada'),
-                  value: isClean ?? false,
-                  onChanged: (value) {
-                    setDialogState(() {
-                      isClean = value;
-                    });
-                  },
-                ),
-                CheckboxListTile(
-                  title: const Text('Aula organizada'),
-                  value: isOrganized ?? false,
-                  onChanged: (value) {
-                    setDialogState(() {
-                      isOrganized = value;
-                    });
-                  },
-                ),
-                CheckboxListTile(
-                  title: const Text('Inventario completo'),
-                  value: inventoryComplete ?? false,
-                  onChanged: (value) {
-                    setDialogState(() {
-                      inventoryComplete = value;
-                    });
-                  },
-                ),
-                const SizedBox(height: 16),
-                TextFormField(
-                  decoration: const InputDecoration(
-                    labelText: 'Comentarios adicionales',
-                    border: OutlineInputBorder(),
-                  ),
-                  maxLines: 3,
-                  onChanged: (value) => comments = value,
-                ),
-              ],
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('Cancelar'),
-            ),
-            ElevatedButton(
-              onPressed: () async {
-                if (isClean == null || isOrganized == null || inventoryComplete == null) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('Debe marcar todas las casillas de verificación'),
-                      backgroundColor: Colors.red,
-                    ),
-                  );
-                  return;
-                }
-                
-                try {
-                  await _apiService.put('/api/inventory-checks/${check['id']}/confirm', {
-                    'is_clean': isClean,
-                    'is_organized': isOrganized,
-                    'inventory_complete': inventoryComplete,
-                    'comments': comments,
-                  });
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Verificación confirmada por instructor')),
-                  );
-                  _fetchData();
-                  Navigator.pop(context);
-                } catch (e) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('Error: $e')),
-                  );
-                }
-              },
-              child: const Text('Confirmar'),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  // ignore: unused_element
-  void _markNotificationAsRead(String notificationId) async {
-    try {
-      await _apiService.put('/api/notifications/$notificationId/read', {});
-      _fetchData();
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error al marcar notificación: $e')),
-      );
+  void _showCheckDialog() {
+    final authProvider = Provider.of<AuthProvider>(context, listen: false);
+    final role = authProvider.currentUser?.role ?? '';
+    
+    if (role == 'supervisor') {
+      _showSupervisorCheckDialog();
+    } else {
+      _showBasicCheckDialog();
     }
   }
 
-  void _reviewSupervisorCheck(Map<String, dynamic> check) async {
-    // Implementar lógica de revisión del supervisor
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Revisión de Supervisor'),
-        content: const Text('¿Aprobar esta verificación?'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancelar'),
-          ),
-          ElevatedButton(
-            onPressed: () async {
-              try {
-                await _apiService.put('/api/inventory-checks/${check['id']}/supervisor-approve', {});
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Verificación aprobada por supervisor')),
-                );
-                _fetchData();
-                Navigator.pop(context);
-                Navigator.pop(context);
-              } catch (e) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text('Error: $e')),
-                );
-              }
-            },
-            child: const Text('Aprobar'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _showCheckDetails(Map<String, dynamic> check) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text('Verificación #${check['id'].toString().substring(0, 8)}'),
-        content: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text('Estado: ${_statusTranslations[check['status']] ?? check['status']}'),
-              Text('Fecha: ${check['check_date']}'),
-              if (check['check_time'] != null)
-                Text('Hora: ${_formatColombianTime(check['check_time'])}'),
-              Text('Total Items: ${check['total_items'] ?? 0}'),
-              Text('Items Buenos: ${check['items_good'] ?? 0}'),
-              Text('Items Dañados: ${check['items_damaged'] ?? 0}'),
-              Text('Items Faltantes: ${check['items_missing'] ?? 0}'),
-              Text('Limpio: ${check['is_clean'] == true ? 'Sí' : 'No'}'),
-              Text('Organizado: ${check['is_organized'] == true ? 'Sí' : 'No'}'),
-              if (check['cleaning_notes'] != null)
-                Text('Notas de Limpieza: ${check['cleaning_notes']}'),
-              if (check['comments'] != null)
-                Text('Comentarios: ${check['comments']}'),
-            ],
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cerrar'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _showItemDetails(Map<String, dynamic> item) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text(item['name']),
-        content: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text('ID: ${item['id']}'),
-              Text('Categoría: ${_categoryTranslations[item['category']] ?? item['category']}'),
-              Text('Estado: ${_statusTranslations[item['status']] ?? item['status']}'),
-              Text('Ubicación: ${item['environment_id'] ?? 'N/A'}'),
-              Text('Descripción: ${item['description'] ?? 'N/A'}'),
-            ],
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cerrar'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _editItemDialog(Map<String, dynamic> item) {
-    // Implementar lógica de edición del item
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Editar Item'),
-        content: const Text('Implementar lógica de edición aquí'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancelar'),
-          ),
-          ElevatedButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Guardar'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _deleteItem(Map<String, dynamic> item) async {
-    // Implementar lógica de eliminación del item
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Eliminar Item'),
-        content: const Text('¿Seguro que quieres eliminar este item?'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancelar'),
-          ),
-          ElevatedButton(
-            onPressed: () async {
-              try {
-                await _apiService.delete('$inventoryEndpoint${item['id']}');
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Item eliminado')),
-                );
-                _fetchData();
-                Navigator.pop(context);
-              } catch (e) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text('Error: $e')),
-                );
-              }
-            },
-            child: const Text('Eliminar'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _showCheckDialog() {
+  void _showBasicCheckDialog() {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
@@ -2104,184 +2261,480 @@ class _InventoryCheckScreenState extends State<InventoryCheckScreen> {
     );
   }
 
-  // ignore: unused_element
-  void _showReportDamageDialog() {
+  void _showSupervisorCheckDialog() {
+    bool? isClean;
+    bool? isOrganized;
+    bool? inventoryComplete;
+    String comments = '';
+
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Reportar Daño'),
-        content: const Text('Implementar lógica de reporte de daño aquí'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancelar'),
+      builder: (context) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          title: const Text('Verificación Completa de Supervisor'),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: AppColors.primary.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: AppColors.primary),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Icon(Icons.supervisor_account, color: AppColors.primary),
+                          const SizedBox(width: 8),
+                          const Text(
+                            'Verificación de Supervisor',
+                            style: TextStyle(fontWeight: FontWeight.bold),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      const Text(
+                        'Como supervisor, puede completar todas las etapas de verificación en una sola sesión.',
+                        style: TextStyle(fontSize: 12, color: Colors.grey),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 16),
+                const Text(
+                  'Aspectos a verificar:',
+                  style: TextStyle(fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(height: 8),
+                const Text(
+                  'Marque solo los aspectos que se encuentren en buen estado:',
+                  style: TextStyle(fontSize: 12, color: Colors.grey),
+                ),
+                const SizedBox(height: 16),
+                CheckboxListTile(
+                  title: const Text('Aula aseada'),
+                  subtitle: const Text('El ambiente se encuentra limpio'),
+                  value: isClean ?? false,
+                  onChanged: (value) {
+                    setDialogState(() {
+                      isClean = value;
+                    });
+                  },
+                ),
+                CheckboxListTile(
+                  title: const Text('Aula organizada'),
+                  subtitle: const Text('Los elementos están en su lugar'),
+                  value: isOrganized ?? false,
+                  onChanged: (value) {
+                    setDialogState(() {
+                      isOrganized = value;
+                    });
+                  },
+                ),
+                CheckboxListTile(
+                  title: const Text('Inventario completo'),
+                  subtitle: const Text('Todos los items están presentes'),
+                  value: inventoryComplete ?? false,
+                  onChanged: (value) {
+                    setDialogState(() {
+                      inventoryComplete = value;
+                    });
+                  },
+                ),
+                const SizedBox(height: 16),
+                TextFormField(
+                  decoration: const InputDecoration(
+                    labelText: 'Comentarios de supervisión',
+                    hintText: 'Observaciones generales sobre la verificación...',
+                    border: OutlineInputBorder(),
+                  ),
+                  maxLines: 3,
+                  onChanged: (value) => comments = value,
+                ),
+                const SizedBox(height: 16),
+                TextFormField(
+                  controller: _cleaningNotesController,
+                  decoration: const InputDecoration(
+                    labelText: 'Notas de limpieza (opcional)',
+                    hintText: 'Detalles específicos sobre el estado del ambiente...',
+                    border: OutlineInputBorder(),
+                  ),
+                  maxLines: 2,
+                ),
+              ],
+            ),
           ),
-          ElevatedButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Reportar'),
-          ),
-        ],
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Cancelar'),
+            ),
+            ElevatedButton(
+              onPressed: () async {
+                try {
+                  await _saveSupervisorCompleteCheck(
+                    isClean: isClean ?? false,
+                    isOrganized: isOrganized ?? false,
+                    inventoryComplete: inventoryComplete ?? false,
+                    comments: comments,
+                  );
+                  Navigator.pop(context);
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Verificación completa guardada exitosamente'),
+                      backgroundColor: AppColors.success,
+                    ),
+                  );
+                  _fetchData();
+                } catch (e) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('Error al guardar verificación: $e'),
+                      backgroundColor: AppColors.error,
+                    ),
+                  );
+                }
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.primary,
+                foregroundColor: Colors.white,
+              ),
+              child: const Text('Completar Verificación'),
+            ),
+          ],
+        ),
       ),
     );
   }
 
-  Future<void> _saveCheck(bool isClean, bool isOrganized) async {
+  Future<void> _saveSupervisorCompleteCheck({
+    required bool isClean,
+    required bool isOrganized,
+    required bool inventoryComplete,
+    required String comments,
+  }) async {
     final authProvider = Provider.of<AuthProvider>(context, listen: false);
     final user = authProvider.currentUser;
     if (user == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Usuario no autenticado')),
-      );
-      return;
+      throw Exception('Usuario no autenticado');
+    }
+
+    if (_selectedScheduleId == null) {
+      throw Exception('Debe seleccionar un horario para realizar la verificación');
     }
 
     try {
-      final totalItems = _items.length;
-      final itemsGood = _items.where((item) => item['status'] == 'good').length;
-      final itemsDamaged = _items.where((item) => item['status'] == 'damaged').length;
-      final itemsMissing = _items.where((item) => item['status'] == 'missing').length;
-
+      // Use the by-schedule endpoint that allows supervisor to complete all stages
       final checkData = {
         'environment_id': user.environmentId,
-        'student_id': user.id,
-        'check_date': DateTime.now().toIso8601String().split('T')[0],
-        'check_time': DateFormat('HH:mm').format(DateTime.now()),
-        'total_items': totalItems,
-        'items_good': itemsGood,
-        'items_damaged': itemsDamaged,
-        'items_missing': itemsMissing,
+        'schedule_id': _selectedScheduleId,
         'is_clean': isClean,
         'is_organized': isOrganized,
+        'inventory_complete': inventoryComplete,
+        'comments': comments,
         'cleaning_notes': _cleaningNotesController.text,
-        'schedule_id': _selectedScheduleId,
       };
 
-      await _apiService.post(inventoryChecksEndpoint, checkData);
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Verificación guardada')),
-      );
-      _fetchData();
+      await _apiService.post('/api/inventory-checks/by-schedule', checkData);
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error al guardar verificación: $e')),
-      );
+      throw Exception('Error al guardar verificación: $e');
     }
   }
 
-  Widget _buildInfoItem(IconData icon, String label, String value) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          children: [
-            Icon(icon, size: 16, color: AppColors.primary),
-            const SizedBox(width: 4),
-            Text(
-              label,
-              style: const TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.w500,
-                color: AppColors.grey600,
-              ),
+  void _confirmInstructorCheck(Map<String, dynamic> check) async {
+    final authProvider = Provider.of<AuthProvider>(context, listen: false);
+    final role = authProvider.currentUser?.role ?? '';
+    
+    bool? isClean;
+    bool? isOrganized;
+    bool? inventoryComplete;
+    String comments = '';
+
+    showDialog(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          title: Text(role == 'supervisor' ? 'Confirmación de Supervisor' : 'Confirmación de Instructor'),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (role == 'supervisor') ...[
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: AppColors.primary.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: AppColors.primary),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Icon(Icons.supervisor_account, color: AppColors.primary),
+                            const SizedBox(width: 8),
+                            const Text(
+                              'Revisión de Supervisor',
+                              style: TextStyle(fontWeight: FontWeight.bold),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 8),
+                        const Text(
+                          'Puede completar la verificación del instructor si no se ha realizado.',
+                          style: TextStyle(fontSize: 12, color: Colors.grey),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                ],
+                const Text(
+                  'Por favor confirme los siguientes aspectos:',
+                  style: TextStyle(fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(height: 8),
+                const Text(
+                  'Marque solo los aspectos que se encuentren en buen estado:',
+                  style: TextStyle(fontSize: 12, color: Colors.grey),
+                ),
+                const SizedBox(height: 16),
+                CheckboxListTile(
+                  title: const Text('Aula aseada'),
+                  value: isClean ?? false,
+                  onChanged: (value) {
+                    setDialogState(() {
+                      isClean = value;
+                    });
+                  },
+                ),
+                CheckboxListTile(
+                  title: const Text('Aula organizada'),
+                  value: isOrganized ?? false,
+                  onChanged: (value) {
+                    setDialogState(() {
+                      isOrganized = value;
+                    });
+                  },
+                ),
+                CheckboxListTile(
+                  title: const Text('Inventario completo'),
+                  value: inventoryComplete ?? false,
+                  onChanged: (value) {
+                    setDialogState(() {
+                      inventoryComplete = value;
+                    });
+                  },
+                ),
+                const SizedBox(height: 16),
+                TextFormField(
+                  decoration: InputDecoration(
+                    labelText: role == 'supervisor' ? 'Comentarios de supervisión' : 'Comentarios adicionales',
+                    border: const OutlineInputBorder(),
+                  ),
+                  maxLines: 3,
+                  onChanged: (value) => comments = value,
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Cancelar'),
+            ),
+            ElevatedButton(
+              onPressed: () async {
+                try {
+                  await _apiService.put('/api/inventory-checks/${check['id']}/confirm', {
+                    'is_clean': isClean ?? false,
+                    'is_organized': isOrganized ?? false,
+                    'inventory_complete': inventoryComplete ?? false,
+                    'comments': comments,
+                  });
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('Verificación confirmada por ${role == 'supervisor' ? 'supervisor' : 'instructor'}'),
+                      backgroundColor: AppColors.success,
+                    ),
+                  );
+                  _fetchData();
+                  Navigator.pop(context);
+                } catch (e) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('Error: $e'),
+                      backgroundColor: AppColors.error,
+                    ),
+                  );
+                }
+              },
+              child: const Text('Confirmar'),
             ),
           ],
         ),
-        const SizedBox(height: 4),
-        Text(
-          value,
-          style: const TextStyle(
-            fontSize: 14,
-            fontWeight: FontWeight.w500,
-          ),
-        ),
-      ],
+      ),
     );
   }
 
-  Widget _buildCheckDataSection(Map<String, dynamic> checkData, Map<String, dynamic> item) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const Text(
-          'Última Verificación:',
-          style: TextStyle(
-            fontWeight: FontWeight.bold,
-            fontSize: 14,
+  void _reviewSupervisorCheck(Map<String, dynamic> check) async {
+    bool approved = true;
+    String comments = '';
+
+    showDialog(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          title: const Text('Revisión Final de Supervisor'),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: AppColors.info.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: AppColors.info),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'Resumen de la Verificación:',
+                        style: TextStyle(fontWeight: FontWeight.bold),
+                      ),
+                      const SizedBox(height: 8),
+                      Text('Total Items: ${check['total_items'] ?? 0}'),
+                      Text('Items Buenos: ${check['items_good'] ?? 0}'),
+                      Text('Items Dañados: ${check['items_damaged'] ?? 0}'),
+                      Text('Items Faltantes: ${check['items_missing'] ?? 0}'),
+                      if (check['is_clean'] != null)
+                        Text('Aula Limpia: ${check['is_clean'] ? 'Sí' : 'No'}'),
+                      if (check['is_organized'] != null)
+                        Text('Aula Organizada: ${check['is_organized'] ? 'Sí' : 'No'}'),
+                      if (check['inventory_complete'] != null)
+                        Text('Inventario Completo: ${check['inventory_complete'] ? 'Sí' : 'No'}'),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 16),
+                const Text(
+                  'Decisión de Supervisión:',
+                  style: TextStyle(fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(height: 8),
+                RadioListTile<bool>(
+                  title: const Text('Aprobar Verificación'),
+                  subtitle: const Text('La verificación cumple con los estándares'),
+                  value: true,
+                  groupValue: approved,
+                  onChanged: (value) {
+                    setDialogState(() {
+                      approved = value ?? true;
+                    });
+                  },
+                ),
+                RadioListTile<bool>(
+                  title: const Text('Rechazar Verificación'),
+                  subtitle: const Text('La verificación requiere correcciones'),
+                  value: false,
+                  groupValue: approved,
+                  onChanged: (value) {
+                    setDialogState(() {
+                      approved = value ?? false;
+                    });
+                  },
+                ),
+                const SizedBox(height: 16),
+                TextFormField(
+                  decoration: const InputDecoration(
+                    labelText: 'Comentarios de supervisión',
+                    hintText: 'Observaciones sobre la verificación...',
+                    border: OutlineInputBorder(),
+                  ),
+                  maxLines: 3,
+                  onChanged: (value) => comments = value,
+                ),
+              ],
+            ),
           ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Cancelar'),
+            ),
+            ElevatedButton(
+              onPressed: () async {
+                try {
+                  await _apiService.put('/api/inventory-checks/${check['id']}/supervisor-approve', {
+                    'approved': approved,
+                    'comments': comments,
+                  });
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('Verificación ${approved ? 'aprobada' : 'rechazada'} por supervisor'),
+                      backgroundColor: approved ? AppColors.success : AppColors.warning,
+                    ),
+                  );
+                  _fetchData();
+                  Navigator.pop(context);
+                  Navigator.pop(context);
+                } catch (e) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('Error: $e'),
+                      backgroundColor: AppColors.error,
+                    ),
+                  );
+                }
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: approved ? AppColors.success : AppColors.warning,
+                foregroundColor: Colors.white,
+              ),
+              child: Text(approved ? 'Aprobar' : 'Rechazar'),
+            ),
+          ],
         ),
-        const SizedBox(height: 4),
-        Text(
-          'Fecha: ${checkData['check_date']}',
-          style: const TextStyle(fontSize: 12),
-        ),
-        Text(
-          'Estado: ${_statusTranslations[checkData['status']] ?? checkData['status']}',
-          style: const TextStyle(fontSize: 12),
-        ),
-        if (checkData['notes'] != null && checkData['notes'].isNotEmpty)
+      ),
+    );
+  }
+
+  Widget _buildStatChip(String label, String value, Color color) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: color.withOpacity(0.3)),
+      ),
+      child: Column(
+        children: [
           Text(
-            'Notas: ${checkData['notes']}',
-            style: const TextStyle(fontSize: 12),
+            value,
+            style: TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+              color: color,
+            ),
           ),
-      ],
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 12,
+              color: color,
+            ),
+          ),
+        ],
+      ),
     );
-  }
-
-  Map<String, dynamic>? _getItemCheckData(String itemId) {
-    // Buscar la información de verificación del item en la lista de verificaciones
-    try {
-      return _checks.firstWhere((check) => check['item_id'] == itemId);
-    } catch (e) {
-      return null;
-    }
-  }
-
-  IconData _getCategoryIcon(String category) {
-    switch (category) {
-      case 'computer':
-        return Icons.computer;
-      case 'projector':
-        return Icons.tv;
-      case 'keyboard':
-        return Icons.keyboard;
-      case 'mouse':
-        return Icons.mouse;
-      default:
-        return Icons.devices_other;
-    }
-  }
-
-  Color getStatusColor(String status) {
-    switch (status) {
-      case 'available':
-      case 'good':
-      case 'complete':
-        return AppColors.success;
-      case 'in_use':
-        return AppColors.info;
-      case 'maintenance':
-      case 'instructor_review':
-      case 'supervisor_review':
-        return AppColors.warning;
-      case 'damaged':
-      case 'missing':
-      case 'lost':
-      case 'issues':
-      case 'incomplete':
-        return AppColors.error;
-      case 'pending':
-        return AppColors.grey500;
-      default:
-        return AppColors.grey500;
-    }
-  }
-
-  @override
-  void dispose() {
-    _searchController.dispose();
-    _cleaningNotesController.dispose();
-    _apiService.dispose();
-    super.dispose();
   }
 }

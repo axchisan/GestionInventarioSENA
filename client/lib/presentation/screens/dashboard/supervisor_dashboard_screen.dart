@@ -21,6 +21,7 @@ class _SupervisorDashboardScreenState extends State<SupervisorDashboardScreen> {
   Map<String, dynamic>? _environment;
   Map<String, dynamic>? _inventoryStats;
   List<Map<String, dynamic>> _recentNotifications = [];
+  List<Map<String, dynamic>> _maintenanceRequests = [];
   int _unreadNotificationsCount = 0;
   bool _isLoading = true;
 
@@ -37,87 +38,136 @@ class _SupervisorDashboardScreenState extends State<SupervisorDashboardScreen> {
     final user = authProvider.currentUser;
     try {
       if (user?.environmentId != null) {
+        // Fetch environment info
         final environment = await _apiService.getSingle(
           '$environmentsEndpoint${user!.environmentId}',
         );
+        
+        // Fetch inventory items for detailed statistics
         final items = await _apiService.get(
           inventoryEndpoint,
           queryParams: {'environment_id': user.environmentId.toString()},
         );
         
+        // Calculate detailed inventory statistics
+        int totalItems = items.length;
         int totalQuantity = 0;
         int availableQuantity = 0;
         int damagedQuantity = 0;
         int missingQuantity = 0;
+        int inUseQuantity = 0;
+        int maintenanceQuantity = 0;
+        
+        // Count by status
+        int availableItems = 0;
+        int inUseItems = 0;
+        int maintenanceItems = 0;
+        int damagedItems = 0;
+        int missingItems = 0;
         
         for (var item in items) {
-          totalQuantity += (item['quantity'] as int? ?? 0);
-          availableQuantity += (item['quantity'] as int? ?? 0) - 
-                              (item['quantity_damaged'] as int? ?? 0) - 
-                              (item['quantity_missing'] as int? ?? 0);
-          damagedQuantity += (item['quantity_damaged'] as int? ?? 0);
-          missingQuantity += (item['quantity_missing'] as int? ?? 0);
+          final quantity = (item['quantity'] as int? ?? 1);
+          final quantityDamaged = (item['quantity_damaged'] as int? ?? 0);
+          final quantityMissing = (item['quantity_missing'] as int? ?? 0);
+          final status = item['status'] as String? ?? 'available';
+          
+          totalQuantity += quantity;
+          damagedQuantity += quantityDamaged;
+          missingQuantity += quantityMissing;
+          
+          // Calculate available quantity (total - damaged - missing)
+          final itemAvailableQuantity = quantity - quantityDamaged - quantityMissing;
+          availableQuantity += itemAvailableQuantity;
+          
+          // Count by status
+          switch (status) {
+            case 'available':
+            case 'good':
+              availableItems++;
+              break;
+            case 'in_use':
+              inUseItems++;
+              inUseQuantity += quantity;
+              break;
+            case 'maintenance':
+              maintenanceItems++;
+              maintenanceQuantity += quantity;
+              break;
+            case 'damaged':
+              damagedItems++;
+              break;
+            case 'missing':
+            case 'lost':
+              missingItems++;
+              break;
+          }
         }
+        
+        // Fetch maintenance requests
+        final maintenanceRequests = await _apiService.get(
+          '/api/maintenance-requests',
+          queryParams: {'environment_id': user.environmentId.toString()},
+        );
         
         setState(() {
           _environment = environment;
           _inventoryStats = {
-            'total': items.length,
+            'total_items': totalItems,
             'total_quantity': totalQuantity,
             'available_quantity': availableQuantity,
             'damaged_quantity': damagedQuantity,
             'missing_quantity': missingQuantity,
-            'available': items.where((item) => item['status'] == 'available').length,
-            'in_use': items.where((item) => item['status'] == 'in_use').length,
-            'maintenance': items.where((item) => item['status'] == 'maintenance').length,
+            'in_use_quantity': inUseQuantity,
+            'maintenance_quantity': maintenanceQuantity,
+            'available_items': availableItems,
+            'in_use_items': inUseItems,
+            'maintenance_items': maintenanceItems,
+            'damaged_items': damagedItems,
+            'missing_items': missingItems,
           };
+          _maintenanceRequests = List<Map<String, dynamic>>.from(maintenanceRequests);
         });
       } else {
-        // Para supervisor sin ambiente específico, fetch general o de todos ambientes
+        // Para supervisor sin ambiente específico, fetch general stats
         final items = await _apiService.get(inventoryEndpoint);
         
+        int totalItems = items.length;
         int totalQuantity = 0;
         int availableQuantity = 0;
         int damagedQuantity = 0;
         int missingQuantity = 0;
         
         for (var item in items) {
-          totalQuantity += (item['quantity'] as int? ?? 0);
-          availableQuantity += (item['quantity'] as int? ?? 0) - 
-                              (item['quantity_damaged'] as int? ?? 0) - 
-                              (item['quantity_missing'] as int? ?? 0);
-          damagedQuantity += (item['quantity_damaged'] as int? ?? 0);
-          missingQuantity += (item['quantity_missing'] as int? ?? 0);
+          final quantity = (item['quantity'] as int? ?? 1);
+          final quantityDamaged = (item['quantity_damaged'] as int? ?? 0);
+          final quantityMissing = (item['quantity_missing'] as int? ?? 0);
+          
+          totalQuantity += quantity;
+          damagedQuantity += quantityDamaged;
+          missingQuantity += quantityMissing;
+          availableQuantity += (quantity - quantityDamaged - quantityMissing);
         }
+        
+        final maintenanceRequests = await _apiService.get('/api/maintenance-requests');
         
         setState(() {
           _inventoryStats = {
-            'total': items.length,
+            'total_items': totalItems,
             'total_quantity': totalQuantity,
             'available_quantity': availableQuantity,
             'damaged_quantity': damagedQuantity,
             'missing_quantity': missingQuantity,
-            'available': items.where((item) => item['status'] == 'available').length,
-            'in_use': items.where((item) => item['status'] == 'in_use').length,
-            'maintenance': items.where((item) => item['status'] == 'maintenance').length,
+            'available_items': items.where((item) => item['status'] == 'available').length,
+            'in_use_items': items.where((item) => item['status'] == 'in_use').length,
+            'maintenance_items': items.where((item) => item['status'] == 'maintenance').length,
+            'damaged_items': items.where((item) => item['status'] == 'damaged').length,
+            'missing_items': items.where((item) => ['missing', 'lost'].contains(item['status'])).length,
           };
+          _maintenanceRequests = List<Map<String, dynamic>>.from(maintenanceRequests);
         });
       }
       
-      final maintenanceRequests = await _apiService.get(
-        '/api/maintenance-requests',
-        queryParams: user?.environmentId != null 
-            ? {'environment_id': user!.environmentId.toString()} 
-            : {},
-      );
-      
-      final pendingVerifications = await _apiService.get(
-        '/api/inventory-checks/pending',
-        queryParams: user?.environmentId != null 
-            ? {'environment_id': user!.environmentId.toString()} 
-            : {},
-      );
-      
+      // Fetch notifications
       final notifications = await NotificationService.getNotifications();
       final unreadCount = await NotificationService.getUnreadCount();
       
@@ -208,8 +258,8 @@ class _SupervisorDashboardScreenState extends State<SupervisorDashboardScreen> {
                                   const SizedBox(height: 4),
                                   Text(
                                     _environment != null
-                                        ? 'Ambiente Vinculado: ${_environment!['name']}'
-                                        : 'Vincula un ambiente o supervisa general',
+                                        ? 'Ambiente: ${_environment!['name']}'
+                                        : 'Supervisión General',
                                     style: const TextStyle(
                                       color: AppColors.grey600,
                                       fontSize: 14,
@@ -224,7 +274,7 @@ class _SupervisorDashboardScreenState extends State<SupervisorDashboardScreen> {
                     ),
                     const SizedBox(height: 24),
                     const Text(
-                      'Resumen de Supervisión',
+                      'Estadísticas de Inventario',
                       style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                     ),
                     const SizedBox(height: 12),
@@ -234,7 +284,7 @@ class _SupervisorDashboardScreenState extends State<SupervisorDashboardScreen> {
                           Expanded(
                             child: _buildStatCard(
                               'Items Totales',
-                              _inventoryStats!['total'].toString(),
+                              _inventoryStats!['total_items'].toString(),
                               Icons.inventory,
                               AppColors.accent,
                             ),
@@ -256,7 +306,7 @@ class _SupervisorDashboardScreenState extends State<SupervisorDashboardScreen> {
                           Expanded(
                             child: _buildStatCard(
                               'Disponibles',
-                              _inventoryStats!['available_quantity'].toString(),
+                              '${_inventoryStats!['available_quantity']}',
                               Icons.check_circle,
                               AppColors.success,
                             ),
@@ -264,10 +314,10 @@ class _SupervisorDashboardScreenState extends State<SupervisorDashboardScreen> {
                           const SizedBox(width: 12),
                           Expanded(
                             child: _buildStatCard(
-                              'Dañados',
-                              _inventoryStats!['damaged_quantity'].toString(),
-                              Icons.broken_image,
-                              AppColors.warning,
+                              'En Uso',
+                              '${_inventoryStats!['in_use_quantity'] ?? _inventoryStats!['in_use_items']}',
+                              Icons.work,
+                              AppColors.info,
                             ),
                           ),
                         ],
@@ -277,26 +327,73 @@ class _SupervisorDashboardScreenState extends State<SupervisorDashboardScreen> {
                         children: [
                           Expanded(
                             child: _buildStatCard(
-                              'Faltantes',
-                              _inventoryStats!['missing_quantity'].toString(),
-                              Icons.error_outline,
-                              AppColors.error,
+                              'Dañados',
+                              '${_inventoryStats!['damaged_quantity']}',
+                              Icons.broken_image,
+                              AppColors.warning,
                             ),
                           ),
                           const SizedBox(width: 12),
                           Expanded(
                             child: _buildStatCard(
-                              'Notificaciones',
-                              _unreadNotificationsCount.toString(),
-                              Icons.notifications_active,
-                              AppColors.info,
+                              'Faltantes',
+                              '${_inventoryStats!['missing_quantity']}',
+                              Icons.error_outline,
+                              AppColors.error,
                             ),
                           ),
                         ],
                       ),
+                      const SizedBox(height: 12),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: _buildStatCard(
+                              'Mantenimiento',
+                              '${_inventoryStats!['maintenance_quantity'] ?? _inventoryStats!['maintenance_items']}',
+                              Icons.build,
+                              AppColors.secondary,
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: _buildStatCard(
+                              'Solicitudes',
+                              _maintenanceRequests.where((req) => req['status'] == 'pending').length.toString(),
+                              Icons.notifications_active,
+                              AppColors.warning,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 24),
+                      Card(
+                        child: Padding(
+                          padding: const EdgeInsets.all(16.0),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text(
+                                'Desglose Detallado',
+                                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                              ),
+                              const SizedBox(height: 12),
+                              _buildDetailRow('Items Únicos', _inventoryStats!['total_items'].toString()),
+                              _buildDetailRow('Cantidad Total de Unidades', _inventoryStats!['total_quantity'].toString()),
+                              const Divider(),
+                              _buildDetailRow('Unidades Disponibles', _inventoryStats!['available_quantity'].toString(), AppColors.success),
+                              _buildDetailRow('Unidades Dañadas', _inventoryStats!['damaged_quantity'].toString(), AppColors.warning),
+                              _buildDetailRow('Unidades Faltantes', _inventoryStats!['missing_quantity'].toString(), AppColors.error),
+                              const Divider(),
+                              _buildDetailRow('Items en Mantenimiento', _inventoryStats!['maintenance_items'].toString()),
+                              _buildDetailRow('Items en Uso', _inventoryStats!['in_use_items'].toString()),
+                            ],
+                          ),
+                        ),
+                      ),
                     ] else ...[
                       const Text(
-                        'No hay data disponible; vincula un ambiente',
+                        'No hay datos disponibles; vincula un ambiente',
                         style: TextStyle(color: AppColors.grey600),
                       ),
                     ],
@@ -475,6 +572,29 @@ class _SupervisorDashboardScreenState extends State<SupervisorDashboardScreen> {
     );
   }
 
+  Widget _buildDetailRow(String label, String value, [Color? valueColor]) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4.0),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(
+            label,
+            style: const TextStyle(fontSize: 14),
+          ),
+          Text(
+            value,
+            style: TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.bold,
+              color: valueColor ?? AppColors.grey800,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildNotificationActionCard(BuildContext context) {
     return Card(
       child: InkWell(
@@ -550,6 +670,7 @@ class _SupervisorDashboardScreenState extends State<SupervisorDashboardScreen> {
       case 'verification_update':
         return AppColors.accent;
       case 'maintenance_update':
+      case 'maintenance_request':
         return AppColors.info;
       case 'loan_approved':
         return AppColors.success;

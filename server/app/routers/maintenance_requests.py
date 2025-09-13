@@ -5,9 +5,10 @@ from uuid import UUID
 
 from ..database import get_db
 from ..models.maintenance_requests import MaintenanceRequest
+from ..models.notifications import Notification
+from ..models.users import User
 from ..schemas.maintenance_request import MaintenanceRequestCreate, MaintenanceRequestResponse, MaintenanceRequestUpdate
 from ..routers.auth import get_current_user
-from ..models.users import User
 from ..models.inventory_items import InventoryItem
 
 router = APIRouter(tags=["maintenance-requests"])
@@ -17,16 +18,30 @@ def get_maintenance_requests(
     db: Session = Depends(get_db),
     item_id: Optional[UUID] = None,
     status: Optional[str] = None,
+    environment_id: Optional[UUID] = None,
     current_user: User = Depends(get_current_user)
 ):
-    if current_user.role not in ["admin", "supervisor"]:
+    if current_user.role in ["admin", "supervisor"]:
+        # Admin and supervisor can see all requests or filter by environment
+        query = db.query(MaintenanceRequest)
+        if environment_id:
+            query = query.filter(MaintenanceRequest.environment_id == environment_id)
+        elif current_user.environment_id:
+            # If supervisor has specific environment, filter by it
+            query = query.filter(MaintenanceRequest.environment_id == current_user.environment_id)
+    elif current_user.role in ["instructor", "student"]:
+        # Instructors and students can only see requests from their environment
+        if not current_user.environment_id:
+            raise HTTPException(status_code=403, detail="Usuario sin ambiente asignado")
+        query = db.query(MaintenanceRequest).filter(MaintenanceRequest.environment_id == current_user.environment_id)
+    else:
         raise HTTPException(status_code=403, detail="Rol no autorizado")
 
-    query = db.query(MaintenanceRequest)
     if item_id:
         query = query.filter(MaintenanceRequest.item_id == item_id)
     if status:
         query = query.filter(MaintenanceRequest.status == status)
+    
     requests = query.all()
     return requests
 
@@ -57,6 +72,33 @@ def create_maintenance_request(
     db.add(new_request)
     db.commit()
     db.refresh(new_request)
+    
+    # Find all supervisors in the same environment or general supervisors
+    supervisors_query = db.query(User).filter(User.role == "supervisor")
+    
+    # Filter by environment if the request has a specific environment
+    if request_data.environment_id:
+        supervisors_query = supervisors_query.filter(
+            (User.environment_id == request_data.environment_id) | 
+            (User.environment_id.is_(None))  # General supervisors
+        )
+    
+    supervisors = supervisors_query.all()
+    
+    # Create notification for each supervisor
+    for supervisor in supervisors:
+        notification = Notification(
+            user_id=supervisor.id,
+            type="maintenance_request",
+            title="Nueva Solicitud de Mantenimiento",
+            message=f"Se ha creado una nueva solicitud de mantenimiento: {request_data.title}. Prioridad: {request_data.priority}",
+            is_read=False,
+            priority="high" if request_data.priority == "urgent" else "medium"
+        )
+        db.add(notification)
+    
+    db.commit()
+    
     return new_request
 
 @router.put("/{request_id}", response_model=MaintenanceRequestResponse)
@@ -73,12 +115,38 @@ def update_maintenance_request(
     if not maintenance_request:
         raise HTTPException(status_code=404, detail="Solicitud no encontrada")
 
+    # Store old status for notification purposes
+    old_status = maintenance_request.status
+    
     update_dict = update_data.dict(exclude_unset=True)
     for key, value in update_dict.items():
         setattr(maintenance_request, key, value)
 
     db.commit()
     db.refresh(maintenance_request)
+    
+    new_status = maintenance_request.status
+    if old_status != new_status and maintenance_request.user_id:
+        # Notify the original requester about status change
+        status_messages = {
+            "in_progress": "Su solicitud de mantenimiento está siendo procesada",
+            "completed": "Su solicitud de mantenimiento ha sido completada",
+            "cancelled": "Su solicitud de mantenimiento ha sido cancelada",
+            "on_hold": "Su solicitud de mantenimiento está en espera"
+        }
+        
+        if new_status in status_messages:
+            notification = Notification(
+                user_id=maintenance_request.user_id,
+                type="maintenance_update",
+                title="Actualización de Solicitud de Mantenimiento",
+                message=f"{status_messages[new_status]}: {maintenance_request.title}",
+                is_read=False,
+                priority="medium"
+            )
+            db.add(notification)
+            db.commit()
+    
     return maintenance_request
 
 @router.delete("/{request_id}")
