@@ -362,6 +362,11 @@ class _EnvironmentOverviewScreenState extends State<EnvironmentOverviewScreen>
       itemBuilder: (context, index) {
         final item = _inventory[index];
         final isGroup = item['item_type'] == 'group';
+        final totalQuantity = item['quantity'] ?? 1;
+        final damagedQuantity = item['quantity_damaged'] ?? 0;
+        final missingQuantity = item['quantity_missing'] ?? 0;
+        final availableQuantity = totalQuantity - damagedQuantity - missingQuantity;
+        
         return Padding(
           padding: const EdgeInsets.only(bottom: 12),
           child: SenaCard(
@@ -401,6 +406,73 @@ class _EnvironmentOverviewScreenState extends State<EnvironmentOverviewScreen>
                     ],
                   ),
                   const SizedBox(height: 12),
+                  if (isGroup) ...[
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: Colors.grey[50],
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: Colors.grey[200]!),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'Estado de Cantidades',
+                            style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 14,
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          Row(
+                            children: [
+                              Expanded(
+                                child: _buildQuantityIndicator(
+                                  'Total',
+                                  totalQuantity.toString(),
+                                  AppColors.primary,
+                                  Icons.inventory,
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: _buildQuantityIndicator(
+                                  'Disponibles',
+                                  availableQuantity.toString(),
+                                  AppColors.success,
+                                  Icons.check_circle,
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 8),
+                          Row(
+                            children: [
+                              Expanded(
+                                child: _buildQuantityIndicator(
+                                  'Dañados',
+                                  damagedQuantity.toString(),
+                                  AppColors.warning,
+                                  Icons.broken_image,
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: _buildQuantityIndicator(
+                                  'Faltantes',
+                                  missingQuantity.toString(),
+                                  AppColors.error,
+                                  Icons.error_outline,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                  ],
                   Row(
                     children: [
                       Expanded(
@@ -478,6 +550,45 @@ class _EnvironmentOverviewScreenState extends State<EnvironmentOverviewScreen>
     );
   }
 
+  Widget _buildQuantityIndicator(String label, String value, Color color, IconData icon) {
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(6),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 16, color: color),
+          const SizedBox(width: 6),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  value,
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 16,
+                    color: color,
+                  ),
+                ),
+                Text(
+                  label,
+                  style: TextStyle(
+                    fontSize: 10,
+                    color: color,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   void _editItem(Map<String, dynamic> item) {
     context.push('/edit-inventory-item', extra: {'item': item}).then((_) => _fetchData());
   }
@@ -522,7 +633,12 @@ class _EnvironmentOverviewScreenState extends State<EnvironmentOverviewScreen>
               Text('ID: ${item['id']}'),
               Text('Categoría: ${item['category']}'),
               Text('Estado: ${item['status']}'),
-              Text('Cantidad: ${item['quantity'] ?? 1}'),
+              Text('Cantidad Total: ${item['quantity'] ?? 1}'),
+              if ((item['quantity_damaged'] ?? 0) > 0)
+                Text('Cantidad Dañada: ${item['quantity_damaged']}'),
+              if ((item['quantity_missing'] ?? 0) > 0)
+                Text('Cantidad Faltante: ${item['quantity_missing']}'),
+              Text('Cantidad Disponible: ${(item['quantity'] ?? 1) - (item['quantity_damaged'] ?? 0) - (item['quantity_missing'] ?? 0)}'),
               Text('Tipo: ${item['item_type'] == 'group' ? 'Grupo' : 'Individual'}'),
               Text('Número de Serie: ${item['serial_number'] ?? 'N/A'}'),
               Text('Marca: ${item['brand'] ?? 'N/A'}'),

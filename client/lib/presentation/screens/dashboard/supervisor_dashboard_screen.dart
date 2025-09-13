@@ -44,10 +44,29 @@ class _SupervisorDashboardScreenState extends State<SupervisorDashboardScreen> {
           inventoryEndpoint,
           queryParams: {'environment_id': user.environmentId.toString()},
         );
+        
+        int totalQuantity = 0;
+        int availableQuantity = 0;
+        int damagedQuantity = 0;
+        int missingQuantity = 0;
+        
+        for (var item in items) {
+          totalQuantity += (item['quantity'] as int? ?? 0);
+          availableQuantity += (item['quantity'] as int? ?? 0) - 
+                              (item['quantity_damaged'] as int? ?? 0) - 
+                              (item['quantity_missing'] as int? ?? 0);
+          damagedQuantity += (item['quantity_damaged'] as int? ?? 0);
+          missingQuantity += (item['quantity_missing'] as int? ?? 0);
+        }
+        
         setState(() {
           _environment = environment;
           _inventoryStats = {
             'total': items.length,
+            'total_quantity': totalQuantity,
+            'available_quantity': availableQuantity,
+            'damaged_quantity': damagedQuantity,
+            'missing_quantity': missingQuantity,
             'available': items.where((item) => item['status'] == 'available').length,
             'in_use': items.where((item) => item['status'] == 'in_use').length,
             'maintenance': items.where((item) => item['status'] == 'maintenance').length,
@@ -56,15 +75,48 @@ class _SupervisorDashboardScreenState extends State<SupervisorDashboardScreen> {
       } else {
         // Para supervisor sin ambiente específico, fetch general o de todos ambientes
         final items = await _apiService.get(inventoryEndpoint);
+        
+        int totalQuantity = 0;
+        int availableQuantity = 0;
+        int damagedQuantity = 0;
+        int missingQuantity = 0;
+        
+        for (var item in items) {
+          totalQuantity += (item['quantity'] as int? ?? 0);
+          availableQuantity += (item['quantity'] as int? ?? 0) - 
+                              (item['quantity_damaged'] as int? ?? 0) - 
+                              (item['quantity_missing'] as int? ?? 0);
+          damagedQuantity += (item['quantity_damaged'] as int? ?? 0);
+          missingQuantity += (item['quantity_missing'] as int? ?? 0);
+        }
+        
         setState(() {
           _inventoryStats = {
             'total': items.length,
+            'total_quantity': totalQuantity,
+            'available_quantity': availableQuantity,
+            'damaged_quantity': damagedQuantity,
+            'missing_quantity': missingQuantity,
             'available': items.where((item) => item['status'] == 'available').length,
             'in_use': items.where((item) => item['status'] == 'in_use').length,
             'maintenance': items.where((item) => item['status'] == 'maintenance').length,
           };
         });
       }
+      
+      final maintenanceRequests = await _apiService.get(
+        '/api/maintenance-requests',
+        queryParams: user?.environmentId != null 
+            ? {'environment_id': user!.environmentId.toString()} 
+            : {},
+      );
+      
+      final pendingVerifications = await _apiService.get(
+        '/api/inventory-checks/pending',
+        queryParams: user?.environmentId != null 
+            ? {'environment_id': user!.environmentId.toString()} 
+            : {},
+      );
       
       final notifications = await NotificationService.getNotifications();
       final unreadCount = await NotificationService.getUnreadCount();
@@ -181,7 +233,7 @@ class _SupervisorDashboardScreenState extends State<SupervisorDashboardScreen> {
                         children: [
                           Expanded(
                             child: _buildStatCard(
-                              'Equipos Totales',
+                              'Items Totales',
                               _inventoryStats!['total'].toString(),
                               Icons.inventory,
                               AppColors.accent,
@@ -190,10 +242,10 @@ class _SupervisorDashboardScreenState extends State<SupervisorDashboardScreen> {
                           const SizedBox(width: 12),
                           Expanded(
                             child: _buildStatCard(
-                              'Notificaciones',
-                              _unreadNotificationsCount.toString(),
-                              Icons.notifications_active,
-                              AppColors.warning,
+                              'Cantidad Total',
+                              _inventoryStats!['total_quantity'].toString(),
+                              Icons.numbers,
+                              AppColors.primary,
                             ),
                           ),
                         ],
@@ -204,7 +256,7 @@ class _SupervisorDashboardScreenState extends State<SupervisorDashboardScreen> {
                           Expanded(
                             child: _buildStatCard(
                               'Disponibles',
-                              _inventoryStats!['available'].toString(),
+                              _inventoryStats!['available_quantity'].toString(),
                               Icons.check_circle,
                               AppColors.success,
                             ),
@@ -212,10 +264,32 @@ class _SupervisorDashboardScreenState extends State<SupervisorDashboardScreen> {
                           const SizedBox(width: 12),
                           Expanded(
                             child: _buildStatCard(
-                              'Mantenimiento',
-                              _inventoryStats!['maintenance'].toString(),
-                              Icons.build,
+                              'Dañados',
+                              _inventoryStats!['damaged_quantity'].toString(),
+                              Icons.broken_image,
+                              AppColors.warning,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 12),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: _buildStatCard(
+                              'Faltantes',
+                              _inventoryStats!['missing_quantity'].toString(),
+                              Icons.error_outline,
                               AppColors.error,
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: _buildStatCard(
+                              'Notificaciones',
+                              _unreadNotificationsCount.toString(),
+                              Icons.notifications_active,
+                              AppColors.info,
                             ),
                           ),
                         ],
