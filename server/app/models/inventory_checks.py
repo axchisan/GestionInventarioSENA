@@ -13,6 +13,7 @@ class InventoryCheck(Base):
     environment_id = Column(UUID(as_uuid=True), ForeignKey('environments.id', ondelete='CASCADE'), nullable=False)
     student_id = Column(UUID(as_uuid=True), ForeignKey('users.id', ondelete='CASCADE'), nullable=False)
     instructor_id = Column(UUID(as_uuid=True), ForeignKey('users.id', ondelete='SET NULL'))  
+    supervisor_id = Column(UUID(as_uuid=True), ForeignKey('users.id', ondelete='SET NULL'))
     schedule_id = Column(UUID(as_uuid=True), ForeignKey('schedules.id', ondelete='SET NULL'))
     check_date = Column(Date, nullable=False)
     check_time = Column(Time, nullable=False)
@@ -26,17 +27,21 @@ class InventoryCheck(Base):
     inventory_complete = Column(Boolean)
     cleaning_notes = Column(Text)
     comments = Column(Text)
-    instructor_confirmed_at = Column(DateTime, server_default=func.now())
+    instructor_comments = Column(Text)
+    supervisor_comments = Column(Text)
+    student_confirmed_at = Column(DateTime)
+    instructor_confirmed_at = Column(DateTime)
+    supervisor_confirmed_at = Column(DateTime)
     created_at = Column(DateTime, server_default=func.now())
     updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
 
     environment = relationship("Environment", back_populates="inventory_checks")
     student = relationship("User", foreign_keys=[student_id], back_populates="inventory_checks_student")
     instructor = relationship("User", foreign_keys=[instructor_id], back_populates="inventory_checks_instructor")
+    supervisor = relationship("User", foreign_keys=[supervisor_id])
     schedule = relationship("Schedule", back_populates="inventory_checks")
     supervisor_reviews = relationship("SupervisorReview", back_populates="check")
 
-
     __table_args__ = (
-        CheckConstraint("status IN ('pending', 'complete', 'incomplete', 'issues', 'supervisor_review', 'instructor_review')", name="check_status"),
+        CheckConstraint("status IN ('student_pending', 'instructor_review', 'supervisor_review', 'complete', 'issues', 'rejected')", name="check_status"),
     )

@@ -75,9 +75,28 @@ class _InstructorDashboardState extends State<InstructorDashboard> {
         inventoryEndpoint,
         queryParams: {'environment_id': user!.environmentId.toString()},
       );
+      
+      int totalQuantity = 0;
+      int availableQuantity = 0;
+      int damagedQuantity = 0;
+      int missingQuantity = 0;
+      
+      for (var item in items) {
+        totalQuantity += (item['quantity'] as int? ?? 0);
+        availableQuantity += (item['quantity'] as int? ?? 0) - 
+                            (item['quantity_damaged'] as int? ?? 0) - 
+                            (item['quantity_missing'] as int? ?? 0);
+        damagedQuantity += (item['quantity_damaged'] as int? ?? 0);
+        missingQuantity += (item['quantity_missing'] as int? ?? 0);
+      }
+      
       setState(() {
         _inventoryStats = {
           'total': items.length,
+          'total_quantity': totalQuantity,
+          'available_quantity': availableQuantity,
+          'damaged_quantity': damagedQuantity,
+          'missing_quantity': missingQuantity,
           'available': items.where((item) => item['status'] == 'available').length,
           'in_use': items.where((item) => item['status'] == 'in_use').length,
           'maintenance': items.where((item) => item['status'] == 'maintenance').length,
@@ -204,10 +223,32 @@ class _InstructorDashboardState extends State<InstructorDashboard> {
                         children: [
                           Expanded(
                             child: _buildStatCard(
-                              'Equipos Totales',
+                              'Items Totales',
                               _inventoryStats!['total'].toString(),
                               Icons.inventory,
                               AppColors.secondary,
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: _buildStatCard(
+                              'Cantidad Total',
+                              _inventoryStats!['total_quantity'].toString(),
+                              Icons.numbers,
+                              AppColors.primary,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 12),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: _buildStatCard(
+                              'Disponibles',
+                              _inventoryStats!['available_quantity'].toString(),
+                              Icons.check_circle,
+                              AppColors.success,
                             ),
                           ),
                           const SizedBox(width: 12),
@@ -226,18 +267,18 @@ class _InstructorDashboardState extends State<InstructorDashboard> {
                         children: [
                           Expanded(
                             child: _buildStatCard(
-                              'Disponibles',
-                              _inventoryStats!['available'].toString(),
-                              Icons.check_circle,
-                              AppColors.success,
+                              'Dañados',
+                              _inventoryStats!['damaged_quantity'].toString(),
+                              Icons.broken_image,
+                              AppColors.error,
                             ),
                           ),
                           const SizedBox(width: 12),
                           Expanded(
                             child: _buildStatCard(
-                              'Mantenimiento',
-                              _inventoryStats!['maintenance'].toString(),
-                              Icons.build,
+                              'Faltantes',
+                              _inventoryStats!['missing_quantity'].toString(),
+                              Icons.error_outline,
                               AppColors.error,
                             ),
                           ),

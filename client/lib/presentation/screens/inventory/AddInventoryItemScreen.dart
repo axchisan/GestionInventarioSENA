@@ -20,6 +20,8 @@ class _AddInventoryItemScreenState extends State<AddInventoryItemScreen> {
   String _internalCode = '';
   String _category = 'other';
   int _quantity = 1;
+  int _quantityDamaged = 0;
+  int _quantityMissing = 0;
   String _itemType = 'individual';
   String _status = 'available';
   String _serialNumber = '';
@@ -62,6 +64,8 @@ class _AddInventoryItemScreenState extends State<AddInventoryItemScreen> {
             'image_url': _imageUrl.isEmpty ? null : _imageUrl,
             'notes': _notes.isEmpty ? null : _notes,
             'quantity': _quantity,
+            'quantity_damaged': _quantityDamaged,
+            'quantity_missing': _quantityMissing,
             'item_type': _itemType,
           },
         );
@@ -114,12 +118,100 @@ class _AddInventoryItemScreenState extends State<AddInventoryItemScreen> {
                 onChanged: (value) => _category = value!,
                 decoration: const InputDecoration(labelText: 'Categoría'),
               ),
-              TextFormField(
-                decoration: const InputDecoration(labelText: 'Cantidad'),
-                keyboardType: TextInputType.number,
-                onChanged: (value) => _quantity = int.tryParse(value) ?? 1,
-                validator: (value) => int.tryParse(value!) == null ? 'Número válido' : null,
+              Card(
+                child: Padding(
+                  padding: const EdgeInsets.all(16.0),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'Cantidades',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                          color: AppColors.primary,
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      TextFormField(
+                        decoration: const InputDecoration(
+                          labelText: 'Cantidad Total',
+                          helperText: 'Cantidad total del item',
+                        ),
+                        keyboardType: TextInputType.number,
+                        initialValue: _quantity.toString(),
+                        onChanged: (value) => setState(() => _quantity = int.tryParse(value) ?? 1),
+                        validator: (value) {
+                          final qty = int.tryParse(value!);
+                          if (qty == null || qty < 1) return 'Debe ser mayor a 0';
+                          if (qty < _quantityDamaged + _quantityMissing) {
+                            return 'No puede ser menor que dañados + faltantes';
+                          }
+                          return null;
+                        },
+                      ),
+                      const SizedBox(height: 8),
+                      TextFormField(
+                        decoration: const InputDecoration(
+                          labelText: 'Cantidad Dañada',
+                          helperText: 'Items que están dañados',
+                        ),
+                        keyboardType: TextInputType.number,
+                        initialValue: _quantityDamaged.toString(),
+                        onChanged: (value) => setState(() => _quantityDamaged = int.tryParse(value) ?? 0),
+                        validator: (value) {
+                          final qty = int.tryParse(value!) ?? 0;
+                          if (qty < 0) return 'No puede ser negativo';
+                          if (qty + _quantityMissing > _quantity) {
+                            return 'Dañados + faltantes no puede exceder el total';
+                          }
+                          return null;
+                        },
+                      ),
+                      const SizedBox(height: 8),
+                      TextFormField(
+                        decoration: const InputDecoration(
+                          labelText: 'Cantidad Faltante',
+                          helperText: 'Items que están perdidos o extraviados',
+                        ),
+                        keyboardType: TextInputType.number,
+                        initialValue: _quantityMissing.toString(),
+                        onChanged: (value) => setState(() => _quantityMissing = int.tryParse(value) ?? 0),
+                        validator: (value) {
+                          final qty = int.tryParse(value!) ?? 0;
+                          if (qty < 0) return 'No puede ser negativo';
+                          if (qty + _quantityDamaged > _quantity) {
+                            return 'Dañados + faltantes no puede exceder el total';
+                          }
+                          return null;
+                        },
+                      ),
+                      const SizedBox(height: 8),
+                      Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: AppColors.success.withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Row(
+                          children: [
+                            const Icon(Icons.check_circle, color: AppColors.success, size: 16),
+                            const SizedBox(width: 8),
+                            Text(
+                              'Disponibles: ${_quantity - _quantityDamaged - _quantityMissing}',
+                              style: const TextStyle(
+                                color: AppColors.success,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
               ),
+              const SizedBox(height: 16),
               DropdownButtonFormField<String>(
                 value: _itemType,
                 items: ['individual', 'group'].map((type) => DropdownMenuItem(value: type, child: Text(type))).toList(),
