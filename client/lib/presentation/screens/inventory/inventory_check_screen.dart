@@ -313,22 +313,189 @@ class _InventoryCheckScreenState extends State<InventoryCheckScreen> {
             crossAxisAlignment: CrossAxisAlignment.start,
             mainAxisSize: MainAxisSize.min,
             children: [
-              _buildDetailRow('Estado', _statusTranslations[check['status']] ?? check['status']),
-              _buildDetailRow('Fecha', check['check_date'] ?? 'N/A'),
-              if (check['check_time'] != null)
-                _buildDetailRow('Hora', _formatColombianTime(check['check_time'])),
-              if (check['student_notes'] != null)
-                _buildDetailRow('Notas del Estudiante', check['student_notes']),
-              if (check['instructor_notes'] != null)
-                _buildDetailRow('Notas del Instructor', check['instructor_notes']),
-              if (check['supervisor_notes'] != null)
-                _buildDetailRow('Notas del Supervisor', check['supervisor_notes']),
-              if (check['is_clean'] != null)
-                _buildDetailRow('Aula Limpia', check['is_clean'] ? 'Sí' : 'No'),
-              if (check['is_organized'] != null)
-                _buildDetailRow('Aula Organizada', check['is_organized'] ? 'Sí' : 'No'),
-              if (check['inventory_complete'] != null)
-                _buildDetailRow('Inventario Completo', check['inventory_complete'] ? 'Sí' : 'No'),
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: AppColors.grey100,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Información General',
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        color: AppColors.primary,
+                        fontSize: 16,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    _buildDetailRow('Estado', _statusTranslations[check['status']] ?? check['status']),
+                    _buildDetailRow('Fecha', check['check_date'] ?? 'N/A'),
+                    if (check['check_time'] != null)
+                      _buildDetailRow('Hora', _formatColombianTime(check['check_time'])),
+                    if (check['environment_id'] != null)
+                      _buildDetailRow('Ambiente ID', check['environment_id'].toString().substring(0, 8)),
+                    if (check['schedule_id'] != null)
+                      _buildDetailRow('Horario ID', check['schedule_id'].toString().substring(0, 8)),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 12),
+              
+              // Participants information
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: AppColors.grey100,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Participantes',
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        color: AppColors.primary,
+                        fontSize: 16,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    if (check['student_id'] != null)
+                      _buildDetailRow('Estudiante ID', check['student_id'].toString().substring(0, 8)),
+                    if (check['instructor_id'] != null)
+                      _buildDetailRow('Instructor ID', check['instructor_id'].toString().substring(0, 8)),
+                    if (check['supervisor_id'] != null)
+                      _buildDetailRow('Supervisor ID', check['supervisor_id'].toString().substring(0, 8)),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 12),
+              
+              // Inventory statistics
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: AppColors.grey100,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Estadísticas de Inventario',
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        color: AppColors.primary,
+                        fontSize: 16,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    _buildDetailRow('Total Items', (check['total_items'] ?? 0).toString()),
+                    _buildDetailRow('Items Buenos', (check['items_good'] ?? 0).toString()),
+                    _buildDetailRow('Items Dañados', (check['items_damaged'] ?? 0).toString()),
+                    _buildDetailRow('Items Faltantes', (check['items_missing'] ?? 0).toString()),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 12),
+              
+              // Verification status
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: AppColors.grey100,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Estado de Verificación',
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        color: AppColors.primary,
+                        fontSize: 16,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    if (check['is_clean'] != null)
+                      _buildDetailRow('Aula Limpia', check['is_clean'] ? 'Sí' : 'No'),
+                    if (check['is_organized'] != null)
+                      _buildDetailRow('Aula Organizada', check['is_organized'] ? 'Sí' : 'No'),
+                    if (check['inventory_complete'] != null)
+                      _buildDetailRow('Inventario Completo', check['inventory_complete'] ? 'Sí' : 'No'),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 12),
+              
+              // Comments and notes
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: AppColors.grey100,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Comentarios y Notas',
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        color: AppColors.primary,
+                        fontSize: 16,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    if (check['cleaning_notes'] != null && check['cleaning_notes'].toString().isNotEmpty)
+                      _buildDetailRow('Notas de Limpieza', check['cleaning_notes']),
+                    if (check['comments'] != null && check['comments'].toString().isNotEmpty)
+                      _buildDetailRow('Comentarios Generales', check['comments']),
+                    if (check['instructor_comments'] != null && check['instructor_comments'].toString().isNotEmpty)
+                      _buildDetailRow('Comentarios del Instructor', check['instructor_comments']),
+                    if (check['supervisor_comments'] != null && check['supervisor_comments'].toString().isNotEmpty)
+                      _buildDetailRow('Comentarios del Supervisor', check['supervisor_comments']),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 12),
+              
+              // Timestamps
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: AppColors.grey100,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Historial de Confirmaciones',
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        color: AppColors.primary,
+                        fontSize: 16,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    if (check['student_confirmed_at'] != null)
+                      _buildDetailRow('Confirmado por Estudiante', _formatDateTime(check['student_confirmed_at'])),
+                    if (check['instructor_confirmed_at'] != null)
+                      _buildDetailRow('Confirmado por Instructor', _formatDateTime(check['instructor_confirmed_at'])),
+                    if (check['supervisor_confirmed_at'] != null)
+                      _buildDetailRow('Confirmado por Supervisor', _formatDateTime(check['supervisor_confirmed_at'])),
+                    if (check['created_at'] != null)
+                      _buildDetailRow('Creado', _formatDateTime(check['created_at'])),
+                    if (check['updated_at'] != null)
+                      _buildDetailRow('Última Actualización', _formatDateTime(check['updated_at'])),
+                  ],
+                ),
+              ),
             ],
           ),
         ),
@@ -340,6 +507,23 @@ class _InventoryCheckScreenState extends State<InventoryCheckScreen> {
         ],
       ),
     );
+  }
+
+  String _formatDateTime(dynamic dateTime) {
+    if (dateTime == null) return 'N/A';
+    try {
+      DateTime dt;
+      if (dateTime is String) {
+        dt = DateTime.parse(dateTime);
+      } else if (dateTime is DateTime) {
+        dt = dateTime;
+      } else {
+        return dateTime.toString();
+      }
+      return '${dt.day}/${dt.month}/${dt.year} ${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
+    } catch (e) {
+      return dateTime.toString();
+    }
   }
 
   Widget _buildDetailRow(String label, String value) {
@@ -378,16 +562,139 @@ class _InventoryCheckScreenState extends State<InventoryCheckScreen> {
             crossAxisAlignment: CrossAxisAlignment.start,
             mainAxisSize: MainAxisSize.min,
             children: [
-              _buildDetailRow('Código', item['code'] ?? item['id'] ?? 'N/A'),
-              _buildDetailRow('Categoría', _categoryTranslations[item['category']] ?? item['category'] ?? 'N/A'),
-              _buildDetailRow('Estado', _statusTranslations[item['status']] ?? item['status'] ?? 'N/A'),
-              _buildDetailRow('Cantidad', item['quantity']?.toString() ?? '1'),
-              if (item['quantity_damaged'] != null && item['quantity_damaged'] > 0)
-                _buildDetailRow('Cantidad Dañada', item['quantity_damaged'].toString()),
-              if (item['quantity_missing'] != null && item['quantity_missing'] > 0)
-                _buildDetailRow('Cantidad Faltante', item['quantity_missing'].toString()),
-              if (item['description'] != null)
-                _buildDetailRow('Descripción', item['description']),
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: AppColors.grey100,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Información Básica',
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        color: AppColors.primary,
+                        fontSize: 16,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    _buildDetailRow('Nombre', item['name'] ?? 'N/A'),
+                    _buildDetailRow('Código Interno', item['internal_code'] ?? item['code'] ?? item['id'] ?? 'N/A'),
+                    if (item['serial_number'] != null && item['serial_number'].toString().isNotEmpty)
+                      _buildDetailRow('Número de Serie', item['serial_number']),
+                    _buildDetailRow('Categoría', _categoryTranslations[item['category']] ?? item['category'] ?? 'N/A'),
+                    _buildDetailRow('Tipo', item['item_type'] == 'group' ? 'Grupo' : 'Individual'),
+                    _buildDetailRow('Estado', _statusTranslations[item['status']] ?? item['status'] ?? 'N/A'),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 12),
+              
+              // Quantity information
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: AppColors.grey100,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Información de Cantidades',
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        color: AppColors.primary,
+                        fontSize: 16,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    _buildDetailRow('Cantidad Total', item['quantity']?.toString() ?? '1'),
+                    if (item['quantity_damaged'] != null && item['quantity_damaged'] > 0)
+                      _buildDetailRow('Cantidad Dañada', item['quantity_damaged'].toString()),
+                    if (item['quantity_missing'] != null && item['quantity_missing'] > 0)
+                      _buildDetailRow('Cantidad Faltante', item['quantity_missing'].toString()),
+                    if (item['quantity_expected'] != null)
+                      _buildDetailRow('Cantidad Esperada', item['quantity_expected'].toString()),
+                    if (item['quantity_found'] != null)
+                      _buildDetailRow('Cantidad Encontrada', item['quantity_found'].toString()),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 12),
+              
+              // Additional details
+              if (item['brand'] != null || item['model'] != null || item['description'] != null || item['notes'] != null)
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: AppColors.grey100,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Detalles Adicionales',
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          color: AppColors.primary,
+                          fontSize: 16,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      if (item['brand'] != null && item['brand'].toString().isNotEmpty)
+                        _buildDetailRow('Marca', item['brand']),
+                      if (item['model'] != null && item['model'].toString().isNotEmpty)
+                        _buildDetailRow('Modelo', item['model']),
+                      if (item['description'] != null && item['description'].toString().isNotEmpty)
+                        _buildDetailRow('Descripción', item['description']),
+                      if (item['notes'] != null && item['notes'].toString().isNotEmpty)
+                        _buildDetailRow('Notas', item['notes']),
+                    ],
+                  ),
+                ),
+              const SizedBox(height: 12),
+              
+              // Dates information
+              if (item['purchase_date'] != null || item['warranty_expiry'] != null || 
+                  item['last_maintenance'] != null || item['next_maintenance'] != null ||
+                  item['created_at'] != null || item['updated_at'] != null)
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: AppColors.grey100,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Fechas Importantes',
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          color: AppColors.primary,
+                          fontSize: 16,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      if (item['purchase_date'] != null)
+                        _buildDetailRow('Fecha de Compra', _formatDate(item['purchase_date'])),
+                      if (item['warranty_expiry'] != null)
+                        _buildDetailRow('Vencimiento Garantía', _formatDate(item['warranty_expiry'])),
+                      if (item['last_maintenance'] != null)
+                        _buildDetailRow('Último Mantenimiento', _formatDate(item['last_maintenance'])),
+                      if (item['next_maintenance'] != null)
+                        _buildDetailRow('Próximo Mantenimiento', _formatDate(item['next_maintenance'])),
+                      if (item['created_at'] != null)
+                        _buildDetailRow('Creado', _formatDateTime(item['created_at'])),
+                      if (item['updated_at'] != null)
+                        _buildDetailRow('Actualizado', _formatDateTime(item['updated_at'])),
+                    ],
+                  ),
+                ),
             ],
           ),
         ),
@@ -399,6 +706,23 @@ class _InventoryCheckScreenState extends State<InventoryCheckScreen> {
         ],
       ),
     );
+  }
+
+  String _formatDate(dynamic date) {
+    if (date == null) return 'N/A';
+    try {
+      DateTime dt;
+      if (date is String) {
+        dt = DateTime.parse(date);
+      } else if (date is DateTime) {
+        dt = date;
+      } else {
+        return date.toString();
+      }
+      return '${dt.day}/${dt.month}/${dt.year}';
+    } catch (e) {
+      return date.toString();
+    }
   }
 
   IconData _getCategoryIcon(String? category) {
