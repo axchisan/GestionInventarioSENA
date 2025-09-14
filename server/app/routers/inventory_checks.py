@@ -46,6 +46,38 @@ class VerificationByScheduleRequest(BaseModel):
     cleaning_notes: Optional[str] = None
     comments: Optional[str] = None
 
+def calculate_verification_totals(environment_id: UUID, db: Session):
+    """Calculate verification totals based on current inventory items in the environment"""
+    inventory_items = db.query(InventoryItem).filter(
+        InventoryItem.environment_id == environment_id
+    ).all()
+    
+    total_items = len(inventory_items)
+    items_good = 0
+    items_damaged = 0
+    items_missing = 0
+    
+    for item in inventory_items:
+        # Calculate based on quantities
+        quantity_damaged = item.quantity_damaged or 0
+        quantity_missing = item.quantity_missing or 0
+        quantity_available = (item.quantity or 1) - quantity_damaged - quantity_missing
+        
+        # Count items based on their status and quantities
+        if quantity_damaged > 0:
+            items_damaged += quantity_damaged
+        if quantity_missing > 0:
+            items_missing += quantity_missing
+        if quantity_available > 0:
+            items_good += quantity_available
+    
+    return {
+        'total_items': total_items,
+        'items_good': items_good,
+        'items_damaged': items_damaged,
+        'items_missing': items_missing
+    }
+
 @router.post("/", status_code=status.HTTP_201_CREATED)
 async def create_inventory_check(
     request: InventoryCheckCreateRequest,
@@ -75,17 +107,7 @@ async def create_inventory_check(
     if existing_check:
         raise HTTPException(status_code=400, detail="Ya se realizó verificación hoy para este turno")
 
-    # Calcular estadísticas basadas en InventoryCheckItem existentes
-    check_items = db.query(InventoryCheckItem).filter(
-        InventoryCheckItem.environment_id == request.environment_id,
-        InventoryCheckItem.created_at >= datetime.combine(date.today(), datetime.min.time()),
-        InventoryCheckItem.created_at <= datetime.combine(date.today(), datetime.max.time())
-    ).all()
-
-    items_good = sum(item.quantity_found for item in check_items if item.status == "good")
-    items_damaged = sum(item.quantity_damaged for item in check_items if item.status == "damaged")
-    items_missing = sum(item.quantity_missing for item in check_items if item.status == "missing")
-    total_items = len(check_items)
+    totals = calculate_verification_totals(request.environment_id, db)
 
     colombia_now = get_colombia_time()
     
@@ -96,10 +118,10 @@ async def create_inventory_check(
         check_date=date.today(),
         check_time=colombia_now.time(),
         status="student_pending",
-        total_items=total_items,
-        items_good=items_good,
-        items_damaged=items_damaged,
-        items_missing=items_missing,
+        total_items=totals['total_items'],
+        items_good=totals['items_good'],
+        items_damaged=totals['items_damaged'],
+        items_missing=totals['items_missing'],
         cleaning_notes=request.cleaning_notes,
         student_confirmed_at=colombia_now
     )
@@ -107,14 +129,14 @@ async def create_inventory_check(
     db.commit()
     db.refresh(inventory_check)
 
-    # Actualizar el estado según los ítems verificados
-    if items_damaged > 0 or items_missing > 0:
+    # Update status based on verification results
+    if totals['items_damaged'] > 0 or totals['items_missing'] > 0:
         inventory_check.status = "issues"
     else:
         inventory_check.status = "instructor_review"
     db.commit()
 
-    # Notificar al instructor
+    # Notify instructor
     notification = Notification(
         user_id=schedule.instructor_id,
         type="verification_pending",
@@ -156,6 +178,12 @@ async def create_verification_by_schedule(
     ).first()
 
     if existing_check:
+        totals = calculate_verification_totals(request.environment_id, db)
+        existing_check.total_items = totals['total_items']
+        existing_check.items_good = totals['items_good']
+        existing_check.items_damaged = totals['items_damaged']
+        existing_check.items_missing = totals['items_missing']
+        
         # Update existing verification based on user role
         if current_user.role == "student":
             if existing_check.status not in ["student_pending"]:
@@ -172,7 +200,7 @@ async def create_verification_by_schedule(
                 existing_check.instructor_confirmed_at = colombia_now
                 
                 # Update status based on verification results
-                if not request.inventory_complete or existing_check.items_damaged > 0 or existing_check.items_missing > 0:
+                if not request.inventory_complete or totals['items_damaged'] > 0 or totals['items_missing'] > 0:
                     existing_check.status = "issues"
                 else:
                     existing_check.status = "supervisor_review"
@@ -191,7 +219,7 @@ async def create_verification_by_schedule(
             existing_check.supervisor_confirmed_at = colombia_now
             
             # Final status determination
-            if request.inventory_complete and existing_check.items_damaged == 0 and existing_check.items_missing == 0:
+            if request.inventory_complete and totals['items_damaged'] == 0 and totals['items_missing'] == 0:
                 existing_check.status = "complete"
             else:
                 existing_check.status = "issues"
@@ -202,17 +230,7 @@ async def create_verification_by_schedule(
     
     else:
         # Create new verification
-        # Calculate statistics from check items
-        check_items = db.query(InventoryCheckItem).filter(
-            InventoryCheckItem.environment_id == request.environment_id,
-            InventoryCheckItem.created_at >= datetime.combine(date.today(), datetime.min.time()),
-            InventoryCheckItem.created_at <= datetime.combine(date.today(), datetime.max.time())
-        ).all()
-
-        items_good = sum(item.quantity_found for item in check_items if item.status == "good")
-        items_damaged = sum(item.quantity_damaged for item in check_items)
-        items_missing = sum(item.quantity_missing for item in check_items)
-        total_items = len(check_items)
+        totals = calculate_verification_totals(request.environment_id, db)
 
         # Determine initial status and fields based on user role
         initial_status = "student_pending"
@@ -235,10 +253,10 @@ async def create_verification_by_schedule(
             check_date=date.today(),
             check_time=colombia_now.time(),
             status=initial_status,
-            total_items=total_items,
-            items_good=items_good,
-            items_damaged=items_damaged,
-            items_missing=items_missing,
+            total_items=totals['total_items'],
+            items_good=totals['items_good'],
+            items_damaged=totals['items_damaged'],
+            items_missing=totals['items_missing'],
             is_clean=request.is_clean,
             is_organized=request.is_organized,
             inventory_complete=request.inventory_complete,
@@ -263,17 +281,17 @@ async def create_verification_by_schedule(
 
         # Update final status based on results
         if current_user.role == "supervisor":
-            if request.inventory_complete and items_damaged == 0 and items_missing == 0:
+            if request.inventory_complete and totals['items_damaged'] == 0 and totals['items_missing'] == 0:
                 inventory_check.status = "complete"
             else:
                 inventory_check.status = "issues"
         elif current_user.role == "instructor":
-            if not request.inventory_complete or items_damaged > 0 or items_missing > 0:
+            if not request.inventory_complete or totals['items_damaged'] > 0 or totals['items_missing'] > 0:
                 inventory_check.status = "issues"
             else:
                 inventory_check.status = "supervisor_review"
         else:  # student
-            if items_damaged > 0 or items_missing > 0:
+            if totals['items_damaged'] > 0 or totals['items_missing'] > 0:
                 inventory_check.status = "issues"
             else:
                 inventory_check.status = "instructor_review"
@@ -322,6 +340,12 @@ async def confirm_inventory_check(
     if not inventory_check:
         raise HTTPException(status_code=404, detail="Verificación no encontrada")
 
+    totals = calculate_verification_totals(inventory_check.environment_id, db)
+    inventory_check.total_items = totals['total_items']
+    inventory_check.items_good = totals['items_good']
+    inventory_check.items_damaged = totals['items_damaged']
+    inventory_check.items_missing = totals['items_missing']
+
     colombia_now = get_colombia_time()
 
     if current_user.role == "instructor":
@@ -336,7 +360,7 @@ async def confirm_inventory_check(
         inventory_check.instructor_confirmed_at = colombia_now
         
         # Update status
-        if not request.inventory_complete or inventory_check.items_damaged > 0 or inventory_check.items_missing > 0:
+        if not request.inventory_complete or totals['items_damaged'] > 0 or totals['items_missing'] > 0:
             inventory_check.status = "issues"
         else:
             inventory_check.status = "supervisor_review"
@@ -355,7 +379,7 @@ async def confirm_inventory_check(
         inventory_check.supervisor_confirmed_at = colombia_now
         
         # Final status
-        if request.inventory_complete and inventory_check.items_damaged == 0 and inventory_check.items_missing == 0:
+        if request.inventory_complete and totals['items_damaged'] == 0 and totals['items_missing'] == 0:
             inventory_check.status = "complete"
         else:
             inventory_check.status = "issues"
@@ -404,6 +428,130 @@ async def confirm_inventory_check(
     
     db.commit()
     return inventory_check
+
+
+@router.get("/schedule-stats")
+def get_schedule_stats(
+    environment_id: UUID,
+    schedule_id: UUID,
+    date: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Get statistics for a specific schedule and date"""
+    try:
+        parsed_date = datetime.strptime(date, "%Y-%m-%d").date()
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Formato de fecha inválido. Se espera YYYY-MM-DD")
+    
+    # Get inventory check for this schedule and date
+    check = db.query(InventoryCheck).filter(
+        InventoryCheck.environment_id == environment_id,
+        InventoryCheck.schedule_id == schedule_id,
+        InventoryCheck.check_date == parsed_date
+    ).first()
+    
+    if not check:
+        totals = calculate_verification_totals(environment_id, db)
+        return {
+            "total_items": totals['total_items'],
+            "items_good": totals['items_good'],
+            "items_damaged": totals['items_damaged'],
+            "items_missing": totals['items_missing'],
+            "status": "not_started",
+            "completion_percentage": 0
+        }
+    
+    completion_percentage = 0
+    if check.total_items > 0:
+        completion_percentage = ((check.items_good + check.items_damaged + check.items_missing) / check.total_items) * 100
+    
+    return {
+        "total_items": check.total_items or 0,
+        "items_good": check.items_good or 0,
+        "items_damaged": check.items_damaged or 0,
+        "items_missing": check.items_missing or 0,
+        "status": check.status,
+        "completion_percentage": round(completion_percentage, 2)
+    }
+
+@router.put("/{check_id}/supervisor-approve")
+async def supervisor_approve_check(
+    check_id: UUID,
+    approval_data: dict,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Supervisor approval endpoint for inventory checks"""
+    if current_user.role != "supervisor":
+        raise HTTPException(status_code=403, detail="Solo supervisores pueden aprobar verificaciones")
+    
+    inventory_check = db.query(InventoryCheck).filter(InventoryCheck.id == check_id).first()
+    if not inventory_check:
+        raise HTTPException(status_code=404, detail="Verificación no encontrada")
+    
+    totals = calculate_verification_totals(inventory_check.environment_id, db)
+    inventory_check.total_items = totals['total_items']
+    inventory_check.items_good = totals['items_good']
+    inventory_check.items_damaged = totals['items_damaged']
+    inventory_check.items_missing = totals['items_missing']
+    
+    # Update check status based on approval
+    approved = approval_data.get("approved", False)
+    comments = approval_data.get("comments", "")
+    
+    colombia_now = get_colombia_time()
+    
+    inventory_check.supervisor_id = current_user.id
+    inventory_check.supervisor_comments = comments
+    inventory_check.supervisor_confirmed_at = colombia_now
+    
+    if approved:
+        inventory_check.status = "complete"
+    else:
+        inventory_check.status = "rejected"
+    
+    # Create supervisor review record
+    supervisor_review = SupervisorReview(
+        check_id=check_id,
+        supervisor_id=current_user.id,
+        status="approved" if approved else "rejected",
+        comments=comments
+    )
+    db.add(supervisor_review)
+    
+    # Create notifications
+    if inventory_check.student_id:
+        notification_student = Notification(
+            user_id=inventory_check.student_id,
+            type="verification_update",
+            title="Verificación Revisada por Supervisor",
+            message=f"Tu verificación ha sido {'aprobada' if approved else 'rechazada'} por el supervisor.",
+            is_read=False,
+            priority="medium"
+        )
+        db.add(notification_student)
+    
+    if inventory_check.instructor_id and inventory_check.instructor_id != current_user.id:
+        notification_instructor = Notification(
+            user_id=inventory_check.instructor_id,
+            type="verification_update",
+            title="Verificación Revisada por Supervisor",
+            message=f"La verificación ha sido {'aprobada' if approved else 'rechazada'} por el supervisor.",
+            is_read=False,
+            priority="medium"
+        )
+        db.add(notification_instructor)
+    
+    db.commit()
+    db.refresh(inventory_check)
+    
+    return {
+        "status": "success",
+        "message": f"Verificación {'aprobada' if approved else 'rechazada'} exitosamente",
+        "check_status": inventory_check.status
+    }
+
 
 @router.put("/{check_id}/assign-role")
 async def assign_verification_role(
@@ -505,118 +653,3 @@ def get_inventory_checks_by_schedule(
     ).all()
     
     return checks
-
-@router.get("/schedule-stats")
-def get_schedule_stats(
-    environment_id: UUID,
-    schedule_id: UUID,
-    date: str,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
-):
-    """Get statistics for a specific schedule and date"""
-    try:
-        parsed_date = datetime.strptime(date, "%Y-%m-%d").date()
-    except ValueError:
-        raise HTTPException(status_code=400, detail="Formato de fecha inválido. Se espera YYYY-MM-DD")
-    
-    # Get inventory check for this schedule and date
-    check = db.query(InventoryCheck).filter(
-        InventoryCheck.environment_id == environment_id,
-        InventoryCheck.schedule_id == schedule_id,
-        InventoryCheck.check_date == parsed_date
-    ).first()
-    
-    if not check:
-        return {
-            "total_items": 0,
-            "items_good": 0,
-            "items_damaged": 0,
-            "items_missing": 0,
-            "status": "not_started",
-            "completion_percentage": 0
-        }
-    
-    completion_percentage = 0
-    if check.total_items > 0:
-        completion_percentage = ((check.items_good + check.items_damaged + check.items_missing) / check.total_items) * 100
-    
-    return {
-        "total_items": check.total_items or 0,
-        "items_good": check.items_good or 0,
-        "items_damaged": check.items_damaged or 0,
-        "items_missing": check.items_missing or 0,
-        "status": check.status,
-        "completion_percentage": round(completion_percentage, 2)
-    }
-
-@router.put("/{check_id}/supervisor-approve")
-async def supervisor_approve_check(
-    check_id: UUID,
-    approval_data: dict,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
-):
-    """Supervisor approval endpoint for inventory checks"""
-    if current_user.role != "supervisor":
-        raise HTTPException(status_code=403, detail="Solo supervisores pueden aprobar verificaciones")
-    
-    inventory_check = db.query(InventoryCheck).filter(InventoryCheck.id == check_id).first()
-    if not inventory_check:
-        raise HTTPException(status_code=404, detail="Verificación no encontrada")
-    
-    # Update check status based on approval
-    approved = approval_data.get("approved", False)
-    comments = approval_data.get("comments", "")
-    
-    colombia_now = get_colombia_time()
-    
-    inventory_check.supervisor_id = current_user.id
-    inventory_check.supervisor_comments = comments
-    inventory_check.supervisor_confirmed_at = colombia_now
-    
-    if approved:
-        inventory_check.status = "complete"
-    else:
-        inventory_check.status = "rejected"
-    
-    # Create supervisor review record
-    supervisor_review = SupervisorReview(
-        check_id=check_id,
-        supervisor_id=current_user.id,
-        status="approved" if approved else "rejected",
-        comments=comments
-    )
-    db.add(supervisor_review)
-    
-    # Create notifications
-    if inventory_check.student_id:
-        notification_student = Notification(
-            user_id=inventory_check.student_id,
-            type="verification_update",
-            title="Verificación Revisada por Supervisor",
-            message=f"Tu verificación ha sido {'aprobada' if approved else 'rechazada'} por el supervisor.",
-            is_read=False,
-            priority="medium"
-        )
-        db.add(notification_student)
-    
-    if inventory_check.instructor_id and inventory_check.instructor_id != current_user.id:
-        notification_instructor = Notification(
-            user_id=inventory_check.instructor_id,
-            type="verification_update",
-            title="Verificación Revisada por Supervisor",
-            message=f"La verificación ha sido {'aprobada' if approved else 'rechazada'} por el supervisor.",
-            is_read=False,
-            priority="medium"
-        )
-        db.add(notification_instructor)
-    
-    db.commit()
-    db.refresh(inventory_check)
-    
-    return {
-        "status": "success",
-        "message": f"Verificación {'aprobada' if approved else 'rechazada'} exitosamente",
-        "check_status": inventory_check.status
-    }
