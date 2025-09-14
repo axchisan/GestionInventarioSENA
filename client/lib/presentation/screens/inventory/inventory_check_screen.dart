@@ -12,6 +12,7 @@ import '../../widgets/common/sena_app_bar.dart';
 import '../maintenance/maintenance_request_screen.dart';
 import '../../../core/services/notification_service.dart';
 import '../../widgets/common/notification_badge.dart';
+import 'package:http/http.dart' as http;
 
 class InventoryCheckScreen extends StatefulWidget {
   const InventoryCheckScreen({super.key});
@@ -72,6 +73,12 @@ class _InventoryCheckScreenState extends State<InventoryCheckScreen> {
     'issues': 'Problemas',
     'incomplete': 'Incompleto',
   };
+
+  bool _isClean = false;
+  bool _isOrganized = false;
+  bool _inventoryComplete = false;
+  String _cleaningNotes = '';
+  String _comments = '';
 
   @override
   void initState() {
@@ -561,34 +568,62 @@ class _InventoryCheckScreenState extends State<InventoryCheckScreen> {
     );
   }
 
-  void _saveCheck(bool isComplete, bool hasNotes) async {
-    try {
-      final authProvider = Provider.of<AuthProvider>(context, listen: false);
-      final user = authProvider.currentUser;
-      
-      if (user == null) {
-        throw Exception('Usuario no autenticado');
-      }
-
-      final checkData = {
-        'environment_id': user.environmentId,
-        'user_id': user.id,
-        'status': isComplete ? 'completed' : 'pending',
-        'check_date': DateTime.now().toIso8601String().split('T')[0],
-        'check_time': TimeOfDay.now().format(context),
-        'student_notes': hasNotes ? _cleaningNotesController.text : null,
-      };
-
-      await _apiService.post('/api/inventory-checks', checkData);
-      
+  Future<void> _saveCheck() async {
+    if (_selectedScheduleId == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Verificación guardada exitosamente')),
+        const SnackBar(content: Text('Selecciona un turno/horario primero')),
       );
-      
-      _fetchData(); // Refresh data
+      return;
+    }
+
+    final authProvider = Provider.of<AuthProvider>(context, listen: false);
+    final user = authProvider.currentUser;
+    final environmentId = authProvider.currentUser?.environmentId ?? '';
+    
+    if (user == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Error: Usuario no autenticado')),
+      );
+      return;
+    }
+
+    try {
+      final response = await http.post(
+        Uri.parse('$baseUrl/api/inventory-checks/by-schedule'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer ${authProvider.token}',
+        },
+        body: jsonEncode({
+          'environment_id': environmentId,
+          'schedule_id': _selectedScheduleId,
+          'is_clean': _isClean,
+          'is_organized': _isOrganized,
+          'inventory_complete': _inventoryComplete,
+          'cleaning_notes': _cleaningNotes,
+          'comments': _comments,
+        }),
+      );
+
+      if (response.statusCode == 201) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Verificación guardada exitosamente'),
+            backgroundColor: AppColors.success,
+          ),
+        );
+        Navigator.of(context).pop();
+        _fetchScheduleCheck();
+      } else {
+        final errorData = jsonDecode(response.body);
+        throw Exception('Error: ${response.statusCode} - ${errorData.toString()}');
+      }
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error al guardar verificación: $e')),
+        SnackBar(
+          content: Text('Error al guardar verificación: $e'),
+          backgroundColor: AppColors.error,
+        ),
       );
     }
   }
@@ -785,10 +820,10 @@ class _InventoryCheckScreenState extends State<InventoryCheckScreen> {
                         if (role == 'student' || role == 'instructor' || role == 'supervisor') ...[
                           const SizedBox(height: 16),
                           Container(
-                            padding: const EdgeInsets.all(16),
+                            padding: const EdgeInsets.all(12),
                             decoration: BoxDecoration(
                               color: AppColors.primary.withOpacity(0.1),
-                              borderRadius: BorderRadius.circular(12),
+                              borderRadius: BorderRadius.circular(8),
                               border: Border.all(color: AppColors.primary.withOpacity(0.3)),
                             ),
                             child: Column(
@@ -799,42 +834,38 @@ class _InventoryCheckScreenState extends State<InventoryCheckScreen> {
                                   style: TextStyle(
                                     fontWeight: FontWeight.bold,
                                     color: AppColors.primary,
-                                    fontSize: 16,
+                                    fontSize: 14,
                                   ),
-                                ),
-                                const SizedBox(height: 12),
-                                Row(
-                                  children: [
-                                    Expanded(
-                                      child: _buildStatChip(
-                                        'Total Items',
-                                        '${_calculateTotalEnvironmentItems()}',
-                                        AppColors.primary,
-                                      ),
-                                    ),
-                                    const SizedBox(width: 8),
-                                    Expanded(
-                                      child: _buildStatChip(
-                                        'Disponibles',
-                                        '${_calculateAvailableEnvironmentItems()}',
-                                        AppColors.success,
-                                      ),
-                                    ),
-                                  ],
                                 ),
                                 const SizedBox(height: 8),
                                 Row(
                                   children: [
                                     Expanded(
-                                      child: _buildStatChip(
+                                      child: _buildCompactStatChip(
+                                        'Total',
+                                        '${_calculateTotalEnvironmentItems()}',
+                                        AppColors.primary,
+                                      ),
+                                    ),
+                                    const SizedBox(width: 6),
+                                    Expanded(
+                                      child: _buildCompactStatChip(
+                                        'Disponibles',
+                                        '${_calculateAvailableEnvironmentItems()}',
+                                        AppColors.success,
+                                      ),
+                                    ),
+                                    const SizedBox(width: 6),
+                                    Expanded(
+                                      child: _buildCompactStatChip(
                                         'Dañados',
                                         '${_calculateDamagedEnvironmentItems()}',
                                         AppColors.warning,
                                       ),
                                     ),
-                                    const SizedBox(width: 8),
+                                    const SizedBox(width: 6),
                                     Expanded(
-                                      child: _buildStatChip(
+                                      child: _buildCompactStatChip(
                                         'Faltantes',
                                         '${_calculateMissingEnvironmentItems()}',
                                         AppColors.error,
@@ -845,11 +876,11 @@ class _InventoryCheckScreenState extends State<InventoryCheckScreen> {
                               ],
                             ),
                           ),
-                          const SizedBox(height: 16),
+                          const SizedBox(height: 12),
                           Container(
                             decoration: BoxDecoration(
                               border: Border.all(color: AppColors.grey300),
-                              borderRadius: BorderRadius.circular(12),
+                              borderRadius: BorderRadius.circular(8),
                             ),
                             child: Column(
                               children: [
@@ -858,23 +889,20 @@ class _InventoryCheckScreenState extends State<InventoryCheckScreen> {
                                   decoration: InputDecoration(
                                     labelText: 'Turno/Horario',
                                     border: OutlineInputBorder(
-                                      borderRadius: BorderRadius.circular(12),
+                                      borderRadius: BorderRadius.circular(8),
                                     ),
                                     filled: true,
                                     fillColor: Colors.white,
+                                    contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                                   ),
+                                  isExpanded: true,
                                   items: _schedules.map((schedule) {
                                     return DropdownMenuItem(
                                       value: schedule['id'].toString(),
-                                      child: Column(
-                                        crossAxisAlignment: CrossAxisAlignment.start,
-                                        children: [
-                                          Text('${schedule['program']} - ${schedule['ficha']}'),
-                                          Text(
-                                            '${_formatColombianTime(schedule['start_time'])} - ${_formatColombianTime(schedule['end_time'])}',
-                                            style: const TextStyle(fontSize: 12, color: Colors.grey),
-                                          ),
-                                        ],
+                                      child: Text(
+                                        '${schedule['program']} - ${schedule['ficha']} (${_formatColombianTime(schedule['start_time'])} - ${_formatColombianTime(schedule['end_time'])})',
+                                        style: const TextStyle(fontSize: 12),
+                                        overflow: TextOverflow.ellipsis,
                                       ),
                                     );
                                   }).toList(),
@@ -892,37 +920,28 @@ class _InventoryCheckScreenState extends State<InventoryCheckScreen> {
                                     }
                                   },
                                 ),
-                                if (_selectedSchedule != null) ...[
+                                if (_selectedSchedule != null) ...[ 
                                   Container(
-                                    padding: const EdgeInsets.all(12),
+                                    padding: const EdgeInsets.all(8),
                                     decoration: BoxDecoration(
                                       color: AppColors.grey100,
                                       borderRadius: const BorderRadius.only(
-                                        bottomLeft: Radius.circular(12),
-                                        bottomRight: Radius.circular(12),
+                                        bottomLeft: Radius.circular(8),
+                                        bottomRight: Radius.circular(8),
                                       ),
                                     ),
                                     child: Row(
                                       children: [
                                         Expanded(
-                                          child: _buildScheduleInfo(
+                                          child: _buildCompactScheduleInfo(
                                             Icons.people,
-                                            'Estudiantes',
-                                            '${_selectedSchedule!['student_count']}',
+                                            'Estudiantes: ${_selectedSchedule!['student_count']}',
                                           ),
                                         ),
                                         Expanded(
-                                          child: _buildScheduleInfo(
+                                          child: _buildCompactScheduleInfo(
                                             Icons.access_time,
-                                            'Duración',
-                                            _calculateDuration(_selectedSchedule!['start_time'], _selectedSchedule!['end_time']),
-                                          ),
-                                        ),
-                                        Expanded(
-                                          child: _buildScheduleInfo(
-                                            Icons.assignment_turned_in,
-                                            'Estado',
-                                            _hasCheckedToday ? 'Verificado' : 'Pendiente',
+                                            'Duración: ${_calculateDuration(_selectedSchedule!['start_time'], _selectedSchedule!['end_time'])}',
                                           ),
                                         ),
                                       ],
@@ -2212,7 +2231,7 @@ class _InventoryCheckScreenState extends State<InventoryCheckScreen> {
                         icon: const Icon(Icons.check_circle_outline, size: 48, color: AppColors.success),
                         onPressed: () {
                           Navigator.pop(context);
-                          _saveCheck(true, true);
+                          _saveCheck();
                         },
                       ),
                       const Text('Sí'),
@@ -2224,7 +2243,7 @@ class _InventoryCheckScreenState extends State<InventoryCheckScreen> {
                         icon: const Icon(Icons.cancel_outlined, size: 48, color: AppColors.error),
                         onPressed: () {
                           Navigator.pop(context);
-                          _saveCheck(false, false);
+                          _saveCheck();
                         },
                       ),
                       const Text('No'),
@@ -2252,7 +2271,7 @@ class _InventoryCheckScreenState extends State<InventoryCheckScreen> {
           ElevatedButton(
             onPressed: () {
               Navigator.pop(context);
-              _saveCheck(true, true);
+              _saveCheck();
             },
             child: const Text('Guardar'),
           ),
@@ -2708,6 +2727,56 @@ class _InventoryCheckScreenState extends State<InventoryCheckScreen> {
     );
   }
 
+  Widget _buildCompactStatChip(String label, String value, Color color) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(6),
+        border: Border.all(color: color.withOpacity(0.3)),
+      ),
+      child: Column(
+        children: [
+          Text(
+            value,
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.bold,
+              color: color,
+            ),
+          ),
+          Text(
+            label,
+            style: const TextStyle(
+              fontSize: 8,
+              color: AppColors.grey600,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCompactScheduleInfo(IconData icon, String text) {
+    return Row(
+      children: [
+        Icon(icon, size: 14, color: AppColors.grey600),
+        const SizedBox(width: 4),
+        Expanded(
+          child: Text(
+            text,
+            style: const TextStyle(
+              fontSize: 10,
+              color: AppColors.grey600,
+            ),
+            overflow: TextOverflow.ellipsis,
+          ),
+        ),
+      ],
+    );
+  }
+
+  // ignore: unused_element
   Widget _buildStatChip(String label, String value, Color color) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
