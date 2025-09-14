@@ -105,7 +105,7 @@ class _SupervisorDashboardScreenState extends State<SupervisorDashboardScreen> {
         
         // Fetch maintenance requests
         final maintenanceRequests = await _apiService.get(
-          '/api/maintenance-requests',
+          '/api/maintenance-requests/',
           queryParams: {'environment_id': user.environmentId.toString()},
         );
         
@@ -148,7 +148,7 @@ class _SupervisorDashboardScreenState extends State<SupervisorDashboardScreen> {
           availableQuantity += (quantity - quantityDamaged - quantityMissing);
         }
         
-        final maintenanceRequests = await _apiService.get('/api/maintenance-requests');
+        final maintenanceRequests = await _apiService.get('/api/maintenance-requests/');
         
         setState(() {
           _inventoryStats = {
@@ -442,6 +442,12 @@ class _SupervisorDashboardScreenState extends State<SupervisorDashboardScreen> {
                           Icons.location_on,
                           AppColors.success,
                           _environment != null ? '/environment-overview' : '/qr-scan',
+                          extra: _environment != null
+                              ? {
+                                  'environmentId': _environment!['id'],
+                                  'environmentName': _environment!['name'],
+                                }
+                              : null,
                         ),
                         _buildActionCard(
                           context,
@@ -777,11 +783,12 @@ class _SupervisorDashboardScreenState extends State<SupervisorDashboardScreen> {
     String subtitle,
     IconData icon,
     Color color,
-    String route,
-  ) {
+    String route, {
+    Map<String, dynamic>? extra,
+  }) {
     return Card(
       child: InkWell(
-        onTap: () => context.push(route),
+        onTap: () => context.push(route, extra: extra),
         borderRadius: BorderRadius.circular(12),
         child: Padding(
           padding: const EdgeInsets.all(16.0),
@@ -811,49 +818,10 @@ class _SupervisorDashboardScreenState extends State<SupervisorDashboardScreen> {
     );
   }
 
-  // ignore: unused_element
-  Widget _buildPendingItem(String title, String subtitle, Color statusColor) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 8.0),
-      child: Row(
-        children: [
-          Container(
-            width: 8,
-            height: 8,
-            decoration: BoxDecoration(
-              color: statusColor,
-              shape: BoxShape.circle,
-            ),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  title,
-                  style: const TextStyle(
-                    fontWeight: FontWeight.w500,
-                    fontSize: 14,
-                  ),
-                ),
-                Text(
-                  subtitle,
-                  style: const TextStyle(
-                    color: AppColors.grey600,
-                    fontSize: 12,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          Icon(Icons.chevron_right, color: AppColors.grey400, size: 16),
-        ],
-      ),
-    );
-  }
-
   Widget _buildDrawer(BuildContext context) {
+    final authProvider = Provider.of<AuthProvider>(context);
+    final user = authProvider.currentUser;
+    
     return Drawer(
       child: ListView(
         padding: EdgeInsets.zero,
@@ -889,9 +857,9 @@ class _SupervisorDashboardScreenState extends State<SupervisorDashboardScreen> {
                     fontWeight: FontWeight.bold,
                   ),
                 ),
-                const Text(
-                  'supervisor@sena.edu.co',
-                  style: TextStyle(color: Colors.white70, fontSize: 14),
+                Text(
+                  user?.email ?? 'supervisor@sena.edu.co',
+                  style: const TextStyle(color: Colors.white70, fontSize: 14),
                 ),
               ],
             ),
@@ -905,6 +873,24 @@ class _SupervisorDashboardScreenState extends State<SupervisorDashboardScreen> {
             leading: const Icon(Icons.supervisor_account),
             title: const Text('Panel Supervisor'),
             onTap: () => context.push('/supervisor-dashboard'),
+          ),
+          ListTile(
+            leading: const Icon(Icons.checklist),
+            title: const Text('Verificar Inventario'),
+            onTap: () => context.push('/inventory-check'),
+          ),
+          ListTile(
+            leading: const Icon(Icons.location_on),
+            title: const Text('Mi Ambiente'),
+            onTap: () => context.push(
+              '/environment-overview',
+              extra: _environment != null
+                  ? {
+                      'environmentId': _environment!['id'],
+                      'environmentName': _environment!['name'],
+                    }
+                  : null,
+            ),
           ),
           ListTile(
             leading: const Icon(Icons.people),

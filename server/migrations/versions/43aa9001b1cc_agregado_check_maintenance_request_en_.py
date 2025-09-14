@@ -1,8 +1,8 @@
-"""modificacion de esquema de items
+"""agregado check maintenance_request en el modelo de notificaciones
 
-Revision ID: e4d2cf57526a
+Revision ID: 43aa9001b1cc
 Revises: 
-Create Date: 2025-09-12 21:11:52.605432
+Create Date: 2025-09-14 17:35:44.514221
 
 """
 from typing import Sequence, Union
@@ -12,7 +12,7 @@ import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql
 
 # revision identifiers, used by Alembic.
-revision: str = 'e4d2cf57526a'
+revision: str = '43aa9001b1cc'
 down_revision: Union[str, Sequence[str], None] = None
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
@@ -253,7 +253,7 @@ def upgrade() -> None:
     sa.Column('expires_at', sa.TIMESTAMP(), nullable=True),
     sa.Column('created_at', sa.TIMESTAMP(), server_default=sa.text('CURRENT_TIMESTAMP'), nullable=True),
     sa.CheckConstraint("priority IN ('low', 'medium', 'high')", name='check_priority'),
-    sa.CheckConstraint("type IN ('loan_approved', 'loan_rejected', 'loan_overdue', 'check_reminder', 'maintenance_update', 'verification_pending', 'alert', 'system', 'verification_update')", name='check_type'),
+    sa.CheckConstraint("type IN ('loan_approved', 'loan_rejected', 'loan_overdue', 'check_reminder', 'maintenance_request', 'maintenance_update', 'verification_pending', 'alert', 'system', 'verification_update')", name='check_type'),
     sa.ForeignKeyConstraint(['user_id'], ['users.id'], ondelete='CASCADE'),
     sa.PrimaryKeyConstraint('id')
     )
