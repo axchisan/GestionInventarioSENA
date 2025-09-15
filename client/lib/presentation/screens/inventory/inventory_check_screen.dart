@@ -45,6 +45,7 @@ class _InventoryCheckScreenState extends State<InventoryCheckScreen> {
   bool _hasCheckedToday = false;
   final DateFormat _colombianTimeFormat = DateFormat('hh:mm a');
   final DateFormat _dateFormat = DateFormat('yyyy-MM-dd');
+  final DateFormat _dateTimeFormat = DateFormat('dd/MM/yyyy hh:mm a');
 
   final Map<String, String> _categoryTranslations = {
     'computer': 'Computador',
@@ -79,6 +80,7 @@ class _InventoryCheckScreenState extends State<InventoryCheckScreen> {
   bool _inventoryComplete = false;
   String _cleaningNotes = '';
   String _comments = '';
+  Map<String, dynamic>? _environment;
 
   @override
   void initState() {
@@ -104,6 +106,9 @@ class _InventoryCheckScreenState extends State<InventoryCheckScreen> {
       return;
     }
     try {
+      final environment = await _apiService.getSingle(
+        '$environmentsEndpoint${user?.environmentId}',
+      );
       final items = await _apiService.get(
         inventoryEndpoint,
         queryParams: {'environment_id': user!.environmentId.toString()},
@@ -142,6 +147,7 @@ class _InventoryCheckScreenState extends State<InventoryCheckScreen> {
       await _fetchScheduleStats();
       
       setState(() {
+        _environment = environment;
         _items = items;
         _schedules = schedules;
         _checks = filteredChecks;
@@ -520,7 +526,7 @@ class _InventoryCheckScreenState extends State<InventoryCheckScreen> {
       } else {
         return dateTime.toString();
       }
-      return '${dt.day}/${dt.month}/${dt.year} ${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
+      return _dateTimeFormat.format(dt);
     } catch (e) {
       return dateTime.toString();
     }
@@ -2141,7 +2147,7 @@ class _InventoryCheckScreenState extends State<InventoryCheckScreen> {
                     child: _buildInfoItem(
                       Icons.location_on,
                       'Ubicación',
-                      item['environment_id'] ?? 'N/A',
+                      _environment?['name'] ?? item['environment_id'] ?? 'N/A',
                     ),
                   ),
                 ],
@@ -2153,7 +2159,7 @@ class _InventoryCheckScreenState extends State<InventoryCheckScreen> {
                     child: _buildInfoItem(
                       Icons.calendar_today,
                       'Última Verificación',
-                      item['updated_at'] ?? 'N/A',
+                      _formatDateTime(item['updated_at']),
                     ),
                   ),
                   Expanded(
