@@ -160,9 +160,9 @@ class AdminDashboardScreen extends StatelessWidget {
                 ),
                 _buildActionCard(
                   context,
-                  'Solicitudes de Préstamo',
-                  'Gestionar préstamos del sistema',
-                  Icons.assignment_turned_in,
+                  'Historial de Préstamos',
+                  'Gestionar historial de préstamos',
+                  Icons.history,
                   AppColors.secondary,
                   '/loan-history',
                 ),
@@ -448,8 +448,8 @@ class AdminDashboardScreen extends StatelessWidget {
             onTap: () => context.push('/user-management'),
           ),
           ListTile(
-            leading: const Icon(Icons.assignment_turned_in),
-            title: const Text('Solicitudes de Préstamo'),
+            leading: const Icon(Icons.history),
+            title: const Text('Historial de Préstamos'),
             onTap: () => context.push('/loan-history'),
           ),
           ListTile(

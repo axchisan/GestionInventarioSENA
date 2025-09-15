@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/scheduler.dart';
 import 'package:provider/provider.dart';
 import '../../widgets/common/sena_app_bar.dart';
 import '../../widgets/common/sena_card.dart';
@@ -28,11 +29,16 @@ class _LoanHistoryScreenState extends State<LoanHistoryScreen> {
   @override
   void initState() {
     super.initState();
-    _loadLoans();
-    _loadStats();
+    // Defer loading to after the first build to avoid notifyListeners during build phase
+    SchedulerBinding.instance.addPostFrameCallback((_) {
+      _loadLoans();
+      _loadStats();
+    });
   }
 
   Future<void> _loadLoans() async {
+    if (!mounted) return;
+
     setState(() {
       _isLoading = true;
     });
@@ -43,9 +49,11 @@ class _LoanHistoryScreenState extends State<LoanHistoryScreen> {
         statusFilter: selectedFilter == 'Todos' ? null : _mapFilterToStatus(selectedFilter),
       );
       
-      setState(() {
-        _loans = loanProvider.loans;
-      });
+      if (mounted) {
+        setState(() {
+          _loans = loanProvider.loans;
+        });
+      }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -56,20 +64,26 @@ class _LoanHistoryScreenState extends State<LoanHistoryScreen> {
         );
       }
     } finally {
-      setState(() {
-        _isLoading = false;
-      });
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
     }
   }
 
   Future<void> _loadStats() async {
+    if (!mounted) return;
+
     try {
       final loanProvider = Provider.of<LoanProvider>(context, listen: false);
       await loanProvider.fetchStats();
       
-      setState(() {
-        _stats = loanProvider.stats;
-      });
+      if (mounted) {
+        setState(() {
+          _stats = loanProvider.stats;
+        });
+      }
     } catch (e) {
       debugPrint('Error loading stats: $e');
     }
@@ -197,7 +211,7 @@ class _LoanHistoryScreenState extends State<LoanHistoryScreen> {
                       child: ClipRRect(
                         borderRadius: BorderRadius.circular(8),
                         child: Image.asset(
-                          'assets/images/sena-logo.png',
+                          'assets/images/sena_logo.png',
                           fit: BoxFit.contain,
                         ),
                       ),
