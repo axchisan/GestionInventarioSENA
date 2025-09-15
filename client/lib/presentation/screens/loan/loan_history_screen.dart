@@ -1,7 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import '../../widgets/common/sena_app_bar.dart';
 import '../../widgets/common/sena_card.dart';
 import '../../widgets/common/status_badge.dart';
+import '../../providers/loan_provider.dart';
+import '../../providers/auth_provider.dart';
+import '../../../data/models/loan_model.dart';
+import '../../../core/theme/app_colors.dart';
 
 class LoanHistoryScreen extends StatefulWidget {
   const LoanHistoryScreen({Key? key}) : super(key: key);
@@ -13,115 +18,139 @@ class LoanHistoryScreen extends StatefulWidget {
 class _LoanHistoryScreenState extends State<LoanHistoryScreen> {
   String selectedFilter = 'Todos';
   String selectedPeriod = 'Este mes';
-  final List<String> filters = ['Todos', 'Activos', 'Devueltos', 'Vencidos'];
+  final List<String> filters = ['Todos', 'Pendiente', 'Aprobado', 'Activo', 'Devuelto', 'Vencido', 'Rechazado'];
   final List<String> periods = ['Hoy', 'Esta semana', 'Este mes', 'Este año'];
+  
+  bool _isLoading = true;
+  List<LoanModel> _loans = [];
+  LoanStatsModel? _stats;
 
-  final List<Map<String, dynamic>> loanHistory = [
-    {
-      'id': 'PR001',
-      'equipment': 'Computador Dell OptiPlex',
-      'equipmentId': 'PC001',
-      'borrower': 'Juan Pérez',
-      'program': 'Técnico en Sistemas',
-      'loanDate': '2024-01-15',
-      'returnDate': '2024-01-17',
-      'actualReturnDate': '2024-01-17',
-      'status': 'Devuelto',
-      'condition': 'Bueno',
-      'supervisor': 'Ana García',
-    },
-    {
-      'id': 'PR002',
-      'equipment': 'Proyector Epson',
-      'equipmentId': 'PRJ001',
-      'borrower': 'María López',
-      'program': 'Análisis y Desarrollo',
-      'loanDate': '2024-01-14',
-      'returnDate': '2024-01-16',
-      'actualReturnDate': null,
-      'status': 'Activo',
-      'condition': 'Excelente',
-      'supervisor': 'Carlos Rodríguez',
-    },
-    {
-      'id': 'PR003',
-      'equipment': 'Tablet Samsung',
-      'equipmentId': 'TAB001',
-      'borrower': 'Pedro Sánchez',
-      'program': 'Técnico en Sistemas',
-      'loanDate': '2024-01-12',
-      'returnDate': '2024-01-14',
-      'actualReturnDate': null,
-      'status': 'Vencido',
-      'condition': 'Bueno',
-      'supervisor': 'Ana García',
-    },
-    {
-      'id': 'PR004',
-      'equipment': 'Cámara Canon',
-      'equipmentId': 'CAM001',
-      'borrower': 'Laura Martínez',
-      'program': 'Diseño Gráfico',
-      'loanDate': '2024-01-10',
-      'returnDate': '2024-01-12',
-      'actualReturnDate': '2024-01-11',
-      'status': 'Devuelto',
-      'condition': 'Excelente',
-      'supervisor': 'Luis Hernández',
-    },
-    {
-      'id': 'PR005',
-      'equipment': 'Monitor Samsung 24"',
-      'equipmentId': 'MON001',
-      'borrower': 'Diego Torres',
-      'program': 'Análisis y Desarrollo',
-      'loanDate': '2024-01-08',
-      'returnDate': '2024-01-10',
-      'actualReturnDate': '2024-01-10',
-      'status': 'Devuelto',
-      'condition': 'Bueno',
-      'supervisor': 'Carlos Rodríguez',
-    },
-  ];
+  @override
+  void initState() {
+    super.initState();
+    _loadLoans();
+    _loadStats();
+  }
 
-  List<Map<String, dynamic>> get filteredLoans {
-    List<Map<String, dynamic>> filtered = loanHistory;
+  Future<void> _loadLoans() async {
+    setState(() {
+      _isLoading = true;
+    });
+
+    try {
+      final loanProvider = Provider.of<LoanProvider>(context, listen: false);
+      await loanProvider.fetchLoans(
+        statusFilter: selectedFilter == 'Todos' ? null : _mapFilterToStatus(selectedFilter),
+      );
+      
+      setState(() {
+        _loans = loanProvider.loans;
+      });
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error al cargar préstamos: $e'),
+            backgroundColor: AppColors.error,
+          ),
+        );
+      }
+    } finally {
+      setState(() {
+        _isLoading = false;
+      });
+    }
+  }
+
+  Future<void> _loadStats() async {
+    try {
+      final loanProvider = Provider.of<LoanProvider>(context, listen: false);
+      await loanProvider.fetchStats();
+      
+      setState(() {
+        _stats = loanProvider.stats;
+      });
+    } catch (e) {
+      debugPrint('Error loading stats: $e');
+    }
+  }
+
+  String? _mapFilterToStatus(String filter) {
+    switch (filter) {
+      case 'Pendiente':
+        return 'pending';
+      case 'Aprobado':
+        return 'approved';
+      case 'Activo':
+        return 'active';
+      case 'Devuelto':
+        return 'returned';
+      case 'Vencido':
+        return 'overdue';
+      case 'Rechazado':
+        return 'rejected';
+      default:
+        return null;
+    }
+  }
+
+  List<LoanModel> get filteredLoans {
+    List<LoanModel> filtered = _loans;
     
     if (selectedFilter != 'Todos') {
-      filtered = filtered.where((loan) => loan['status'] == selectedFilter).toList();
+      final statusFilter = _mapFilterToStatus(selectedFilter);
+      if (statusFilter != null) {
+        filtered = filtered.where((loan) => loan.status == statusFilter).toList();
+      }
     }
     
-    // Aquí se podría agregar filtrado por período
+    // TODO: Implementar filtrado por período si es necesario
     
     return filtered;
   }
 
   Color getStatusColor(String status) {
     switch (status.toLowerCase()) {
-      case 'activo':
+      case 'pending':
+        return Colors.orange;
+      case 'approved':
         return Colors.blue;
-      case 'devuelto':
+      case 'active':
         return Colors.green;
-      case 'vencido':
+      case 'returned':
+        return Colors.teal;
+      case 'overdue':
         return Colors.red;
+      case 'rejected':
+        return Colors.grey;
       default:
         return Colors.grey;
     }
   }
 
   int getDaysOverdue(String returnDate) {
-    final return_date = DateTime.parse(returnDate);
-    final now = DateTime.now();
-    return now.difference(return_date).inDays;
+    try {
+      final returnDateTime = DateTime.parse(returnDate);
+      final now = DateTime.now();
+      return now.difference(returnDateTime).inDays;
+    } catch (e) {
+      return 0;
+    }
   }
 
   StatusType _getStatusType(String? status) {
     switch (status?.toLowerCase()) {
-      case 'activo':
+      case 'pending':
+        return StatusType.warning;
+      case 'approved':
         return StatusType.primary;
-      case 'devuelto':
+      case 'active':
         return StatusType.success;
-      case 'vencido':
+      case 'returned':
+        return StatusType.success;
+      case 'overdue':
+        return StatusType.error;
+      case 'rejected':
         return StatusType.error;
       default:
         return StatusType.info;
@@ -130,7 +159,8 @@ class _LoanHistoryScreenState extends State<LoanHistoryScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final stats = _calculateStats();
+    final authProvider = Provider.of<AuthProvider>(context);
+    final user = authProvider.currentUser;
     
     return Scaffold(
       appBar: const SenaAppBar(
@@ -173,28 +203,79 @@ class _LoanHistoryScreenState extends State<LoanHistoryScreen> {
                       ),
                     ),
                     const SizedBox(width: 16),
-                    const Expanded(
-                      child: Text(
-                        'Resumen de Préstamos',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                        ),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'Resumen de Préstamos',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          if (user?.role == 'instructor')
+                            const Text(
+                              'Mis solicitudes',
+                              style: TextStyle(
+                                color: Colors.white70,
+                                fontSize: 14,
+                              ),
+                            )
+                          else if (user?.role == 'admin')
+                            const Text(
+                              'Solicitudes de mi almacén',
+                              style: TextStyle(
+                                color: Colors.white70,
+                                fontSize: 14,
+                              ),
+                            )
+                          else if (user?.role == 'admin_general')
+                            const Text(
+                              'Todas las solicitudes del centro',
+                              style: TextStyle(
+                                color: Colors.white70,
+                                fontSize: 14,
+                              ),
+                            ),
+                        ],
                       ),
                     ),
                   ],
                 ),
                 const SizedBox(height: 16),
-                Row(
-                  children: [
-                    Expanded(child: _buildStatChip('Total', stats['total'].toString(), Colors.blue)),
-                    const SizedBox(width: 8),
-                    Expanded(child: _buildStatChip('Activos', stats['active'].toString(), Colors.orange)),
-                    const SizedBox(width: 8),
-                    Expanded(child: _buildStatChip('Vencidos', stats['overdue'].toString(), Colors.red)),
-                  ],
-                ),
+                if (_stats != null) ...[
+                  Row(
+                    children: [
+                      Expanded(child: _buildStatChip('Total', _stats!.totalLoans.toString(), Colors.blue)),
+                      const SizedBox(width: 8),
+                      Expanded(child: _buildStatChip('Pendientes', _stats!.pendingLoans.toString(), Colors.orange)),
+                      const SizedBox(width: 8),
+                      Expanded(child: _buildStatChip('Activos', _stats!.activeLoans.toString(), Colors.green)),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      Expanded(child: _buildStatChip('Vencidos', _stats!.overdueLoans.toString(), Colors.red)),
+                      const SizedBox(width: 8),
+                      Expanded(child: _buildStatChip('Devueltos', _stats!.returnedLoans.toString(), Colors.teal)),
+                      const SizedBox(width: 8),
+                      Expanded(child: _buildStatChip('Rechazados', _stats!.rejectedLoans.toString(), Colors.grey)),
+                    ],
+                  ),
+                ] else ...[
+                  Row(
+                    children: [
+                      Expanded(child: _buildStatChip('Total', '0', Colors.blue)),
+                      const SizedBox(width: 8),
+                      Expanded(child: _buildStatChip('Activos', '0', Colors.orange)),
+                      const SizedBox(width: 8),
+                      Expanded(child: _buildStatChip('Vencidos', '0', Colors.red)),
+                    ],
+                  ),
+                ],
               ],
             ),
           ),
@@ -221,6 +302,7 @@ class _LoanHistoryScreenState extends State<LoanHistoryScreen> {
                                   setState(() {
                                     selectedFilter = filter;
                                   });
+                                  _loadLoans();
                                 },
                                 backgroundColor: Colors.grey[200],
                                 selectedColor: const Color(0xFF00324D),
@@ -252,8 +334,17 @@ class _LoanHistoryScreenState extends State<LoanHistoryScreen> {
                         setState(() {
                           selectedPeriod = value!;
                         });
+                        // TODO: Implementar filtrado por período
                       },
                       underline: Container(),
+                    ),
+                    const Spacer(),
+                    IconButton(
+                      icon: const Icon(Icons.refresh),
+                      onPressed: () {
+                        _loadLoans();
+                        _loadStats();
+                      },
                     ),
                   ],
                 ),
@@ -263,187 +354,303 @@ class _LoanHistoryScreenState extends State<LoanHistoryScreen> {
 
           // Lista de préstamos
           Expanded(
-            child: ListView.builder(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              itemCount: filteredLoans.length,
-              itemBuilder: (context, index) {
-                final loan = filteredLoans[index];
-                return Padding(
-                  padding: const EdgeInsets.only(bottom: 12),
-                  child: SenaCard(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            child: _isLoading
+                ? const Center(child: CircularProgressIndicator())
+                : filteredLoans.isEmpty
+                    ? Center(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    loan['equipment'],
-                                    style: const TextStyle(
-                                      fontWeight: FontWeight.bold,
-                                      fontSize: 16,
-                                    ),
-                                  ),
-                                  Text(
-                                    'ID: ${loan['equipmentId']} • ${loan['id']}',
-                                    style: TextStyle(
-                                      color: Colors.grey[600],
-                                      fontSize: 12,
-                                    ),
-                                  ),
-                                ],
-                              ),
+                            Icon(
+                              Icons.inbox_outlined,
+                              size: 64,
+                              color: Colors.grey[400],
                             ),
-                            StatusBadge(
-                              text: loan['status'],
-                              type: _getStatusType(loan['status']),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 12),
-                        
-                        Row(
-                          children: [
-                            Icon(Icons.person_outline, size: 16, color: Colors.grey[600]),
-                            const SizedBox(width: 4),
-                            Expanded(
-                              child: Text(
-                                loan['borrower'],
-                                style: const TextStyle(
-                                  fontWeight: FontWeight.w500,
-                                  fontSize: 14,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 4),
-                        Row(
-                          children: [
-                            Icon(Icons.school_outlined, size: 16, color: Colors.grey[600]),
-                            const SizedBox(width: 4),
+                            const SizedBox(height: 16),
                             Text(
-                              loan['program'],
+                              'No hay préstamos',
                               style: TextStyle(
-                                color: Colors.grey[700],
-                                fontSize: 12,
+                                fontSize: 18,
+                                fontWeight: FontWeight.w500,
+                                color: Colors.grey[600],
                               ),
                             ),
-                          ],
-                        ),
-                        
-                        const SizedBox(height: 12),
-                        const Divider(height: 1),
-                        const SizedBox(height: 12),
-                        
-                        Row(
-                          children: [
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    'Fecha de préstamo',
-                                    style: TextStyle(
-                                      color: Colors.grey[600],
-                                      fontSize: 12,
-                                    ),
-                                  ),
-                                  Text(
-                                    loan['loanDate'],
-                                    style: const TextStyle(
-                                      fontWeight: FontWeight.w500,
-                                      fontSize: 14,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    'Fecha de devolución',
-                                    style: TextStyle(
-                                      color: Colors.grey[600],
-                                      fontSize: 12,
-                                    ),
-                                  ),
-                                  Text(
-                                    loan['returnDate'],
-                                    style: TextStyle(
-                                      fontWeight: FontWeight.w500,
-                                      fontSize: 14,
-                                      color: loan['status'] == 'Vencido' ? Colors.red : null,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ],
-                        ),
-                        
-                        if (loan['actualReturnDate'] != null) ...[
-                          const SizedBox(height: 8),
-                          Row(
-                            children: [
-                              Icon(Icons.check_circle_outline, size: 16, color: Colors.green),
-                              const SizedBox(width: 4),
-                              Text(
-                                'Devuelto el ${loan['actualReturnDate']}',
-                                style: const TextStyle(
-                                  color: Colors.green,
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w500,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ],
-                        
-                        if (loan['status'] == 'Vencido') ...[
-                          const SizedBox(height: 8),
-                          Row(
-                            children: [
-                              Icon(Icons.warning_outlined, size: 16, color: Colors.red),
-                              const SizedBox(width: 4),
-                              Text(
-                                'Vencido hace ${getDaysOverdue(loan['returnDate'])} días',
-                                style: const TextStyle(
-                                  color: Colors.red,
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w500,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ],
-                        
-                        const SizedBox(height: 8),
-                        Row(
-                          children: [
-                            Icon(Icons.supervisor_account_outlined, size: 16, color: Colors.grey[600]),
-                            const SizedBox(width: 4),
+                            const SizedBox(height: 8),
                             Text(
-                              'Supervisor: ${loan['supervisor']}',
+                              selectedFilter == 'Todos'
+                                  ? 'No se encontraron préstamos'
+                                  : 'No hay préstamos con estado: $selectedFilter',
                               style: TextStyle(
                                 color: Colors.grey[600],
-                                fontSize: 12,
+                                fontSize: 14,
                               ),
                             ),
                           ],
                         ),
-                      ],
+                      )
+                    : RefreshIndicator(
+                        onRefresh: () async {
+                          await _loadLoans();
+                          await _loadStats();
+                        },
+                        child: ListView.builder(
+                          padding: const EdgeInsets.symmetric(horizontal: 16),
+                          itemCount: filteredLoans.length,
+                          itemBuilder: (context, index) {
+                            final loan = filteredLoans[index];
+                            return Padding(
+                              padding: const EdgeInsets.only(bottom: 12),
+                              child: _buildLoanCard(loan),
+                            );
+                          },
+                        ),
+                      ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildLoanCard(LoanModel loan) {
+    return SenaCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      loan.isRegisteredItem 
+                          ? (loan.itemDetails?['name'] ?? 'Item registrado')
+                          : (loan.itemName ?? 'Item personalizado'),
+                      style: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 16,
+                      ),
+                    ),
+                    Text(
+                      'ID: ${loan.id.substring(0, 8)}...',
+                      style: TextStyle(
+                        color: Colors.grey[600],
+                        fontSize: 12,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              StatusBadge(
+                text: loan.statusDisplayName,
+                type: _getStatusType(loan.status),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          
+          if (loan.instructorName != null) ...[
+            Row(
+              children: [
+                Icon(Icons.person_outline, size: 16, color: Colors.grey[600]),
+                const SizedBox(width: 4),
+                Expanded(
+                  child: Text(
+                    loan.instructorName!,
+                    style: const TextStyle(
+                      fontWeight: FontWeight.w500,
+                      fontSize: 14,
                     ),
                   ),
-                );
-              },
+                ),
+              ],
             ),
+            const SizedBox(height: 4),
+          ],
+          
+          Row(
+            children: [
+              Icon(Icons.school_outlined, size: 16, color: Colors.grey[600]),
+              const SizedBox(width: 4),
+              Expanded(
+                child: Text(
+                  loan.program,
+                  style: TextStyle(
+                    color: Colors.grey[700],
+                    fontSize: 12,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          
+          if (loan.environmentName != null) ...[
+            const SizedBox(height: 4),
+            Row(
+              children: [
+                Icon(Icons.warehouse_outlined, size: 16, color: Colors.grey[600]),
+                const SizedBox(width: 4),
+                Expanded(
+                  child: Text(
+                    'Almacén: ${loan.environmentName}',
+                    style: TextStyle(
+                      color: Colors.grey[700],
+                      fontSize: 12,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
+          
+          const SizedBox(height: 12),
+          const Divider(height: 1),
+          const SizedBox(height: 12),
+          
+          Row(
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Fecha de préstamo',
+                      style: TextStyle(
+                        color: Colors.grey[600],
+                        fontSize: 12,
+                      ),
+                    ),
+                    Text(
+                      loan.startDate,
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w500,
+                        fontSize: 14,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Fecha de devolución',
+                      style: TextStyle(
+                        color: Colors.grey[600],
+                        fontSize: 12,
+                      ),
+                    ),
+                    Text(
+                      loan.endDate,
+                      style: TextStyle(
+                        fontWeight: FontWeight.w500,
+                        fontSize: 14,
+                        color: loan.isOverdue ? Colors.red : null,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          
+          if (loan.actualReturnDate != null) ...[
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                Icon(Icons.check_circle_outline, size: 16, color: Colors.green),
+                const SizedBox(width: 4),
+                Text(
+                  'Devuelto el ${loan.actualReturnDate}',
+                  style: const TextStyle(
+                    color: Colors.green,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ],
+            ),
+          ],
+          
+          if (loan.isOverdue && loan.actualReturnDate == null) ...[
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                Icon(Icons.warning_outlined, size: 16, color: Colors.red),
+                const SizedBox(width: 4),
+                Text(
+                  'Vencido hace ${getDaysOverdue(loan.endDate)} días',
+                  style: const TextStyle(
+                    color: Colors.red,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ],
+            ),
+          ],
+          
+          if (loan.rejectionReason != null) ...[
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                Icon(Icons.cancel_outlined, size: 16, color: Colors.red),
+                const SizedBox(width: 4),
+                Expanded(
+                  child: Text(
+                    'Motivo: ${loan.rejectionReason}',
+                    style: const TextStyle(
+                      color: Colors.red,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
+          
+          if (loan.adminName != null) ...[
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                Icon(Icons.supervisor_account_outlined, size: 16, color: Colors.grey[600]),
+                const SizedBox(width: 4),
+                Text(
+                  'Administrador: ${loan.adminName}',
+                  style: TextStyle(
+                    color: Colors.grey[600],
+                    fontSize: 12,
+                  ),
+                ),
+              ],
+            ),
+          ],
+          
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              Icon(Icons.priority_high_outlined, size: 16, color: Colors.grey[600]),
+              const SizedBox(width: 4),
+              Text(
+                'Prioridad: ${loan.priorityDisplayName}',
+                style: TextStyle(
+                  color: Colors.grey[600],
+                  fontSize: 12,
+                ),
+              ),
+              const Spacer(),
+              Text(
+                'Cantidad: ${loan.quantityRequested}',
+                style: TextStyle(
+                  color: Colors.grey[600],
+                  fontSize: 12,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ],
           ),
         ],
       ),
@@ -462,7 +669,7 @@ class _LoanHistoryScreenState extends State<LoanHistoryScreen> {
         children: [
           Text(
             value,
-            style: TextStyle(
+            style: const TextStyle(
               color: Colors.white,
               fontWeight: FontWeight.bold,
               fontSize: 16,
@@ -478,14 +685,5 @@ class _LoanHistoryScreenState extends State<LoanHistoryScreen> {
         ],
       ),
     );
-  }
-
-  Map<String, int> _calculateStats() {
-    return {
-      'total': loanHistory.length,
-      'active': loanHistory.where((loan) => loan['status'] == 'Activo').length,
-      'overdue': loanHistory.where((loan) => loan['status'] == 'Vencido').length,
-      'returned': loanHistory.where((loan) => loan['status'] == 'Devuelto').length,
-    };
   }
 }

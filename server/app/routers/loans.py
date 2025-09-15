@@ -20,7 +20,6 @@ from ..schemas.loan import (
 )
 from ..routers.auth import get_current_user
 
-
 router = APIRouter()
 
 @router.post("/", response_model=LoanResponse, status_code=status.HTTP_201_CREATED)
@@ -38,13 +37,38 @@ async def create_loan(
             detail="Only instructors and admins can create loan requests"
         )
     
-    # Verify environment exists
-    environment = db.query(Environment).filter(Environment.id == loan_data.environment_id).first()
-    if not environment:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Environment not found"
-        )
+    # For instructors, they can only request loans to warehouses in their center
+    if current_user.role == "instructor":
+        # Get instructor's environment to find their center
+        instructor_env = db.query(Environment).filter(Environment.id == current_user.environment_id).first()
+        if not instructor_env:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Instructor must be assigned to an environment"
+            )
+        
+        # Verify the target environment is a warehouse in the same center
+        target_environment = db.query(Environment).filter(
+            and_(
+                Environment.id == loan_data.environment_id,
+                Environment.center_id == instructor_env.center_id,
+                Environment.is_warehouse == True
+            )
+        ).first()
+        
+        if not target_environment:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="You can only request loans to warehouses in your center"
+            )
+    else:
+        # For admins, just verify environment exists
+        environment = db.query(Environment).filter(Environment.id == loan_data.environment_id).first()
+        if not environment:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Environment not found"
+            )
     
     # If registered item, verify it exists and is available
     if isinstance(loan_data, LoanCreateRegistered):
@@ -89,22 +113,25 @@ async def get_loans(
     
     query = db.query(Loan)
     
-    # Apply role-based filtering
     if current_user.role == "instructor":
         query = query.filter(Loan.instructor_id == current_user.id)
     elif current_user.role == "admin":
-        # Admin can see loans for their environment or warehouse
+        # Admin can see loans for their warehouse environment
         if current_user.environment_id:
-            warehouse_env = db.query(Environment).filter(
-                and_(Environment.center_id == current_user.center_id, Environment.is_warehouse == True)
-            ).first()
-            if warehouse_env:
-                query = query.filter(
-                    or_(
-                        Loan.environment_id == current_user.environment_id,
-                        Loan.environment_id == warehouse_env.id
-                    )
-                )
+            query = query.filter(Loan.environment_id == current_user.environment_id)
+    elif current_user.role == "admin_general":
+        # Admin general can see all loans in their center
+        if current_user.environment_id:
+            # Get the center_id through the environment relationship
+            admin_env = db.query(Environment).filter(Environment.id == current_user.environment_id).first()
+            if admin_env:
+                # Get all warehouse environments in the same center
+                warehouse_envs = db.query(Environment).filter(
+                    and_(Environment.center_id == admin_env.center_id, Environment.is_warehouse == True)
+                ).all()
+                warehouse_ids = [env.id for env in warehouse_envs]
+                if warehouse_ids:
+                    query = query.filter(Loan.environment_id.in_(warehouse_ids))
     
     # Apply filters
     if status_filter:
@@ -138,6 +165,46 @@ async def get_loans(
         total_pages=total_pages
     )
 
+@router.get("/warehouses", response_model=List[dict])
+async def get_available_warehouses(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Get available warehouses for loan requests"""
+    
+    if current_user.role != "instructor":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only instructors can access this endpoint"
+        )
+    
+    # Get instructor's environment to find their center
+    instructor_env = db.query(Environment).filter(Environment.id == current_user.environment_id).first()
+    if not instructor_env:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Instructor must be assigned to an environment"
+        )
+    
+    # Get all warehouses in the same center
+    warehouses = db.query(Environment).filter(
+        and_(
+            Environment.center_id == instructor_env.center_id,
+            Environment.is_warehouse == True,
+            Environment.is_active == True
+        )
+    ).all()
+    
+    return [
+        {
+            "id": str(warehouse.id),
+            "name": warehouse.name,
+            "location": warehouse.location,
+            "description": warehouse.description
+        }
+        for warehouse in warehouses
+    ]
+
 @router.get("/stats", response_model=LoanStatsResponse)
 async def get_loan_stats(
     environment_id: Optional[UUID] = Query(None),
@@ -148,11 +215,24 @@ async def get_loan_stats(
     
     query = db.query(Loan)
     
-    # Apply role-based filtering
     if current_user.role == "instructor":
         query = query.filter(Loan.instructor_id == current_user.id)
-    elif current_user.role == "admin" and environment_id:
-        query = query.filter(Loan.environment_id == environment_id)
+    elif current_user.role == "admin":
+        if current_user.environment_id:
+            query = query.filter(Loan.environment_id == current_user.environment_id)
+        elif environment_id:
+            query = query.filter(Loan.environment_id == environment_id)
+    elif current_user.role == "admin_general":
+        if current_user.environment_id:
+            # Get all warehouses in the same center
+            admin_env = db.query(Environment).filter(Environment.id == current_user.environment_id).first()
+            if admin_env:
+                warehouse_envs = db.query(Environment).filter(
+                    and_(Environment.center_id == admin_env.center_id, Environment.is_warehouse == True)
+                ).all()
+                warehouse_ids = [env.id for env in warehouse_envs]
+                if warehouse_ids:
+                    query = query.filter(Loan.environment_id.in_(warehouse_ids))
     
     total_loans = query.count()
     pending_loans = query.filter(Loan.status == "pending").count()
@@ -214,7 +294,7 @@ async def update_loan(
     
     # Check permissions based on status change
     if loan_update.status in ["approved", "rejected"]:
-        if current_user.role != "admin":
+        if current_user.role not in ["admin", "admin_general"]:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="Only admins can approve or reject loans"
