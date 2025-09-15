@@ -21,7 +21,6 @@ import '../../presentation/screens/dashboard/student_dashboard.dart';
 import '../../presentation/screens/dashboard/supervisor_dashboard_screen.dart';
 import '../../presentation/screens/environment/environment_overview_screen.dart';
 import '../../presentation/screens/feedback/feedback_form_screen.dart';
-import '../../presentation/screens/home/home_screen.dart';
 import '../../presentation/screens/inventory/inventory_alerts_screen.dart';
 import '../../presentation/screens/inventory/inventory_check_screen.dart';
 import '../../presentation/screens/inventory/inventory_history_screen.dart';
@@ -70,11 +69,6 @@ class NavigationService {
         path: '/register',
         name: 'register',
         builder: (context, state) => const RegisterScreen(),
-      ),
-      GoRoute(
-        path: '/home',
-        name: 'home',
-        builder: (context, state) => const HomeScreen(),
       ),
       GoRoute(
         path: '/qr-scan',
