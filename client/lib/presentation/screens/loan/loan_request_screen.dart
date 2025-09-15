@@ -31,9 +31,12 @@ class _LoanRequestScreenState extends State<LoanRequestScreen> {
   bool _isSubmitting = false;
   bool _isRegisteredItem = true;
   String? _selectedItemId;
+  String? _selectedWarehouseId; // Added warehouse selection
   
   List<dynamic> _availableItems = [];
+  List<dynamic> _availableWarehouses = []; // Added warehouses list
   bool _isLoadingItems = false;
+  bool _isLoadingWarehouses = false; // Added warehouse loading state
   late final ApiService _apiService;
 
   final Map<String, String> _categoryTranslations = {
@@ -54,37 +57,62 @@ class _LoanRequestScreenState extends State<LoanRequestScreen> {
     _apiService = ApiService(
       authProvider: Provider.of<AuthProvider>(context, listen: false),
     );
-    _loadAvailableItems();
+    _loadAvailableWarehouses(); // Load warehouses instead of items initially
+  }
+
+  Future<void> _loadAvailableWarehouses() async {
+    setState(() {
+      _isLoadingWarehouses = true;
+    });
+
+    try {
+      final warehouses = await _apiService.get('$loansEndpoint/warehouses');
+      setState(() {
+        _availableWarehouses = warehouses;
+      });
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error al cargar almacenes: $e'),
+            backgroundColor: AppColors.error,
+          ),
+        );
+      }
+    } finally {
+      setState(() {
+        _isLoadingWarehouses = false;
+      });
+    }
   }
 
   Future<void> _loadAvailableItems() async {
+    if (_selectedWarehouseId == null) return;
+    
     setState(() {
       _isLoadingItems = true;
     });
 
     try {
-      final authProvider = Provider.of<AuthProvider>(context, listen: false);
-      final environmentId = authProvider.currentUser?.environmentId;
-      
-      if (environmentId != null) {
-        final items = await _apiService.get(
-          inventoryEndpoint,
-          queryParams: {
-            'environment_id': environmentId.toString(),
-            'status': 'available',
-          },
-        );
-        setState(() {
-          _availableItems = items;
-        });
-      }
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Error al cargar items: $e'),
-          backgroundColor: AppColors.error,
-        ),
+      final items = await _apiService.get(
+        inventoryEndpoint,
+        queryParams: {
+          'environment_id': _selectedWarehouseId!,
+          'status': 'available',
+        },
       );
+      setState(() {
+        _availableItems = items;
+      });
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error al cargar items: $e'),
+            backgroundColor: AppColors.error,
+          ),
+        );
+      }
     } finally {
       setState(() {
         _isLoadingItems = false;
@@ -168,6 +196,76 @@ class _LoanRequestScreenState extends State<LoanRequestScreen> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       const Text(
+                        'Seleccionar Almacén',
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      if (_isLoadingWarehouses)
+                        const Center(child: CircularProgressIndicator())
+                      else
+                        DropdownButtonFormField<String>(
+                          value: _selectedWarehouseId,
+                          decoration: const InputDecoration(
+                            labelText: 'Almacén de Destino',
+                            border: OutlineInputBorder(),
+                            hintText: 'Selecciona el almacén donde solicitar',
+                          ),
+                          items: _availableWarehouses.map<DropdownMenuItem<String>>((warehouse) {
+                            return DropdownMenuItem<String>(
+                              value: warehouse['id'].toString(),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Text(
+                                    warehouse['name'] ?? 'Sin nombre',
+                                    style: const TextStyle(fontWeight: FontWeight.w500),
+                                  ),
+                                  if (warehouse['location'] != null)
+                                    Text(
+                                      warehouse['location'],
+                                      style: const TextStyle(
+                                        fontSize: 12,
+                                        color: AppColors.grey600,
+                                      ),
+                                    ),
+                                ],
+                              ),
+                            );
+                          }).toList(),
+                          onChanged: (value) {
+                            setState(() {
+                              _selectedWarehouseId = value;
+                              _selectedItemId = null;
+                              _availableItems.clear();
+                            });
+                            if (value != null && _isRegisteredItem) {
+                              _loadAvailableItems();
+                            }
+                          },
+                          validator: (value) {
+                            if (value == null || value.isEmpty) {
+                              return 'Por favor selecciona un almacén';
+                            }
+                            return null;
+                          },
+                        ),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+              
+              Card(
+                child: Padding(
+                  padding: const EdgeInsets.all(16.0),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
                         'Tipo de Solicitud',
                         style: TextStyle(
                           fontSize: 18,
@@ -189,6 +287,9 @@ class _LoanRequestScreenState extends State<LoanRequestScreen> {
                                   _selectedItemId = null;
                                   _itemController.clear();
                                 });
+                                if (value! && _selectedWarehouseId != null) {
+                                  _loadAvailableItems();
+                                }
                               },
                             ),
                           ),
@@ -215,88 +316,121 @@ class _LoanRequestScreenState extends State<LoanRequestScreen> {
               ),
               const SizedBox(height: 16),
               
-              if (_isRegisteredItem) ...[
-                // Selección de categoría para items registrados
-                Card(
-                  child: Padding(
-                    padding: const EdgeInsets.all(16.0),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text(
-                          'Categoría de Equipo',
-                          style: TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold,
+              if (_isRegisteredItem) ...[ 
+                if (_selectedWarehouseId != null) ...[
+                  Card(
+                    child: Padding(
+                      padding: const EdgeInsets.all(16.0),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'Categoría de Equipo',
+                            style: TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                            ),
                           ),
-                        ),
-                        const SizedBox(height: 16),
-                        DropdownButtonFormField<String>(
-                          value: _selectedCategory,
-                          decoration: const InputDecoration(
-                            labelText: 'Seleccionar Categoría',
-                            border: OutlineInputBorder(),
+                          const SizedBox(height: 16),
+                          DropdownButtonFormField<String>(
+                            value: _selectedCategory,
+                            decoration: const InputDecoration(
+                              labelText: 'Seleccionar Categoría',
+                              border: OutlineInputBorder(),
+                            ),
+                            items: _categoryTranslations.entries.map((entry) {
+                              return DropdownMenuItem(
+                                value: entry.key,
+                                child: Text(entry.value),
+                              );
+                            }).toList(),
+                            onChanged: (value) {
+                              setState(() {
+                                _selectedCategory = value!;
+                                _selectedItemId = null;
+                                _itemController.clear();
+                              });
+                            },
                           ),
-                          items: _categoryTranslations.entries.map((entry) {
-                            return DropdownMenuItem(
-                              value: entry.key,
-                              child: Text(entry.value),
-                            );
-                          }).toList(),
-                          onChanged: (value) {
-                            setState(() {
-                              _selectedCategory = value!;
-                              _selectedItemId = null;
-                              _itemController.clear();
-                            });
-                          },
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
                   ),
-                ),
-                const SizedBox(height: 16),
-                
-                Card(
-                  child: Padding(
-                    padding: const EdgeInsets.all(16.0),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text(
-                          'Seleccionar Equipo',
-                          style: TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold,
+                  const SizedBox(height: 16),
+                  
+                  Card(
+                    child: Padding(
+                      padding: const EdgeInsets.all(16.0),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'Seleccionar Equipo',
+                            style: TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                            ),
                           ),
-                        ),
-                        const SizedBox(height: 16),
-                        
-                        if (_isLoadingItems)
-                          const Center(child: CircularProgressIndicator())
-                        else ...[
-                          // Lista de items disponibles
-                          ...(_availableItems
-                              .where((item) => item['category'] == _selectedCategory)
-                              .map((item) => _buildItemTile(item))),
+                          const SizedBox(height: 16),
                           
-                          if (_availableItems
-                              .where((item) => item['category'] == _selectedCategory)
-                              .isEmpty)
-                            const Center(
-                              child: Padding(
-                                padding: EdgeInsets.all(16.0),
-                                child: Text(
-                                  'No hay equipos disponibles en esta categoría',
-                                  style: TextStyle(color: AppColors.grey600),
+                          if (_isLoadingItems)
+                            const Center(child: CircularProgressIndicator())
+                          else ...[ 
+                            ...(_availableItems
+                                .where((item) => item['category'] == _selectedCategory)
+                                .map((item) => _buildItemTile(item))),
+                            
+                            if (_availableItems
+                                .where((item) => item['category'] == _selectedCategory)
+                                .isEmpty)
+                              const Center(
+                                child: Padding(
+                                  padding: EdgeInsets.all(16.0),
+                                  child: Text(
+                                    'No hay equipos disponibles en esta categoría',
+                                    style: TextStyle(color: AppColors.grey600),
+                                  ),
                                 ),
                               ),
-                            ),
+                          ],
                         ],
-                      ],
+                      ),
                     ),
                   ),
-                ),
+                ] else ...[
+                  Card(
+                    child: Padding(
+                      padding: const EdgeInsets.all(16.0),
+                      child: Column(
+                        children: [
+                          Icon(
+                            Icons.warehouse_outlined,
+                            size: 48,
+                            color: AppColors.grey400,
+                          ),
+                          const SizedBox(height: 16),
+                          const Text(
+                            'Selecciona un almacén primero',
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w500,
+                              color: AppColors.grey600,
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          const Text(
+                            'Para ver los equipos disponibles, primero debes seleccionar el almacén donde deseas solicitar el préstamo.',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              color: AppColors.grey600,
+                              fontSize: 14,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
               ] else ...[
                 Card(
                   child: Padding(
@@ -358,7 +492,6 @@ class _LoanRequestScreenState extends State<LoanRequestScreen> {
                       ),
                       const SizedBox(height: 16),
                       
-                      // Cantidad
                       TextFormField(
                         controller: _quantityController,
                         decoration: const InputDecoration(
@@ -379,7 +512,6 @@ class _LoanRequestScreenState extends State<LoanRequestScreen> {
                       ),
                       const SizedBox(height: 16),
                       
-                      // Fechas
                       Row(
                         children: [
                           Expanded(
@@ -421,7 +553,6 @@ class _LoanRequestScreenState extends State<LoanRequestScreen> {
                       ),
                       const SizedBox(height: 16),
                       
-                      // Prioridad
                       DropdownButtonFormField<String>(
                         value: _priority,
                         decoration: const InputDecoration(
@@ -441,7 +572,6 @@ class _LoanRequestScreenState extends State<LoanRequestScreen> {
                       ),
                       const SizedBox(height: 16),
                       
-                      // Propósito
                       TextFormField(
                         controller: _purposeController,
                         decoration: const InputDecoration(
@@ -463,7 +593,6 @@ class _LoanRequestScreenState extends State<LoanRequestScreen> {
               ),
               const SizedBox(height: 24),
               
-              // Botones de acción
               Row(
                 children: [
                   Expanded(
@@ -577,6 +706,16 @@ class _LoanRequestScreenState extends State<LoanRequestScreen> {
 
   void _submitRequest() async {
     if (_formKey.currentState!.validate()) {
+      if (_selectedWarehouseId == null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Por favor selecciona un almacén'),
+            backgroundColor: AppColors.error,
+          ),
+        );
+        return;
+      }
+      
       if (_isRegisteredItem && _selectedItemId == null) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
@@ -606,10 +745,6 @@ class _LoanRequestScreenState extends State<LoanRequestScreen> {
         final loanProvider = Provider.of<LoanProvider>(context, listen: false);
         final user = authProvider.currentUser;
 
-        if (user?.environmentId == null) {
-          throw Exception('Usuario no tiene ambiente asignado');
-        }
-
         final request = CreateLoanRequest(
           program: user?.program ?? 'Sin programa',
           purpose: _purposeController.text,
@@ -617,7 +752,7 @@ class _LoanRequestScreenState extends State<LoanRequestScreen> {
           endDate: DateFormat('yyyy-MM-dd').format(_endDate!),
           priority: _priority,
           quantityRequested: int.parse(_quantityController.text),
-          environmentId: user!.environmentId!,
+          environmentId: _selectedWarehouseId!, // Use selected warehouse
           itemId: _isRegisteredItem ? _selectedItemId : null,
           isRegisteredItem: _isRegisteredItem,
           itemName: !_isRegisteredItem ? _itemNameController.text : null,

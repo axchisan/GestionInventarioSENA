@@ -341,6 +341,14 @@ class _InstructorDashboardState extends State<InstructorDashboard> {
                         ),
                         _buildActionCard(
                           context,
+                          'Solicitar Préstamo',
+                          'Crear nueva solicitud de préstamo',
+                          Icons.assignment_turned_in,
+                          AppColors.primary,
+                          '/loan-request',
+                        ),
+                        _buildActionCard(
+                          context,
                           'Solicitar Mantenimiento',
                           'Reporta equipos dañados',
                           Icons.build_circle,
@@ -717,6 +725,11 @@ class _InstructorDashboardState extends State<InstructorDashboard> {
             leading: const Icon(Icons.assignment),
             title: const Text('Préstamos'),
             onTap: () => context.push('/loan-history'),
+          ),
+          ListTile(
+            leading: const Icon(Icons.assignment_turned_in),
+            title: const Text('Solicitar Préstamo'),
+            onTap: () => context.push('/loan-request'),
           ),
           ListTile(
             leading: const Icon(Icons.build_circle),

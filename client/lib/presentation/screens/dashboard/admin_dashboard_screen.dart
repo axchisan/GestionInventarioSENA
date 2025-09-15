@@ -160,6 +160,22 @@ class AdminDashboardScreen extends StatelessWidget {
                 ),
                 _buildActionCard(
                   context,
+                  'Solicitudes de Préstamo',
+                  'Gestionar préstamos del sistema',
+                  Icons.assignment_turned_in,
+                  AppColors.secondary,
+                  '/loan-history',
+                ),
+                _buildActionCard(
+                  context,
+                  'Gestión de Préstamos',
+                  'Administrar todos los préstamos',
+                  Icons.assignment_turned_in,
+                  AppColors.secondary,
+                  '/loan-management',
+                ),
+                _buildActionCard(
+                  context,
                   'Estadísticas Avanzadas',
                   'Métricas y análisis detallados',
                   Icons.analytics,
@@ -430,6 +446,16 @@ class AdminDashboardScreen extends StatelessWidget {
             leading: const Icon(Icons.people),
             title: const Text('Gestión de Usuarios'),
             onTap: () => context.push('/user-management'),
+          ),
+          ListTile(
+            leading: const Icon(Icons.assignment_turned_in),
+            title: const Text('Solicitudes de Préstamo'),
+            onTap: () => context.push('/loan-history'),
+          ),
+          ListTile(
+            leading: const Icon(Icons.check_circle),
+            title: const Text('Gestión de Préstamos'),
+            onTap: () => context.push('/loan-management'),
           ),
           ListTile(
             leading: const Icon(Icons.analytics),

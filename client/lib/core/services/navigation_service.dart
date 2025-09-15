@@ -9,6 +9,7 @@ import '../../presentation/screens/dashboard/general_admin_dashboard_screen.dart
 import '../../presentation/screens/environment/manage_schedules_screen.dart';
 import '../../presentation/screens/inventory/AddInventoryItemScreen.dart';
 import '../../presentation/screens/inventory/edit_inventory_item_screen.dart';
+import '../../presentation/screens/loan/loan_management_screen.dart';
 import '../../presentation/screens/qr/qr_code_generator_screen.dart';
 import '../../presentation/screens/splash/splash_screen.dart';
 import '../../presentation/screens/admin/user_management_screen.dart';
@@ -89,6 +90,11 @@ class NavigationService {
         path: '/loan-request',
         name: 'loan-request',
         builder: (context, state) => const LoanRequestScreen(),
+      ),
+      GoRoute(
+        path: '/loan-management',
+        name: 'loan-management',
+        builder: (context, state) => const LoanManagementScreen(),
       ),
       GoRoute(
         path: '/maintenance-request',
