@@ -99,6 +99,36 @@ class NotificationService {
     }
   }
 
+  static Future<void> createLoanNotification({
+    required String userId,
+    required String type,
+    required String title,
+    required String message,
+    required String priority,
+  }) async {
+    try {
+      final token = await SessionService.getAccessToken();
+      if (token == null) return;
+
+      await http.post(
+        Uri.parse('$baseUrl$_notificationsEndpoint'),
+        headers: {
+          'Authorization': 'Bearer $token',
+          'Content-Type': 'application/json',
+        },
+        body: json.encode({
+          'user_id': userId,
+          'type': type,
+          'title': title,
+          'message': message,
+          'priority': priority,
+        }),
+      );
+    } catch (e) {
+      print('Error creating loan notification: $e');
+    }
+  }
+
   static Future<int> getUnreadCount() async {
     final notifications = await getNotifications();
     return notifications.where((n) => !(n['is_read'] ?? false)).length;

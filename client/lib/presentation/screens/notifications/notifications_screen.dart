@@ -179,6 +179,18 @@ class _NotificationsScreenState extends State<NotificationsScreen>
         typeColor = AppColors.error;
         typeIcon = Icons.error;
         break;
+      case 'loan_pending':
+        typeColor = AppColors.warning;
+        typeIcon = Icons.hourglass_empty;
+        break;
+      case 'loan_active':
+        typeColor = AppColors.primary;
+        typeIcon = Icons.play_circle;
+        break;
+      case 'loan_returned':
+        typeColor = AppColors.success;
+        typeIcon = Icons.assignment_return;
+        break;
       case 'check_reminder':
       case 'verification_pending':
         typeColor = AppColors.warning;
@@ -350,6 +362,18 @@ class _NotificationsScreenState extends State<NotificationsScreen>
       case 'loan_overdue':
         label = 'Préstamo Vencido';
         color = AppColors.error;
+        break;
+      case 'loan_pending':
+        label = 'Préstamo Pendiente';
+        color = AppColors.warning;
+        break;
+      case 'loan_active':
+        label = 'Préstamo Activo';
+        color = AppColors.primary;
+        break;
+      case 'loan_returned':
+        label = 'Préstamo Devuelto';
+        color = AppColors.success;
         break;
       case 'check_reminder':
         label = 'Recordatorio';

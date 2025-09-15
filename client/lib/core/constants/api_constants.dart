@@ -6,3 +6,4 @@ const String environmentsEndpoint = '/api/environments/';
 const String inventoryEndpoint = '/api/inventory/';
 const String qrGenerateEndpoint = '/api/qr/generate/';
 const String inventoryChecksEndpoint = '/api/inventory-checks/';
+const String loansEndpoint = '/api/loans/';

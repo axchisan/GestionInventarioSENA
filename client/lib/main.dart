@@ -7,6 +7,7 @@ import 'core/services/navigation_service.dart';
 import 'core/services/theme_service.dart';
 import 'core/services/language_service.dart';
 import 'presentation/providers/auth_provider.dart';
+import 'presentation/providers/loan_provider.dart';
 import 'presentation/screens/splash/splash_screen.dart';
 
 void main() async {
@@ -28,6 +29,13 @@ void main() async {
         ChangeNotifierProvider(create: (_) => ThemeService.instance),
         ChangeNotifierProvider(create: (_) => LanguageService.instance),
         ChangeNotifierProvider(create: (_) => AuthProvider()),
+        ChangeNotifierProxyProvider<AuthProvider, LoanProvider>(
+          create: (context) => LoanProvider(
+            Provider.of<AuthProvider>(context, listen: false),
+          ),
+          update: (context, authProvider, loanProvider) => 
+            loanProvider ?? LoanProvider(authProvider),
+        ),
       ],
       child: const SenaInventoryApp(),
     ),
