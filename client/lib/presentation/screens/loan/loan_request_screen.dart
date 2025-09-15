@@ -66,7 +66,7 @@ class _LoanRequestScreenState extends State<LoanRequestScreen> {
     });
 
     try {
-      final warehouses = await _apiService.get('$loansEndpoint/warehouses');
+      final warehouses = await _apiService.get(loansWarehousesEndpoint);
       setState(() {
         _availableWarehouses = warehouses;
       });

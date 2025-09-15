@@ -263,12 +263,12 @@ class LoanProvider extends ChangeNotifier {
       notifyListeners();
 
       final response = await http.put(
-        Uri.parse('$baseUrl$loansEndpoint$loanId/approve'),
+        Uri.parse('$baseUrl$loansEndpoint$loanId'),
         headers: {
           'Content-Type': 'application/json',
           'Authorization': 'Bearer ${_authProvider.token}',
         },
-        body: jsonEncode({}),
+        body: jsonEncode({'status': 'approved'}),
       );
 
       if (response.statusCode == 200) {
@@ -308,12 +308,15 @@ class LoanProvider extends ChangeNotifier {
       notifyListeners();
 
       final response = await http.put(
-        Uri.parse('$baseUrl$loansEndpoint$loanId/reject'),
+        Uri.parse('$baseUrl$loansEndpoint$loanId'),
         headers: {
           'Content-Type': 'application/json',
           'Authorization': 'Bearer ${_authProvider.token}',
         },
-        body: jsonEncode({'rejection_reason': reason}),
+        body: jsonEncode({
+          'status': 'rejected',
+          'rejection_reason': reason
+        }),
       );
 
       if (response.statusCode == 200) {
@@ -353,12 +356,12 @@ class LoanProvider extends ChangeNotifier {
       notifyListeners();
 
       final response = await http.put(
-        Uri.parse('$baseUrl$loansEndpoint$loanId/activate'),
+        Uri.parse('$baseUrl$loansEndpoint$loanId'),
         headers: {
           'Content-Type': 'application/json',
           'Authorization': 'Bearer ${_authProvider.token}',
         },
-        body: jsonEncode({}),
+        body: jsonEncode({'status': 'active'}),
       );
 
       if (response.statusCode == 200) {
@@ -398,12 +401,12 @@ class LoanProvider extends ChangeNotifier {
       notifyListeners();
 
       final response = await http.put(
-        Uri.parse('$baseUrl$loansEndpoint$loanId/return'),
+        Uri.parse('$baseUrl$loansEndpoint$loanId'),
         headers: {
           'Content-Type': 'application/json',
           'Authorization': 'Bearer ${_authProvider.token}',
         },
-        body: jsonEncode({}),
+        body: jsonEncode({'status': 'returned'}),
       );
 
       if (response.statusCode == 200) {

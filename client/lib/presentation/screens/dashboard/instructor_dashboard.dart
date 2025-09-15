@@ -331,12 +331,13 @@ class _InstructorDashboardState extends State<InstructorDashboard> {
                           AppColors.accent,
                           '/qr-generate',
                         ),
+                        
                         _buildActionCard(
                           context,
-                          'Préstamos Activos',
-                          'Gestiona préstamos del ambiente',
-                          Icons.assignment,
-                          AppColors.accent,
+                          'Historial de Préstamos',
+                          'Consulta el historial de préstamos',
+                          Icons.history,
+                          AppColors.secondary,
                           '/loan-history',
                         ),
                         _buildActionCard(
@@ -722,8 +723,8 @@ class _InstructorDashboardState extends State<InstructorDashboard> {
             onTap: () => context.push('/inventory-check'),
           ),
           ListTile(
-            leading: const Icon(Icons.assignment),
-            title: const Text('Préstamos'),
+            leading: const Icon(Icons.history),
+            title: const Text('Historial de Préstamos'),
             onTap: () => context.push('/loan-history'),
           ),
           ListTile(
