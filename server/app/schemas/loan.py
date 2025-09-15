@@ -8,7 +8,7 @@ class LoanBase(BaseModel):
     purpose: str = Field(..., min_length=1)
     start_date: date
     end_date: date
-    priority: str = Field(default="media", regex="^(alta|media|baja)$")
+    priority: str = Field(default="media", pattern="^(alta|media|baja)$")
     quantity_requested: int = Field(default=1, ge=1)
     
 class LoanCreateRegistered(LoanBase):
@@ -25,7 +25,7 @@ class LoanCreateCustom(LoanBase):
     is_registered_item: bool = False
 
 class LoanUpdate(BaseModel):
-    status: Optional[str] = Field(None, regex="^(pending|approved|rejected|active|returned|overdue)$")
+    status: Optional[str] = Field(None, pattern="^(pending|approved|rejected|active|returned|overdue)$")
     rejection_reason: Optional[str] = None
     actual_return_date: Optional[date] = None
     admin_id: Optional[UUID] = None
