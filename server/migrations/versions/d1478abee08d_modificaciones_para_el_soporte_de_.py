@@ -1,8 +1,8 @@
-"""agregado check maintenance_request en el modelo de notificaciones
+"""modificaciones para el soporte de prestamos del instructor
 
-Revision ID: 43aa9001b1cc
+Revision ID: d1478abee08d
 Revises: 
-Create Date: 2025-09-14 17:35:44.514221
+Create Date: 2025-09-15 08:05:20.282251
 
 """
 from typing import Sequence, Union
@@ -12,7 +12,7 @@ import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql
 
 # revision identifiers, used by Alembic.
-revision: str = '43aa9001b1cc'
+revision: str = 'd1478abee08d'
 down_revision: Union[str, Sequence[str], None] = None
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
@@ -39,6 +39,7 @@ def upgrade() -> None:
     sa.Column('capacity', sa.Integer(), nullable=False),
     sa.Column('qr_code', sa.String(length=100), nullable=False),
     sa.Column('description', sa.Text(), nullable=True),
+    sa.Column('is_warehouse', sa.Boolean(), nullable=False),
     sa.Column('is_active', sa.Boolean(), nullable=True),
     sa.Column('created_at', sa.TIMESTAMP(), server_default=sa.text('CURRENT_TIMESTAMP'), nullable=True),
     sa.Column('updated_at', sa.TIMESTAMP(), server_default=sa.text('CURRENT_TIMESTAMP'), nullable=True),
@@ -194,8 +195,9 @@ def upgrade() -> None:
     op.create_table('loans',
     sa.Column('id', sa.UUID(), nullable=False),
     sa.Column('instructor_id', sa.UUID(), nullable=False),
-    sa.Column('item_id', sa.UUID(), nullable=False),
+    sa.Column('item_id', sa.UUID(), nullable=True),
     sa.Column('admin_id', sa.UUID(), nullable=True),
+    sa.Column('environment_id', sa.UUID(), nullable=False),
     sa.Column('program', sa.String(length=100), nullable=False),
     sa.Column('purpose', sa.Text(), nullable=False),
     sa.Column('start_date', sa.Date(), nullable=False),
@@ -203,11 +205,18 @@ def upgrade() -> None:
     sa.Column('actual_return_date', sa.Date(), nullable=True),
     sa.Column('status', sa.String(length=20), nullable=False),
     sa.Column('rejection_reason', sa.Text(), nullable=True),
+    sa.Column('item_name', sa.String(length=200), nullable=True),
+    sa.Column('item_description', sa.Text(), nullable=True),
+    sa.Column('is_registered_item', sa.Boolean(), nullable=False),
+    sa.Column('quantity_requested', sa.Integer(), nullable=False),
+    sa.Column('priority', sa.String(length=10), nullable=False),
     sa.Column('acta_pdf_path', sa.String(length=500), nullable=True),
     sa.Column('created_at', sa.TIMESTAMP(), server_default=sa.text('CURRENT_TIMESTAMP'), nullable=True),
     sa.Column('updated_at', sa.TIMESTAMP(), server_default=sa.text('CURRENT_TIMESTAMP'), nullable=True),
+    sa.CheckConstraint("priority IN ('alta', 'media', 'baja')", name='check_priority'),
     sa.CheckConstraint("status IN ('pending', 'approved', 'rejected', 'active', 'returned', 'overdue')", name='check_status'),
     sa.ForeignKeyConstraint(['admin_id'], ['users.id'], ondelete='SET NULL'),
+    sa.ForeignKeyConstraint(['environment_id'], ['environments.id'], ondelete='CASCADE'),
     sa.ForeignKeyConstraint(['instructor_id'], ['users.id'], ondelete='CASCADE'),
     sa.ForeignKeyConstraint(['item_id'], ['inventory_items.id'], ondelete='CASCADE'),
     sa.PrimaryKeyConstraint('id')

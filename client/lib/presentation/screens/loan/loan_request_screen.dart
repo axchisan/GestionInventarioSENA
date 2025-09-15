@@ -1,7 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:provider/provider.dart';
 import '../../../core/theme/app_colors.dart';
+import '../../../core/constants/api_constants.dart';
+import '../../../core/services/api_service.dart';
 import '../../widgets/common/sena_app_bar.dart';
+import '../../providers/auth_provider.dart';
+import '../../providers/loan_provider.dart';
+import '../../../data/models/loan_model.dart';
 
 class LoanRequestScreen extends StatefulWidget {
   const LoanRequestScreen({super.key});
@@ -14,37 +20,83 @@ class _LoanRequestScreenState extends State<LoanRequestScreen> {
   final _formKey = GlobalKey<FormState>();
   final _itemController = TextEditingController();
   final _purposeController = TextEditingController();
-  final _notesController = TextEditingController();
+  final _itemNameController = TextEditingController();
+  final _itemDescriptionController = TextEditingController();
+  final _quantityController = TextEditingController(text: '1');
   
   DateTime? _startDate;
   DateTime? _endDate;
-  String _priority = 'Media';
-  String _selectedCategory = 'Equipos de Cómputo';
+  String _priority = 'media';
+  String _selectedCategory = 'computer';
   bool _isSubmitting = false;
+  bool _isRegisteredItem = true;
+  String? _selectedItemId;
+  
+  List<dynamic> _availableItems = [];
+  bool _isLoadingItems = false;
+  late final ApiService _apiService;
 
-  final List<Map<String, dynamic>> _availableItems = [
-    {
-      'id': 'SENA-001',
-      'name': 'Laptop Dell Inspiron 15',
-      'category': 'Equipos de Cómputo',
-      'available': true,
-    },
-    {
-      'id': 'SENA-004',
-      'name': 'Microscopio Óptico',
-      'category': 'Laboratorio',
-      'available': true,
-    },
-    {
-      'id': 'SENA-005',
-      'name': 'Cámara Digital Canon',
-      'category': 'Audiovisuales',
-      'available': true,
-    },
-  ];
+  final Map<String, String> _categoryTranslations = {
+    'computer': 'Equipos de Cómputo',
+    'projector': 'Audiovisuales',
+    'keyboard': 'Periféricos',
+    'mouse': 'Periféricos',
+    'tv': 'Audiovisuales',
+    'camera': 'Audiovisuales',
+    'microphone': 'Audiovisuales',
+    'tablet': 'Equipos de Cómputo',
+    'other': 'Otros',
+  };
+
+  @override
+  void initState() {
+    super.initState();
+    _apiService = ApiService(
+      authProvider: Provider.of<AuthProvider>(context, listen: false),
+    );
+    _loadAvailableItems();
+  }
+
+  Future<void> _loadAvailableItems() async {
+    setState(() {
+      _isLoadingItems = true;
+    });
+
+    try {
+      final authProvider = Provider.of<AuthProvider>(context, listen: false);
+      final environmentId = authProvider.currentUser?.environmentId;
+      
+      if (environmentId != null) {
+        final items = await _apiService.get(
+          inventoryEndpoint,
+          queryParams: {
+            'environment_id': environmentId.toString(),
+            'status': 'available',
+          },
+        );
+        setState(() {
+          _availableItems = items;
+        });
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error al cargar items: $e'),
+          backgroundColor: AppColors.error,
+        ),
+      );
+    } finally {
+      setState(() {
+        _isLoadingItems = false;
+      });
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
+    final authProvider = Provider.of<AuthProvider>(context);
+    final user = authProvider.currentUser;
+
     return Scaffold(
       appBar: const SenaAppBar(title: 'Solicitar Préstamo'),
       body: Form(
@@ -54,7 +106,6 @@ class _LoanRequestScreenState extends State<LoanRequestScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Información del solicitante
               Card(
                 child: Padding(
                   padding: const EdgeInsets.all(16.0),
@@ -69,29 +120,37 @@ class _LoanRequestScreenState extends State<LoanRequestScreen> {
                         ),
                       ),
                       const SizedBox(height: 16),
-                      const Row(
+                      Row(
                         children: [
-                          CircleAvatar(
+                          const CircleAvatar(
                             backgroundColor: AppColors.primary,
                             child: Icon(Icons.person, color: Colors.white),
                           ),
-                          SizedBox(width: 12),
+                          const SizedBox(width: 12),
                           Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text(
-                                'Usuario Demo',
-                                style: TextStyle(
+                                '${user?.firstName ?? ''} ${user?.lastName ?? ''}',
+                                style: const TextStyle(
                                   fontSize: 16,
                                   fontWeight: FontWeight.w500,
                                 ),
                               ),
                               Text(
-                                'usuario@sena.edu.co',
-                                style: TextStyle(
+                                user?.email ?? '',
+                                style: const TextStyle(
                                   color: AppColors.grey600,
                                 ),
                               ),
+                              if (user?.program != null)
+                                Text(
+                                  'Programa: ${user!.program}',
+                                  style: const TextStyle(
+                                    color: AppColors.grey600,
+                                    fontSize: 12,
+                                  ),
+                                ),
                             ],
                           ),
                         ],
@@ -102,7 +161,6 @@ class _LoanRequestScreenState extends State<LoanRequestScreen> {
               ),
               const SizedBox(height: 16),
               
-              // Selección de categoría
               Card(
                 child: Padding(
                   padding: const EdgeInsets.all(16.0),
@@ -110,83 +168,181 @@ class _LoanRequestScreenState extends State<LoanRequestScreen> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       const Text(
-                        'Categoría de Equipo',
+                        'Tipo de Solicitud',
                         style: TextStyle(
                           fontSize: 18,
                           fontWeight: FontWeight.bold,
                         ),
                       ),
                       const SizedBox(height: 16),
-                      DropdownButtonFormField<String>(
-                        value: _selectedCategory,
-                        decoration: const InputDecoration(
-                          labelText: 'Seleccionar Categoría',
-                          border: OutlineInputBorder(),
-                        ),
-                        items: [
-                          'Equipos de Cómputo',
-                          'Audiovisuales',
-                          'Herramientas',
-                          'Laboratorio',
-                        ].map((category) {
-                          return DropdownMenuItem(
-                            value: category,
-                            child: Text(category),
-                          );
-                        }).toList(),
-                        onChanged: (value) {
-                          setState(() {
-                            _selectedCategory = value!;
-                            _itemController.clear();
-                          });
-                        },
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-              const SizedBox(height: 16),
-              
-              // Selección de item
-              Card(
-                child: Padding(
-                  padding: const EdgeInsets.all(16.0),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text(
-                        'Seleccionar Equipo',
-                        style: TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      const SizedBox(height: 16),
-                      
-                      // Lista de items disponibles
-                      ...(_availableItems
-                          .where((item) => item['category'] == _selectedCategory)
-                          .map((item) => _buildItemTile(item))),
-                      
-                      if (_availableItems
-                          .where((item) => item['category'] == _selectedCategory)
-                          .isEmpty)
-                        const Center(
-                          child: Padding(
-                            padding: EdgeInsets.all(16.0),
-                            child: Text(
-                              'No hay equipos disponibles en esta categoría',
-                              style: TextStyle(color: AppColors.grey600),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: RadioListTile<bool>(
+                              title: const Text('Item Registrado'),
+                              subtitle: const Text('Seleccionar de inventario'),
+                              value: true,
+                              groupValue: _isRegisteredItem,
+                              onChanged: (value) {
+                                setState(() {
+                                  _isRegisteredItem = value!;
+                                  _selectedItemId = null;
+                                  _itemController.clear();
+                                });
+                              },
                             ),
                           ),
-                        ),
+                          Expanded(
+                            child: RadioListTile<bool>(
+                              title: const Text('Item Personalizado'),
+                              subtitle: const Text('Describir item necesario'),
+                              value: false,
+                              groupValue: _isRegisteredItem,
+                              onChanged: (value) {
+                                setState(() {
+                                  _isRegisteredItem = value!;
+                                  _selectedItemId = null;
+                                  _itemController.clear();
+                                });
+                              },
+                            ),
+                          ),
+                        ],
+                      ),
                     ],
                   ),
                 ),
               ),
               const SizedBox(height: 16),
               
-              // Detalles del préstamo
+              if (_isRegisteredItem) ...[
+                // Selección de categoría para items registrados
+                Card(
+                  child: Padding(
+                    padding: const EdgeInsets.all(16.0),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          'Categoría de Equipo',
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+                        DropdownButtonFormField<String>(
+                          value: _selectedCategory,
+                          decoration: const InputDecoration(
+                            labelText: 'Seleccionar Categoría',
+                            border: OutlineInputBorder(),
+                          ),
+                          items: _categoryTranslations.entries.map((entry) {
+                            return DropdownMenuItem(
+                              value: entry.key,
+                              child: Text(entry.value),
+                            );
+                          }).toList(),
+                          onChanged: (value) {
+                            setState(() {
+                              _selectedCategory = value!;
+                              _selectedItemId = null;
+                              _itemController.clear();
+                            });
+                          },
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                
+                Card(
+                  child: Padding(
+                    padding: const EdgeInsets.all(16.0),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          'Seleccionar Equipo',
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+                        
+                        if (_isLoadingItems)
+                          const Center(child: CircularProgressIndicator())
+                        else ...[
+                          // Lista de items disponibles
+                          ...(_availableItems
+                              .where((item) => item['category'] == _selectedCategory)
+                              .map((item) => _buildItemTile(item))),
+                          
+                          if (_availableItems
+                              .where((item) => item['category'] == _selectedCategory)
+                              .isEmpty)
+                            const Center(
+                              child: Padding(
+                                padding: EdgeInsets.all(16.0),
+                                child: Text(
+                                  'No hay equipos disponibles en esta categoría',
+                                  style: TextStyle(color: AppColors.grey600),
+                                ),
+                              ),
+                            ),
+                        ],
+                      ],
+                    ),
+                  ),
+                ),
+              ] else ...[
+                Card(
+                  child: Padding(
+                    padding: const EdgeInsets.all(16.0),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          'Describir Item Necesario',
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+                        TextFormField(
+                          controller: _itemNameController,
+                          decoration: const InputDecoration(
+                            labelText: 'Nombre del Item',
+                            border: OutlineInputBorder(),
+                            hintText: 'Ej: Cable HDMI, Adaptador USB-C',
+                          ),
+                          validator: (value) {
+                            if (!_isRegisteredItem && (value == null || value.isEmpty)) {
+                              return 'Por favor ingresa el nombre del item';
+                            }
+                            return null;
+                          },
+                        ),
+                        const SizedBox(height: 16),
+                        TextFormField(
+                          controller: _itemDescriptionController,
+                          decoration: const InputDecoration(
+                            labelText: 'Descripción (Opcional)',
+                            border: OutlineInputBorder(),
+                            hintText: 'Especificaciones técnicas, marca, modelo, etc.',
+                          ),
+                          maxLines: 3,
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+              const SizedBox(height: 16),
+              
               Card(
                 child: Padding(
                   padding: const EdgeInsets.all(16.0),
@@ -199,6 +355,27 @@ class _LoanRequestScreenState extends State<LoanRequestScreen> {
                           fontSize: 18,
                           fontWeight: FontWeight.bold,
                         ),
+                      ),
+                      const SizedBox(height: 16),
+                      
+                      // Cantidad
+                      TextFormField(
+                        controller: _quantityController,
+                        decoration: const InputDecoration(
+                          labelText: 'Cantidad',
+                          border: OutlineInputBorder(),
+                        ),
+                        keyboardType: TextInputType.number,
+                        validator: (value) {
+                          if (value == null || value.isEmpty) {
+                            return 'Por favor ingresa la cantidad';
+                          }
+                          final quantity = int.tryParse(value);
+                          if (quantity == null || quantity < 1) {
+                            return 'La cantidad debe ser mayor a 0';
+                          }
+                          return null;
+                        },
                       ),
                       const SizedBox(height: 16),
                       
@@ -251,12 +428,11 @@ class _LoanRequestScreenState extends State<LoanRequestScreen> {
                           labelText: 'Prioridad',
                           border: OutlineInputBorder(),
                         ),
-                        items: ['Alta', 'Media', 'Baja'].map((priority) {
-                          return DropdownMenuItem(
-                            value: priority,
-                            child: Text(priority),
-                          );
-                        }).toList(),
+                        items: const [
+                          DropdownMenuItem(value: 'alta', child: Text('Alta')),
+                          DropdownMenuItem(value: 'media', child: Text('Media')),
+                          DropdownMenuItem(value: 'baja', child: Text('Baja')),
+                        ],
                         onChanged: (value) {
                           setState(() {
                             _priority = value!;
@@ -273,25 +449,13 @@ class _LoanRequestScreenState extends State<LoanRequestScreen> {
                           border: OutlineInputBorder(),
                           hintText: 'Describe para qué necesitas el equipo',
                         ),
-                        maxLines: 2,
+                        maxLines: 3,
                         validator: (value) {
                           if (value == null || value.isEmpty) {
                             return 'Por favor describe el propósito del préstamo';
                           }
                           return null;
                         },
-                      ),
-                      const SizedBox(height: 16),
-                      
-                      // Notas adicionales
-                      TextFormField(
-                        controller: _notesController,
-                        decoration: const InputDecoration(
-                          labelText: 'Notas Adicionales (Opcional)',
-                          border: OutlineInputBorder(),
-                          hintText: 'Información adicional relevante',
-                        ),
-                        maxLines: 3,
                       ),
                     ],
                   ),
@@ -334,28 +498,38 @@ class _LoanRequestScreenState extends State<LoanRequestScreen> {
   }
 
   Widget _buildItemTile(Map<String, dynamic> item) {
-    final isSelected = _itemController.text == item['id'];
+    final isSelected = _selectedItemId == item['id'];
+    final availableQuantity = (item['quantity'] ?? 0) - 
+                             (item['quantity_damaged'] ?? 0) - 
+                             (item['quantity_missing'] ?? 0);
     
     return Card(
       margin: const EdgeInsets.only(bottom: 8),
       color: isSelected ? AppColors.primary.withOpacity(0.1) : null,
       child: ListTile(
         leading: CircleAvatar(
-          backgroundColor: item['available'] ? AppColors.success : AppColors.error,
+          backgroundColor: availableQuantity > 0 ? AppColors.success : AppColors.error,
           child: Icon(
-            item['available'] ? Icons.check : Icons.close,
+            availableQuantity > 0 ? Icons.check : Icons.close,
             color: Colors.white,
             size: 20,
           ),
         ),
         title: Text(
-          item['name'],
+          item['name'] ?? 'Sin nombre',
           style: TextStyle(
             fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
           ),
         ),
-        subtitle: Text('ID: ${item['id']}'),
-        trailing: item['available']
+        subtitle: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Código: ${item['internal_code'] ?? 'N/A'}'),
+            Text('Disponibles: $availableQuantity'),
+            if (item['brand'] != null) Text('Marca: ${item['brand']}'),
+          ],
+        ),
+        trailing: availableQuantity > 0
             ? Icon(
                 isSelected ? Icons.radio_button_checked : Icons.radio_button_unchecked,
                 color: AppColors.primary,
@@ -367,10 +541,10 @@ class _LoanRequestScreenState extends State<LoanRequestScreen> {
                   fontSize: 12,
                 ),
               ),
-        onTap: item['available']
+        onTap: availableQuantity > 0
             ? () {
                 setState(() {
-                  _itemController.text = isSelected ? '' : item['id'];
+                  _selectedItemId = isSelected ? null : item['id'];
                 });
               }
             : null,
@@ -403,7 +577,7 @@ class _LoanRequestScreenState extends State<LoanRequestScreen> {
 
   void _submitRequest() async {
     if (_formKey.currentState!.validate()) {
-      if (_itemController.text.isEmpty) {
+      if (_isRegisteredItem && _selectedItemId == null) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text('Por favor selecciona un equipo'),
@@ -427,21 +601,66 @@ class _LoanRequestScreenState extends State<LoanRequestScreen> {
         _isSubmitting = true;
       });
 
-      // Simular envío de solicitud
-      await Future.delayed(const Duration(seconds: 2));
+      try {
+        final authProvider = Provider.of<AuthProvider>(context, listen: false);
+        final loanProvider = Provider.of<LoanProvider>(context, listen: false);
+        final user = authProvider.currentUser;
 
-      setState(() {
-        _isSubmitting = false;
-      });
+        if (user?.environmentId == null) {
+          throw Exception('Usuario no tiene ambiente asignado');
+        }
 
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Solicitud enviada exitosamente'),
-            backgroundColor: AppColors.success,
-          ),
+        final request = CreateLoanRequest(
+          program: user?.program ?? 'Sin programa',
+          purpose: _purposeController.text,
+          startDate: DateFormat('yyyy-MM-dd').format(_startDate!),
+          endDate: DateFormat('yyyy-MM-dd').format(_endDate!),
+          priority: _priority,
+          quantityRequested: int.parse(_quantityController.text),
+          environmentId: user!.environmentId!,
+          itemId: _isRegisteredItem ? _selectedItemId : null,
+          isRegisteredItem: _isRegisteredItem,
+          itemName: !_isRegisteredItem ? _itemNameController.text : null,
+          itemDescription: !_isRegisteredItem ? _itemDescriptionController.text : null,
         );
-        Navigator.pop(context);
+
+        final success = await loanProvider.createLoan(request);
+
+        if (success) {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Solicitud enviada exitosamente'),
+                backgroundColor: AppColors.success,
+              ),
+            );
+            Navigator.pop(context);
+          }
+        } else {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(loanProvider.errorMessage ?? 'Error al enviar solicitud'),
+                backgroundColor: AppColors.error,
+              ),
+            );
+          }
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Error: $e'),
+              backgroundColor: AppColors.error,
+            ),
+          );
+        }
+      } finally {
+        if (mounted) {
+          setState(() {
+            _isSubmitting = false;
+          });
+        }
       }
     }
   }
@@ -450,7 +669,9 @@ class _LoanRequestScreenState extends State<LoanRequestScreen> {
   void dispose() {
     _itemController.dispose();
     _purposeController.dispose();
-    _notesController.dispose();
+    _itemNameController.dispose();
+    _itemDescriptionController.dispose();
+    _quantityController.dispose();
     super.dispose();
   }
 }
