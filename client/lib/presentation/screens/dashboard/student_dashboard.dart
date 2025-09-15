@@ -257,22 +257,6 @@ class _StudentDashboardState extends State<StudentDashboard> {
                         ),
                         _buildActionCard(
                           context,
-                          'Solicitar Préstamo',
-                          'Pide equipos disponibles',
-                          Icons.assignment_add,
-                          AppColors.secondary,
-                          '/loan-request',
-                        ),
-                        _buildActionCard(
-                          context,
-                          'Mis Préstamos',
-                          'Consulta préstamos activos',
-                          Icons.assignment,
-                          AppColors.accent,
-                          '/loan-history',
-                        ),
-                        _buildActionCard(
-                          context,
                           'Ambiente',
                           'Vista del ambiente vinculado',
                           Icons.location_on,
@@ -647,16 +631,6 @@ class _StudentDashboardState extends State<StudentDashboard> {
             leading: const Icon(Icons.checklist),
             title: const Text('Verificar Inventario'),
             onTap: () => context.push('/inventory-check'),
-          ),
-          ListTile(
-            leading: const Icon(Icons.assignment_add),
-            title: const Text('Solicitar Préstamo'),
-            onTap: () => context.push('/loan-request'),
-          ),
-          ListTile(
-            leading: const Icon(Icons.assignment),
-            title: const Text('Mis Préstamos'),
-            onTap: () => context.push('/loan-history'),
           ),
           ListTile(
             leading: const Icon(Icons.location_on),

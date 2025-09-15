@@ -349,14 +349,6 @@ class _InstructorDashboardState extends State<InstructorDashboard> {
                         ),
                         _buildActionCard(
                           context,
-                          'Historial de Inventario',
-                          'Consulta movimientos',
-                          Icons.history,
-                          AppColors.info,
-                          '/inventory-history',
-                        ),
-                        _buildActionCard(
-                          context,
                           'Ambiente',
                           'Vista general del ambiente',
                           Icons.location_on,
@@ -370,14 +362,6 @@ class _InstructorDashboardState extends State<InstructorDashboard> {
                                   'environmentName': _environment!['name'],
                                 }
                               : null,
-                        ),
-                        _buildActionCard(
-                          context,
-                          'Cronograma',
-                          'Horarios de capacitación',
-                          Icons.schedule,
-                          AppColors.primary,
-                          '/training-schedule',
                         ),
                         _buildNotificationActionCard(context),
                       ],
@@ -751,11 +735,6 @@ class _InstructorDashboardState extends State<InstructorDashboard> {
                     }
                   : null,
             ),
-          ),
-          ListTile(
-            leading: const Icon(Icons.schedule),
-            title: const Text('Cronograma'),
-            onTap: () => context.push('/training-schedule'),
           ),
           ListTile(
             leading: Stack(
