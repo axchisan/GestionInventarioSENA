@@ -27,7 +27,9 @@ class _StudentDashboardState extends State<StudentDashboard> {
   @override
   void initState() {
     super.initState();
-    _apiService = ApiService(authProvider: Provider.of<AuthProvider>(context, listen: false));
+    _apiService = ApiService(
+      authProvider: Provider.of<AuthProvider>(context, listen: false),
+    );
     _fetchData();
   }
 
@@ -39,7 +41,9 @@ class _StudentDashboardState extends State<StudentDashboard> {
         _isLoading = false;
       });
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Vincula un ambiente primero escaneando QR')),
+        const SnackBar(
+          content: Text('Vincula un ambiente primero escaneando QR'),
+        ),
       );
       return;
     }
@@ -51,17 +55,21 @@ class _StudentDashboardState extends State<StudentDashboard> {
         inventoryEndpoint,
         queryParams: {'environment_id': user.environmentId.toString()},
       );
-      
+
       final notifications = await NotificationService.getNotifications();
       final unreadCount = await NotificationService.getUnreadCount();
-      
+
       setState(() {
         _environment = environment;
         _inventoryStats = {
           'total': items.length,
-          'available': items.where((item) => item['status'] == 'available').length,
+          'available': items
+              .where((item) => item['status'] == 'available')
+              .length,
           'in_use': items.where((item) => item['status'] == 'in_use').length,
-          'maintenance': items.where((item) => item['status'] == 'maintenance').length,
+          'maintenance': items
+              .where((item) => item['status'] == 'maintenance')
+              .length,
         };
         _recentNotifications = notifications.take(3).toList();
         _unreadNotificationsCount = unreadCount;
@@ -71,9 +79,9 @@ class _StudentDashboardState extends State<StudentDashboard> {
       setState(() {
         _isLoading = false;
       });
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error al cargar datos: $e')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Error al cargar datos: $e')));
     }
   }
 
@@ -257,11 +265,21 @@ class _StudentDashboardState extends State<StudentDashboard> {
                         ),
                         _buildActionCard(
                           context,
+                          'Solicitar Mantenimiento',
+                          'Reporta equipos dañados',
+                          Icons.build_circle,
+                          AppColors.warning,
+                          '/maintenance-request',
+                        ),
+                        _buildActionCard(
+                          context,
                           'Ambiente',
                           'Vista del ambiente vinculado',
                           Icons.location_on,
                           AppColors.success,
-                          _environment != null ? '/environment-overview' : '/qr-scan',
+                          _environment != null
+                              ? '/environment-overview'
+                              : '/qr-scan',
                           extra: _environment != null
                               ? {
                                   'environmentId': _environment!['id'],
@@ -299,7 +317,10 @@ class _StudentDashboardState extends State<StudentDashboard> {
                                 const Spacer(),
                                 if (_unreadNotificationsCount > 0)
                                   Container(
-                                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 8,
+                                      vertical: 4,
+                                    ),
                                     decoration: BoxDecoration(
                                       color: AppColors.error,
                                       borderRadius: BorderRadius.circular(12),
@@ -317,11 +338,13 @@ class _StudentDashboardState extends State<StudentDashboard> {
                             ),
                             const SizedBox(height: 12),
                             if (_recentNotifications.isNotEmpty) ...[
-                              ..._recentNotifications.map((notification) => 
-                                _buildNotificationItem(
+                              ..._recentNotifications.map(
+                                (notification) => _buildNotificationItem(
                                   notification['title'] ?? 'Sin título',
                                   notification['message'] ?? 'Sin mensaje',
-                                  _getNotificationColor(notification['type'] ?? 'system'),
+                                  _getNotificationColor(
+                                    notification['type'] ?? 'system',
+                                  ),
                                   !(notification['is_read'] ?? false),
                                 ),
                               ),
@@ -379,7 +402,9 @@ class _StudentDashboardState extends State<StudentDashboard> {
                           minHeight: 16,
                         ),
                         child: Text(
-                          _unreadNotificationsCount > 99 ? '99+' : _unreadNotificationsCount.toString(),
+                          _unreadNotificationsCount > 99
+                              ? '99+'
+                              : _unreadNotificationsCount.toString(),
                           style: const TextStyle(
                             color: Colors.white,
                             fontSize: 10,
@@ -395,21 +420,15 @@ class _StudentDashboardState extends State<StudentDashboard> {
               const Text(
                 'Notificaciones',
                 textAlign: TextAlign.center,
-                style: TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.bold,
-                ),
+                style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
               ),
               const SizedBox(height: 4),
               Text(
-                _unreadNotificationsCount > 0 
+                _unreadNotificationsCount > 0
                     ? '$_unreadNotificationsCount sin leer'
                     : 'Revisa alertas',
                 textAlign: TextAlign.center,
-                style: const TextStyle(
-                  fontSize: 10,
-                  color: AppColors.grey600,
-                ),
+                style: const TextStyle(fontSize: 10, color: AppColors.grey600),
               ),
             ],
           ),
@@ -436,7 +455,12 @@ class _StudentDashboardState extends State<StudentDashboard> {
     }
   }
 
-  Widget _buildNotificationItem(String title, String subtitle, Color statusColor, bool isUnread) {
+  Widget _buildNotificationItem(
+    String title,
+    String subtitle,
+    Color statusColor,
+    bool isUnread,
+  ) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 8.0),
       child: Row(
@@ -460,7 +484,9 @@ class _StudentDashboardState extends State<StudentDashboard> {
                       child: Text(
                         title,
                         style: TextStyle(
-                          fontWeight: isUnread ? FontWeight.bold : FontWeight.w500,
+                          fontWeight: isUnread
+                              ? FontWeight.bold
+                              : FontWeight.w500,
                           fontSize: 14,
                         ),
                       ),
@@ -492,7 +518,12 @@ class _StudentDashboardState extends State<StudentDashboard> {
     );
   }
 
-  Widget _buildStatCard(String title, String value, IconData icon, Color color) {
+  Widget _buildStatCard(
+    String title,
+    String value,
+    IconData icon,
+    Color color,
+  ) {
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(16.0),
@@ -511,10 +542,7 @@ class _StudentDashboardState extends State<StudentDashboard> {
             Text(
               title,
               textAlign: TextAlign.center,
-              style: const TextStyle(
-                fontSize: 12,
-                color: AppColors.grey600,
-              ),
+              style: const TextStyle(fontSize: 12, color: AppColors.grey600),
             ),
           ],
         ),
@@ -554,10 +582,7 @@ class _StudentDashboardState extends State<StudentDashboard> {
               Text(
                 subtitle,
                 textAlign: TextAlign.center,
-                style: const TextStyle(
-                  fontSize: 10,
-                  color: AppColors.grey600,
-                ),
+                style: const TextStyle(fontSize: 10, color: AppColors.grey600),
               ),
             ],
           ),
@@ -575,9 +600,7 @@ class _StudentDashboardState extends State<StudentDashboard> {
         padding: EdgeInsets.zero,
         children: [
           DrawerHeader(
-            decoration: const BoxDecoration(
-              color: AppColors.primary,
-            ),
+            decoration: const BoxDecoration(color: AppColors.primary),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -609,10 +632,7 @@ class _StudentDashboardState extends State<StudentDashboard> {
                 ),
                 Text(
                   user?.email ?? 'aprendiz@sena.edu.co',
-                  style: const TextStyle(
-                    color: Colors.white70,
-                    fontSize: 14,
-                  ),
+                  style: const TextStyle(color: Colors.white70, fontSize: 14),
                 ),
               ],
             ),
@@ -631,6 +651,11 @@ class _StudentDashboardState extends State<StudentDashboard> {
             leading: const Icon(Icons.checklist),
             title: const Text('Verificar Inventario'),
             onTap: () => context.push('/inventory-check'),
+          ),
+          ListTile(
+            leading: const Icon(Icons.build_circle),
+            title: const Text('Solicitar Mantenimiento'),
+            onTap: () => context.push('/maintenance-request'),
           ),
           ListTile(
             leading: const Icon(Icons.location_on),
@@ -664,7 +689,9 @@ class _StudentDashboardState extends State<StudentDashboard> {
                         minHeight: 12,
                       ),
                       child: Text(
-                        _unreadNotificationsCount > 9 ? '9+' : _unreadNotificationsCount.toString(),
+                        _unreadNotificationsCount > 9
+                            ? '9+'
+                            : _unreadNotificationsCount.toString(),
                         style: const TextStyle(
                           color: Colors.white,
                           fontSize: 8,
@@ -694,7 +721,10 @@ class _StudentDashboardState extends State<StudentDashboard> {
             leading: const Icon(Icons.logout),
             title: const Text('Cerrar Sesión'),
             onTap: () async {
-              final authProvider = Provider.of<AuthProvider>(context, listen: false);
+              final authProvider = Provider.of<AuthProvider>(
+                context,
+                listen: false,
+              );
               await authProvider.logout();
               context.go('/login');
             },
