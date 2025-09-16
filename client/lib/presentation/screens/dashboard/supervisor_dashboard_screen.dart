@@ -402,10 +402,6 @@ class _SupervisorDashboardScreenState extends State<SupervisorDashboardScreen> {
                               ),
                               const SizedBox(height: 12),
                               _buildDetailRow(
-                                'Items Únicos',
-                                _inventoryStats!['total_items'].toString(),
-                              ),
-                              _buildDetailRow(
                                 'Cantidad Total de Unidades',
                                 _inventoryStats!['total_quantity'].toString(),
                               ),
@@ -505,14 +501,6 @@ class _SupervisorDashboardScreenState extends State<SupervisorDashboardScreen> {
                         ),
                         _buildActionCard(
                           context,
-                          'Gestión de Usuarios',
-                          'Administra usuarios',
-                          Icons.people,
-                          AppColors.primary,
-                          '/user-management',
-                        ),
-                        _buildActionCard(
-                          context,
                           'Estadísticas',
                           'Reportes generales',
                           Icons.analytics,
@@ -529,27 +517,11 @@ class _SupervisorDashboardScreenState extends State<SupervisorDashboardScreen> {
                         ),
                         _buildActionCard(
                           context,
-                          'Historial de Auditoría',
-                          'Registro de actividades',
-                          Icons.history,
-                          AppColors.info,
-                          '/audit-log',
-                        ),
-                        _buildActionCard(
-                          context,
                           'Generar Reportes',
                           'Crea reportes',
                           Icons.description,
                           AppColors.success,
                           '/report-generator',
-                        ),
-                        _buildActionCard(
-                          context,
-                          'Cronograma General',
-                          'Horarios programados',
-                          Icons.schedule,
-                          AppColors.primary,
-                          '/training-schedule',
                         ),
                         _buildNotificationActionCard(context),
                         _buildActionCard(
@@ -947,11 +919,6 @@ class _SupervisorDashboardScreenState extends State<SupervisorDashboardScreen> {
             ),
           ),
           ListTile(
-            leading: const Icon(Icons.people),
-            title: const Text('Gestión de Usuarios'),
-            onTap: () => context.push('/user-management'),
-          ),
-          ListTile(
             leading: const Icon(Icons.analytics),
             title: const Text('Estadísticas'),
             onTap: () => context.push('/statistics-dashboard'),
@@ -960,11 +927,6 @@ class _SupervisorDashboardScreenState extends State<SupervisorDashboardScreen> {
             leading: const Icon(Icons.warning),
             title: const Text('Alertas'),
             onTap: () => context.push('/inventory-alerts'),
-          ),
-          ListTile(
-            leading: const Icon(Icons.history),
-            title: const Text('Auditoría'),
-            onTap: () => context.push('/audit-log'),
           ),
           ListTile(
             leading: Stack(
