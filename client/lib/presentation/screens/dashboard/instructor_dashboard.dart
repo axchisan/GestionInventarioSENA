@@ -301,6 +301,14 @@ class _InstructorDashboardState extends State<InstructorDashboard> {
                       children: [
                         _buildActionCard(
                           context,
+                          'Escanear QR',
+                          'Identifica ambientes o equipos rapidamente',
+                          Icons.qr_code_scanner,
+                          AppColors.primary,
+                          '/qr-scan',
+                        ),
+                        _buildActionCard(
+                          context,
                           'Verificar Inventario',
                           'Actualiza estado de equipos',
                           Icons.checklist,
@@ -309,28 +317,11 @@ class _InstructorDashboardState extends State<InstructorDashboard> {
                         ),
                         _buildActionCard(
                           context,
-                          'Escanear QR',
-                          'Identifica equipos rápidamente',
-                          Icons.qr_code_scanner,
-                          AppColors.primary,
-                          '/qr-scan',
-                        ),
-                        _buildActionCard(
-                          context,
                           'Generar QR',
-                          'Crea códigos QR para equipos',
+                          'Crea códigos QR para equipos o ambientes',
                           Icons.qr_code,
                           AppColors.accent,
                           '/qr-generate',
-                        ),
-                        
-                        _buildActionCard(
-                          context,
-                          'Historial de Préstamos',
-                          'Consulta el historial de préstamos',
-                          Icons.history,
-                          AppColors.secondary,
-                          '/loan-history',
                         ),
                         _buildActionCard(
                           context,
@@ -339,6 +330,14 @@ class _InstructorDashboardState extends State<InstructorDashboard> {
                           Icons.assignment_turned_in,
                           AppColors.primary,
                           '/loan-request',
+                        ),
+                        _buildActionCard(
+                          context,
+                          'Historial de Préstamos',
+                          'Consulta el historial de préstamos',
+                          Icons.history,
+                          AppColors.secondary,
+                          '/loan-history',
                         ),
                         _buildActionCard(
                           context,
@@ -710,14 +709,19 @@ class _InstructorDashboardState extends State<InstructorDashboard> {
             onTap: () => context.go('/instructor-dashboard'),
           ),
           ListTile(
+            leading: const Icon(Icons.qr_code_scanner),
+            title: const Text('Escanear QR'),
+            onTap: () => context.push('/qr-scan'),
+          ),
+          ListTile(
             leading: const Icon(Icons.checklist),
             title: const Text('Verificar Inventario'),
             onTap: () => context.push('/inventory-check'),
           ),
           ListTile(
-            leading: const Icon(Icons.history),
-            title: const Text('Historial de Préstamos'),
-            onTap: () => context.push('/loan-history'),
+            leading: const Icon(Icons.qr_code),
+            title: const Text('Generar QR'),
+            onTap: () => context.push('/qr-generate'),
           ),
           ListTile(
             leading: const Icon(Icons.assignment_turned_in),
@@ -725,8 +729,13 @@ class _InstructorDashboardState extends State<InstructorDashboard> {
             onTap: () => context.push('/loan-request'),
           ),
           ListTile(
+            leading: const Icon(Icons.history),
+            title: const Text('Historial de Préstamos'),
+            onTap: () => context.push('/loan-history'),
+          ),
+          ListTile(
             leading: const Icon(Icons.build_circle),
-            title: const Text('Mantenimiento'),
+            title: const Text('Solicitar Mantenimiento'),
             onTap: () => context.push('/maintenance-request'),
           ),
           ListTile(
