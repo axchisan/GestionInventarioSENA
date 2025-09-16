@@ -4,6 +4,7 @@ import '../../../core/services/maintenance_service.dart';
 import '../../../core/services/notification_service.dart';
 import '../../../core/services/session_service.dart';
 import '../../widgets/common/sena_app_bar.dart';
+import '../../widgets/maintenance/maintenance_history_modal.dart';
 
 class MaintenanceRequestScreen extends StatefulWidget {
   final String? preselectedItemId;
@@ -111,12 +112,30 @@ class _MaintenanceRequestScreenState extends State<MaintenanceRequestScreen>
     });
   }
 
+  void _showMaintenanceHistory() async {
+    final currentUser = await SessionService.getUser();
+    if (currentUser != null) {
+      showDialog(
+        context: context,
+        builder: (context) => MaintenanceHistoryModal(
+          userId: currentUser['id'],
+          title: 'Mis Solicitudes de Mantenimiento',
+        ),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: SenaAppBar(
         title: 'Solicitud de Mantenimiento',
         actions: [
+          IconButton(
+            icon: const Icon(Icons.history),
+            onPressed: _showMaintenanceHistory,
+            tooltip: 'Ver historial de solicitudes',
+          ),
           IconButton(
             icon: const Icon(Icons.refresh),
             onPressed: _loadInventoryItems,
@@ -156,6 +175,13 @@ class _MaintenanceRequestScreenState extends State<MaintenanceRequestScreen>
             ),
           ),
         ],
+      ),
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: _showMaintenanceHistory,
+        icon: const Icon(Icons.history),
+        label: const Text('Historial'),
+        backgroundColor: AppColors.primary,
+        tooltip: 'Ver mis solicitudes anteriores',
       ),
     );
   }
@@ -396,7 +422,7 @@ class _MaintenanceRequestScreenState extends State<MaintenanceRequestScreen>
                         },
                       ),
                     
-                    if (_selectedItemId != null) ...[
+                    if (_selectedItemId != null) ...[ 
                       const SizedBox(height: 16),
                       Container(
                         padding: const EdgeInsets.all(12),
@@ -459,6 +485,7 @@ class _MaintenanceRequestScreenState extends State<MaintenanceRequestScreen>
             _buildInfoSection(),
             const SizedBox(height: 24),
             _buildActionButtons(),
+            const SizedBox(height: 80),
           ],
         ),
       ),
@@ -609,10 +636,12 @@ class _MaintenanceRequestScreenState extends State<MaintenanceRequestScreen>
           _buildInfoSection(),
           const SizedBox(height: 24),
           _buildActionButtons(),
+          const SizedBox(height: 80),
         ],
       ),
     );
   }
+
 
   Widget _buildMaintenanceTypeSection() {
     return Card(

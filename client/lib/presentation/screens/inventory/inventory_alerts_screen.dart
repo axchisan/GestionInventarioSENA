@@ -1,10 +1,14 @@
 import 'package:flutter/material.dart';
 import '../../widgets/common/sena_app_bar.dart';
+import '../../widgets/alerts/alert_detail_modal.dart';
 import '../../../core/services/alert_service.dart';
+import '../../../core/services/alert_settings_service.dart';
 import '../../../core/services/notification_service.dart';
 import '../../../data/models/alert_model.dart';
+import '../../../data/models/alert_settings_model.dart';
 import '../../../data/models/notification_model.dart';
 import '../../../data/models/inventory_check_item_model.dart';
+import '../../../core/theme/app_colors.dart';
 
 class InventoryAlertsScreen extends StatefulWidget {
   const InventoryAlertsScreen({Key? key}) : super(key: key);
@@ -21,9 +25,10 @@ class _InventoryAlertsScreenState extends State<InventoryAlertsScreen> with Tick
   List<AlertModel> _systemAlerts = [];
   List<NotificationModel> _maintenanceNotifications = [];
   List<InventoryCheckItemModel> _inventoryIssues = [];
-  List<Map<String, dynamic>> _configurations = [];
+  List<AlertSettingsModel> _alertSettings = [];
   
   bool _isLoading = true;
+  bool _isLoadingSettings = true;
   String? _error;
   int _totalUnresolved = 0;
 
@@ -32,7 +37,7 @@ class _InventoryAlertsScreenState extends State<InventoryAlertsScreen> with Tick
     super.initState();
     _tabController = TabController(length: 2, vsync: this);
     _loadAlertsData();
-    _loadConfigurations();
+    _loadAlertSettings();
   }
 
   @override
@@ -65,16 +70,24 @@ class _InventoryAlertsScreenState extends State<InventoryAlertsScreen> with Tick
     }
   }
 
-  Future<void> _loadConfigurations() async {
-  try {
-    final configs = await AlertService.getAlertConfigurations();
+  Future<void> _loadAlertSettings() async {
     setState(() {
-      _configurations = configs;
+      _isLoadingSettings = true;
     });
-  } catch (e) {
-    print('Error loading configurations: $e');
+
+    try {
+      final settings = await AlertSettingsService.getUserAlertSettings();
+      setState(() {
+        _alertSettings = settings;
+        _isLoadingSettings = false;
+      });
+    } catch (e) {
+      print('Error loading alert settings: $e');
+      setState(() {
+        _isLoadingSettings = false;
+      });
+    }
   }
-}
 
   List<Map<String, dynamic>> get _combinedAlerts {
     List<Map<String, dynamic>> combined = [];
@@ -155,7 +168,10 @@ class _InventoryAlertsScreenState extends State<InventoryAlertsScreen> with Tick
             tooltip: 'Marcar todas como leídas',
           ),
           IconButton(
-            onPressed: _loadAlertsData,
+            onPressed: () {
+              _loadAlertsData();
+              _loadAlertSettings();
+            },
             icon: const Icon(Icons.refresh),
             tooltip: 'Actualizar',
           ),
@@ -267,15 +283,242 @@ class _InventoryAlertsScreenState extends State<InventoryAlertsScreen> with Tick
   }
 
   Widget _buildConfigurationTab() {
-    return ListView.builder(
+    if (_isLoadingSettings) {
+      return const Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            CircularProgressIndicator(),
+            SizedBox(height: 16),
+            Text('Cargando configuraciones...'),
+          ],
+        ),
+      );
+    }
+
+    return SingleChildScrollView(
       padding: const EdgeInsets.all(16),
-      itemCount: _configurations.length,
-      itemBuilder: (context, index) {
-        final config = _configurations[index];
-        return _buildConfigurationCard(config);
-      },
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Header
+          Card(
+            color: AppColors.primary.withOpacity(0.1),
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Row(
+                children: [
+                  Icon(Icons.settings, color: AppColors.primary),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Configuración de Alertas',
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                            color: AppColors.primary,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          'Personaliza qué alertas quieres recibir y cómo',
+                          style: TextStyle(
+                            color: AppColors.grey600,
+                            fontSize: 14,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          
+          const SizedBox(height: 16),
+          
+          // Alert Types Configuration
+          _buildAlertTypeSection('low_stock', 'Stock Bajo', 
+              'Recibir alertas cuando el inventario esté por debajo del umbral', 
+              Icons.inventory_2_outlined),
+          
+          const SizedBox(height: 12),
+          
+          _buildAlertTypeSection('maintenance_overdue', 'Mantenimiento Vencido', 
+              'Alertas sobre equipos que requieren mantenimiento', 
+              Icons.build_outlined),
+          
+          const SizedBox(height: 12),
+          
+          _buildAlertTypeSection('equipment_missing', 'Equipo Faltante', 
+              'Notificaciones sobre equipos no encontrados en verificaciones', 
+              Icons.error_outline),
+          
+          const SizedBox(height: 12),
+          
+          _buildAlertTypeSection('loan_overdue', 'Préstamo Vencido', 
+              'Alertas sobre préstamos que no han sido devueltos a tiempo', 
+              Icons.schedule_outlined),
+          
+          const SizedBox(height: 12),
+          
+          _buildAlertTypeSection('verification_pending', 'Verificación Pendiente', 
+              'Recordatorios sobre verificaciones de inventario pendientes', 
+              Icons.assignment_outlined),
+          
+          const SizedBox(height: 24),
+          
+          // Add new alert setting button
+          SizedBox(
+            width: double.infinity,
+            child: OutlinedButton.icon(
+              onPressed: _showAddAlertSettingDialog,
+              icon: const Icon(Icons.add),
+              label: const Text('Agregar Nueva Configuración'),
+            ),
+          ),
+        ],
+      ),
     );
   }
+
+  Widget _buildAlertTypeSection(String alertType, String title, String description, IconData icon) {
+    final setting = _alertSettings.firstWhere(
+      (s) => s.alertType == alertType,
+      orElse: () => AlertSettingsModel(
+        id: '',
+        userId: '',
+        alertType: alertType,
+        isEnabled: false,
+        createdAt: DateTime.now(),
+        updatedAt: DateTime.now(),
+      ),
+    );
+    
+    final hasExistingSetting = setting.id.isNotEmpty;
+    
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: AppColors.primary.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Icon(icon, color: AppColors.primary, size: 20),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        title,
+                        style: const TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 16,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        description,
+                        style: TextStyle(
+                          color: AppColors.grey600,
+                          fontSize: 14,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Switch(
+                  value: setting.isEnabled,
+                  onChanged: (value) => _toggleAlertSetting(alertType, value, hasExistingSetting ? setting.id : null),
+                  activeColor: AppColors.primary,
+                ),
+              ],
+            ),
+            
+            if (setting.isEnabled) ...[
+              const SizedBox(height: 16),
+              const Divider(),
+              const SizedBox(height: 16),
+              
+              // Threshold configuration for applicable alert types
+              if (alertType == 'low_stock') ...[
+                Row(
+                  children: [
+                    Expanded(
+                      child: TextFormField(
+                        initialValue: setting.thresholdValue?.toString() ?? '5',
+                        decoration: const InputDecoration(
+                          labelText: 'Umbral mínimo',
+                          border: OutlineInputBorder(),
+                          suffixText: 'unidades',
+                        ),
+                        keyboardType: TextInputType.number,
+                        onFieldSubmitted: (value) {
+                          final threshold = int.tryParse(value) ?? 5;
+                          _updateAlertThreshold(setting.id, threshold);
+                        },
+                      ),
+                    ),
+                    const SizedBox(width: 16),
+                    Icon(Icons.info_outline, color: AppColors.info, size: 20),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'Se enviará una alerta cuando el stock esté por debajo de este valor',
+                  style: TextStyle(
+                    color: AppColors.grey600,
+                    fontSize: 12,
+                  ),
+                ),
+              ],
+              
+              // Notification methods
+              const SizedBox(height: 16),
+              Text(
+                'Métodos de notificación:',
+                style: TextStyle(
+                  fontWeight: FontWeight.w500,
+                  color: AppColors.grey700,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Wrap(
+                spacing: 8,
+                children: [
+                  FilterChip(
+                    label: const Text('Push'),
+                    selected: setting.notificationMethods?.contains('push') ?? false,
+                    onSelected: (selected) => _toggleNotificationMethod(setting.id, 'push', selected),
+                    selectedColor: AppColors.primary.withOpacity(0.2),
+                  ),
+                  FilterChip(
+                    label: const Text('Email'),
+                    selected: setting.notificationMethods?.contains('email') ?? false,
+                    onSelected: (selected) => _toggleNotificationMethod(setting.id, 'email', selected),
+                    selectedColor: AppColors.primary.withOpacity(0.2),
+                  ),
+                ],
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
 
   Widget _buildFilters() {
     final availableTypes = ['Todas'];
@@ -341,7 +584,7 @@ class _InventoryAlertsScreenState extends State<InventoryAlertsScreen> with Tick
       margin: const EdgeInsets.only(bottom: 12),
       elevation: alert['isRead'] ? 1 : 3,
       child: InkWell(
-        onTap: () => _markAsRead(alert),
+        onTap: () => _showAlertDetail(alert),
         borderRadius: BorderRadius.circular(8),
         child: Padding(
           padding: const EdgeInsets.all(16),
@@ -451,6 +694,14 @@ class _InventoryAlertsScreenState extends State<InventoryAlertsScreen> with Tick
                     style: TextStyle(color: Colors.grey[600], fontSize: 12),
                   ),
                   const Spacer(),
+                  TextButton.icon(
+                    onPressed: () => _showAlertDetail(alert),
+                    icon: const Icon(Icons.visibility, size: 16),
+                    label: const Text('Ver detalles'),
+                    style: TextButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    ),
+                  ),
                   if (!alert['isRead'])
                     TextButton(
                       onPressed: () => _markAsRead(alert),
@@ -460,97 +711,6 @@ class _InventoryAlertsScreenState extends State<InventoryAlertsScreen> with Tick
               ),
             ],
           ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildConfigurationCard(Map<String, dynamic> config) {
-    return Card(
-      margin: const EdgeInsets.only(bottom: 12),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    config['type'],
-                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-                  ),
-                ),
-                Switch(
-                  value: config['enabled'],
-                  onChanged: (value) async {
-                    final success = await AlertService.updateAlertConfiguration(
-                      type: config['type'],
-                      enabled: value,
-                      threshold: config['threshold'],
-                    );
-                    
-                    if (success) {
-                      setState(() {
-                        config['enabled'] = value;
-                      });
-                    } else {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('Error al actualizar configuración')),
-                      );
-                    }
-                  },
-                  activeColor: const Color(0xFF00A651),
-                ),
-              ],
-            ),
-            const SizedBox(height: 8),
-            Text(
-              config['description'],
-              style: TextStyle(color: Colors.grey[600]),
-            ),
-            if (config['enabled']) ...[ 
-              const SizedBox(height: 12),
-              Row(
-                children: [
-                  Expanded(
-                    child: TextFormField(
-                      initialValue: config['threshold'].toString(),
-                      decoration: const InputDecoration(
-                        labelText: 'Valor',
-                        border: OutlineInputBorder(),
-                        contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                      ),
-                      keyboardType: TextInputType.number,
-                      onChanged: (value) {
-                        final newThreshold = int.tryParse(value) ?? config['threshold'];
-                        config['threshold'] = newThreshold;
-                      },
-                      onFieldSubmitted: (value) async {
-                        final newThreshold = int.tryParse(value) ?? config['threshold'];
-                        final success = await AlertService.updateAlertConfiguration(
-                          type: config['type'],
-                          enabled: config['enabled'],
-                          threshold: newThreshold,
-                        );
-                        
-                        if (!success) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(content: Text('Error al actualizar umbral')),
-                          );
-                        }
-                      },
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Text(
-                    config['type'] == 'Stock Bajo' ? 'unidades' : 'días',
-                    style: TextStyle(color: Colors.grey[600]),
-                  ),
-                ],
-              ),
-            ],
-          ],
         ),
       ),
     );
@@ -569,6 +729,111 @@ class _InventoryAlertsScreenState extends State<InventoryAlertsScreen> with Tick
       default:
         return Colors.grey;
     }
+  }
+
+  Future<void> _toggleAlertSetting(String alertType, bool enabled, String? settingId) async {
+    try {
+      if (settingId != null) {
+        // Update existing setting
+        await AlertSettingsService.updateAlertSetting(
+          settingId: settingId,
+          isEnabled: enabled,
+        );
+      } else {
+        // Create new setting
+        await AlertSettingsService.createAlertSetting(
+          alertType: alertType,
+          isEnabled: enabled,
+          notificationMethods: ['push'],
+        );
+      }
+      
+      // Reload settings
+      await _loadAlertSettings();
+      
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(enabled ? 'Alerta activada' : 'Alerta desactivada'),
+          backgroundColor: AppColors.success,
+        ),
+      );
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error al actualizar configuración: $e'),
+          backgroundColor: AppColors.error,
+        ),
+      );
+    }
+  }
+
+  Future<void> _updateAlertThreshold(String settingId, int threshold) async {
+    try {
+      await AlertSettingsService.updateAlertSetting(
+        settingId: settingId,
+        thresholdValue: threshold,
+      );
+      
+      await _loadAlertSettings();
+      
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Umbral actualizado a $threshold'),
+          backgroundColor: AppColors.success,
+        ),
+      );
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error al actualizar umbral: $e'),
+          backgroundColor: AppColors.error,
+        ),
+      );
+    }
+  }
+
+  Future<void> _toggleNotificationMethod(String settingId, String method, bool enabled) async {
+    try {
+      final setting = _alertSettings.firstWhere((s) => s.id == settingId);
+      final methods = List<String>.from(setting.notificationMethods ?? []);
+      
+      if (enabled) {
+        if (!methods.contains(method)) methods.add(method);
+      } else {
+        methods.remove(method);
+      }
+      
+      await AlertSettingsService.updateAlertSetting(
+        settingId: settingId,
+        notificationMethods: methods,
+      );
+      
+      await _loadAlertSettings();
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error al actualizar método de notificación: $e'),
+          backgroundColor: AppColors.error,
+        ),
+      );
+    }
+  }
+
+  void _showAddAlertSettingDialog() {
+    // Implementation for adding custom alert settings
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Agregar Configuración de Alerta'),
+        content: const Text('Esta funcionalidad estará disponible próximamente.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Cerrar'),
+          ),
+        ],
+      ),
+    );
   }
 
   Future<void> _markAsRead(Map<String, dynamic> alert) async {
@@ -612,5 +877,113 @@ class _InventoryAlertsScreenState extends State<InventoryAlertsScreen> with Tick
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(content: Text('Todas las alertas marcadas como leídas')),
     );
+  }
+
+  void _showAlertDetail(Map<String, dynamic> alert) {
+    final source = alert['source'] as String;
+    
+    // Only show detail modal for system alerts (AlertModel)
+    if (source == 'system_alert') {
+      final alertModel = alert['data'] as AlertModel;
+      showDialog(
+        context: context,
+        builder: (context) => AlertDetailModal(
+          alert: alertModel,
+          onResolve: () async {
+            final success = await AlertService.resolveAlert(alertModel.id);
+            if (success) {
+              setState(() {
+                alert['isRead'] = true;
+                if (_totalUnresolved > 0) _totalUnresolved--;
+              });
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('Alerta marcada como resuelta'),
+                  backgroundColor: Colors.green,
+                ),
+              );
+            } else {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('Error al resolver la alerta'),
+                  backgroundColor: Colors.red,
+                ),
+              );
+            }
+          },
+        ),
+      );
+    } else {
+      // For other types, show a simple info dialog
+      showDialog(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: Text(alert['title']),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(alert['description']),
+              const SizedBox(height: 16),
+              Row(
+                children: [
+                  Text('Tipo: ', style: TextStyle(fontWeight: FontWeight.bold)),
+                  Text(alert['type']),
+                ],
+              ),
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  Text('Prioridad: ', style: TextStyle(fontWeight: FontWeight.bold)),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: _getPriorityColor(alert['priority']),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Text(
+                      alert['priority'],
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  Text('Ubicación: ', style: TextStyle(fontWeight: FontWeight.bold)),
+                  Text(alert['location']),
+                ],
+              ),
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  Text('Fecha: ', style: TextStyle(fontWeight: FontWeight.bold)),
+                  Text(alert['timestamp']),
+                ],
+              ),
+            ],
+          ),
+          actions: [
+            if (!alert['isRead'])
+              TextButton(
+                onPressed: () {
+                  Navigator.of(context).pop();
+                  _markAsRead(alert);
+                },
+                child: const Text('Marcar como leída'),
+              ),
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('Cerrar'),
+            ),
+          ],
+        ),
+      );
+    }
   }
 }
