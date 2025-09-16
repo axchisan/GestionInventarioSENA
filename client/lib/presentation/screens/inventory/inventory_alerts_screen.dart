@@ -1,13 +1,16 @@
 import 'package:flutter/material.dart';
 import '../../widgets/common/sena_app_bar.dart';
 import '../../widgets/alerts/alert_detail_modal.dart';
+import '../../widgets/alerts/maintenance_alert_detail_modal.dart';
 import '../../../core/services/alert_service.dart';
 import '../../../core/services/alert_settings_service.dart';
 import '../../../core/services/notification_service.dart';
+import '../../../core/services/maintenance_service.dart';
 import '../../../data/models/alert_model.dart';
 import '../../../data/models/alert_settings_model.dart';
 import '../../../data/models/notification_model.dart';
 import '../../../data/models/inventory_check_item_model.dart';
+import '../../../data/models/maintenance_request_model.dart';
 import '../../../core/theme/app_colors.dart';
 
 class InventoryAlertsScreen extends StatefulWidget {
@@ -819,6 +822,163 @@ class _InventoryAlertsScreenState extends State<InventoryAlertsScreen> with Tick
     }
   }
 
+  void _showAlertDetail(Map<String, dynamic> alert) async {
+    final source = alert['source'] as String;
+    
+    if (source == 'system_alert') {
+      final alertModel = alert['data'] as AlertModel;
+      showDialog(
+        context: context,
+        builder: (context) => AlertDetailModal(
+          alert: alertModel,
+          onResolve: () async {
+            final success = await AlertService.resolveAlert(alertModel.id);
+            if (success) {
+              setState(() {
+                alert['isRead'] = true;
+                if (_totalUnresolved > 0) _totalUnresolved--;
+              });
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('Alerta marcada como resuelta'),
+                  backgroundColor: Colors.green,
+                ),
+              );
+            } else {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('Error al resolver la alerta'),
+                  backgroundColor: Colors.red,
+                ),
+              );
+            }
+          },
+        ),
+      );
+    } else if (source == 'notification') {
+      final notification = alert['data'] as NotificationModel;
+      
+      if (notification.isMaintenanceRelated && notification.actionUrl != null) {
+        String? maintenanceId = _extractMaintenanceIdFromUrl(notification.actionUrl!);
+        
+        if (maintenanceId != null) {
+          // Show loading dialog while fetching maintenance request details
+          showDialog(
+            context: context,
+            barrierDismissible: false,
+            builder: (context) => const Center(
+              child: CircularProgressIndicator(),
+            ),
+          );
+          
+          try {
+            final maintenanceRequest = await MaintenanceService.getMaintenanceRequestById(maintenanceId);
+            Navigator.of(context).pop(); // Close loading dialog
+            
+            if (maintenanceRequest != null) {
+              showDialog(
+                context: context,
+                builder: (context) => MaintenanceAlertDetailModal(
+                  maintenanceRequest: maintenanceRequest,
+                  onClose: () => Navigator.of(context).pop(),
+                ),
+              );
+            } else {
+              _showSimpleAlertDialog(alert);
+            }
+          } catch (e) {
+            Navigator.of(context).pop(); // Close loading dialog
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text('Error al cargar detalles: $e'),
+                backgroundColor: AppColors.error,
+              ),
+            );
+            _showSimpleAlertDialog(alert);
+          }
+        } else {
+          _showSimpleAlertDialog(alert);
+        }
+      } else {
+        _showSimpleAlertDialog(alert);
+      }
+    } else {
+      _showSimpleAlertDialog(alert);
+    }
+  }
+
+  void _showSimpleAlertDialog(Map<String, dynamic> alert) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(alert['title']),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(alert['description']),
+            const SizedBox(height: 16),
+            Row(
+              children: [
+                Text('Tipo: ', style: TextStyle(fontWeight: FontWeight.bold)),
+                Text(alert['type']),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                Text('Prioridad: ', style: TextStyle(fontWeight: FontWeight.bold)),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: _getPriorityColor(alert['priority']),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Text(
+                    alert['priority'],
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 12,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                Text('Ubicación: ', style: TextStyle(fontWeight: FontWeight.bold)),
+                Text(alert['location']),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                Text('Fecha: ', style: TextStyle(fontWeight: FontWeight.bold)),
+                Text(alert['timestamp']),
+              ],
+            ),
+          ],
+        ),
+        actions: [
+          if (!alert['isRead'])
+            TextButton(
+              onPressed: () {
+                Navigator.of(context).pop();
+                _markAsRead(alert);
+              },
+              child: const Text('Marcar como leída'),
+            ),
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Cerrar'),
+          ),
+        ],
+      ),
+    );
+  }
+
   void _showAddAlertSettingDialog() {
     // Implementation for adding custom alert settings
     showDialog(
@@ -879,111 +1039,30 @@ class _InventoryAlertsScreenState extends State<InventoryAlertsScreen> with Tick
     );
   }
 
-  void _showAlertDetail(Map<String, dynamic> alert) {
-    final source = alert['source'] as String;
-    
-    // Only show detail modal for system alerts (AlertModel)
-    if (source == 'system_alert') {
-      final alertModel = alert['data'] as AlertModel;
-      showDialog(
-        context: context,
-        builder: (context) => AlertDetailModal(
-          alert: alertModel,
-          onResolve: () async {
-            final success = await AlertService.resolveAlert(alertModel.id);
-            if (success) {
-              setState(() {
-                alert['isRead'] = true;
-                if (_totalUnresolved > 0) _totalUnresolved--;
-              });
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('Alerta marcada como resuelta'),
-                  backgroundColor: Colors.green,
-                ),
-              );
-            } else {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('Error al resolver la alerta'),
-                  backgroundColor: Colors.red,
-                ),
-              );
-            }
-          },
-        ),
-      );
-    } else {
-      // For other types, show a simple info dialog
-      showDialog(
-        context: context,
-        builder: (context) => AlertDialog(
-          title: Text(alert['title']),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(alert['description']),
-              const SizedBox(height: 16),
-              Row(
-                children: [
-                  Text('Tipo: ', style: TextStyle(fontWeight: FontWeight.bold)),
-                  Text(alert['type']),
-                ],
-              ),
-              const SizedBox(height: 8),
-              Row(
-                children: [
-                  Text('Prioridad: ', style: TextStyle(fontWeight: FontWeight.bold)),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                    decoration: BoxDecoration(
-                      color: _getPriorityColor(alert['priority']),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Text(
-                      alert['priority'],
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 12,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 8),
-              Row(
-                children: [
-                  Text('Ubicación: ', style: TextStyle(fontWeight: FontWeight.bold)),
-                  Text(alert['location']),
-                ],
-              ),
-              const SizedBox(height: 8),
-              Row(
-                children: [
-                  Text('Fecha: ', style: TextStyle(fontWeight: FontWeight.bold)),
-                  Text(alert['timestamp']),
-                ],
-              ),
-            ],
-          ),
-          actions: [
-            if (!alert['isRead'])
-              TextButton(
-                onPressed: () {
-                  Navigator.of(context).pop();
-                  _markAsRead(alert);
-                },
-                child: const Text('Marcar como leída'),
-              ),
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(),
-              child: const Text('Cerrar'),
-            ),
-          ],
-        ),
-      );
+  String? _extractMaintenanceIdFromUrl(String actionUrl) {
+    try {
+      // Assuming actionUrl format like "/maintenance/123" or contains maintenance ID
+      final uri = Uri.parse(actionUrl);
+      final segments = uri.pathSegments;
+      
+      // Look for maintenance ID in path segments
+      for (int i = 0; i < segments.length; i++) {
+        if (segments[i] == 'maintenance' && i + 1 < segments.length) {
+          return segments[i + 1];
+        }
+      }
+      
+      // Alternative: check if actionUrl contains a UUID pattern
+      final uuidPattern = RegExp(r'[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}');
+      final match = uuidPattern.firstMatch(actionUrl);
+      if (match != null) {
+        return match.group(0);
+      }
+      
+      return null;
+    } catch (e) {
+      print('Error extracting maintenance ID from URL: $e');
+      return null;
     }
   }
 }
