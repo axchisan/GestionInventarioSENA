@@ -1,6 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from .routers import auth, environments, inventory, qr, schedules, users, inventory_checks, supervisor_reviews, inventory_check_items, system_alerts, notifications, maintenance_requests, maintenance_history, stats, loans
+from .routers import auth, environments, inventory, qr, schedules, users, inventory_checks, supervisor_reviews, inventory_check_items, system_alerts, notifications, maintenance_requests, maintenance_history, stats, loans, alert_settings
 from .config import settings
 
 app = FastAPI(title="Sistema de Gestión de Inventarios SENA")
@@ -30,7 +30,7 @@ app.include_router(maintenance_requests.router, prefix="/api/maintenance-request
 app.include_router(maintenance_history.router, prefix="/api/maintenance-history", tags=["maintenance-history"])
 app.include_router(stats.router, prefix="/api/stats", tags=["stats"])
 app.include_router(loans.router, prefix="/api/loans", tags=["loans"])
-
+app.include_router(alert_settings.router, prefix="/api/alert-settings", tags=["alert-settings"])
 
 @app.get("/")
 async def root():

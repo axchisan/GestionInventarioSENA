@@ -2,9 +2,35 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import '../constants/api_constants.dart';
 import 'session_service.dart';
+import '../../data/models/maintenance_request_model.dart';
 
 class MaintenanceService {
   static const String _maintenanceEndpoint = '/api/maintenance-requests/';
+
+  static Future<MaintenanceRequestModel?> getMaintenanceRequestById(String requestId) async {
+    try {
+      final token = await SessionService.getAccessToken();
+      if (token == null) throw Exception('No token found');
+
+      final response = await http.get(
+        Uri.parse('$baseUrl$_maintenanceEndpoint$requestId'),
+        headers: {
+          'Authorization': 'Bearer $token',
+          'Content-Type': 'application/json',
+        },
+      );
+
+      if (response.statusCode == 200) {
+        final Map<String, dynamic> data = json.decode(response.body);
+        return MaintenanceRequestModel.fromJson(data);
+      } else {
+        throw Exception('Failed to load maintenance request');
+      }
+    } catch (e) {
+      print('Error getting maintenance request by ID: $e');
+      return null;
+    }
+  }
 
   static Future<bool> createMaintenanceRequest({
     String? itemId,
