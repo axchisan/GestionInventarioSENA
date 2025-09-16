@@ -13,14 +13,11 @@ import '../maintenance/maintenance_request_screen.dart';
 import '../../../core/services/notification_service.dart';
 import '../../widgets/common/notification_badge.dart';
 import 'package:http/http.dart' as http;
-
 class InventoryCheckScreen extends StatefulWidget {
   const InventoryCheckScreen({super.key});
-
   @override
   State<InventoryCheckScreen> createState() => _InventoryCheckScreenState();
 }
-
 class _InventoryCheckScreenState extends State<InventoryCheckScreen> {
   final TextEditingController _searchController = TextEditingController();
   final TextEditingController _cleaningNotesController = TextEditingController();
@@ -46,7 +43,6 @@ class _InventoryCheckScreenState extends State<InventoryCheckScreen> {
   final DateFormat _colombianTimeFormat = DateFormat('hh:mm a');
   final DateFormat _dateFormat = DateFormat('yyyy-MM-dd');
   final DateFormat _dateTimeFormat = DateFormat('dd/MM/yyyy hh:mm a');
-
   final Map<String, String> _categoryTranslations = {
     'computer': 'Computador',
     'projector': 'Proyector',
@@ -58,7 +54,6 @@ class _InventoryCheckScreenState extends State<InventoryCheckScreen> {
     'tablet': 'Tableta',
     'other': 'Otro',
   };
-
   final Map<String, String> _statusTranslations = {
     'available': 'Disponible',
     'in_use': 'En uso',
@@ -74,14 +69,7 @@ class _InventoryCheckScreenState extends State<InventoryCheckScreen> {
     'issues': 'Problemas',
     'incomplete': 'Incompleto',
   };
-
-  bool _isClean = false;
-  bool _isOrganized = false;
-  bool _inventoryComplete = false;
-  String _cleaningNotes = '';
-  String _comments = '';
   Map<String, dynamic>? _environment;
-
   @override
   void initState() {
     super.initState();
@@ -90,7 +78,6 @@ class _InventoryCheckScreenState extends State<InventoryCheckScreen> {
     );
     _fetchData();
   }
-
   Future<void> _fetchData() async {
     final authProvider = Provider.of<AuthProvider>(context, listen: false);
     final user = authProvider.currentUser;
@@ -127,25 +114,25 @@ class _InventoryCheckScreenState extends State<InventoryCheckScreen> {
       final notifications = await _apiService.get(
         '/api/notifications/',
       );
-      
+     
       List<dynamic> filteredChecks = checks;
       if (_selectedScheduleId != null) {
-        filteredChecks = checks.where((check) => 
+        filteredChecks = checks.where((check) =>
           check['schedule_id'] == _selectedScheduleId).toList();
       }
-      
-      final pendingChecks = filteredChecks.where((check) => 
+     
+      final pendingChecks = filteredChecks.where((check) =>
         ['pending', 'instructor_review', 'supervisor_review'].contains(check['status'])).toList();
-      
+     
       bool hasCheckedScheduleToday = false;
       if (_selectedScheduleId != null) {
-        hasCheckedScheduleToday = filteredChecks.any((check) => 
+        hasCheckedScheduleToday = filteredChecks.any((check) =>
           check['check_date'] == _dateFormat.format(_selectedDate) &&
           check['schedule_id'] == _selectedScheduleId);
       }
-      
+     
       await _fetchScheduleStats();
-      
+     
       setState(() {
         _environment = environment;
         _items = items;
@@ -165,14 +152,13 @@ class _InventoryCheckScreenState extends State<InventoryCheckScreen> {
       });
     }
   }
-
   Future<void> _fetchScheduleStats() async {
     if (_selectedScheduleId == null) return;
-    
+   
     try {
       final authProvider = Provider.of<AuthProvider>(context, listen: false);
       final user = authProvider.currentUser;
-      
+     
       final stats = await _apiService.get(
         '/api/inventory-checks/schedule-stats',
         queryParams: {
@@ -181,7 +167,7 @@ class _InventoryCheckScreenState extends State<InventoryCheckScreen> {
           'date': _dateFormat.format(_selectedDate),
         },
       );
-      
+     
       setState(() {
         _scheduleStats = stats;
       });
@@ -189,14 +175,13 @@ class _InventoryCheckScreenState extends State<InventoryCheckScreen> {
       print('Error al cargar estadísticas del horario: $e');
     }
   }
-
   Future<void> _fetchScheduleCheck() async {
     if (_selectedScheduleId == null) return;
-    
+   
     try {
       final authProvider = Provider.of<AuthProvider>(context, listen: false);
       final user = authProvider.currentUser;
-      
+     
       final checkData = await _apiService.get(
         '/api/inventory-checks/by-schedule',
         queryParams: {
@@ -205,7 +190,7 @@ class _InventoryCheckScreenState extends State<InventoryCheckScreen> {
           'date': _dateFormat.format(_selectedDate),
         },
       );
-      
+     
       setState(() {
         _currentScheduleCheck = checkData.isNotEmpty ? checkData.first : null;
       });
@@ -213,7 +198,6 @@ class _InventoryCheckScreenState extends State<InventoryCheckScreen> {
       print('Error al cargar verificación del horario: $e');
     }
   }
-
   List<dynamic> get _filteredItems {
     return _items.where((item) {
       final matchesSearch = item['name'].toString().toLowerCase().contains(_searchController.text.toLowerCase()) ||
@@ -223,7 +207,6 @@ class _InventoryCheckScreenState extends State<InventoryCheckScreen> {
       return matchesSearch && matchesCategory && matchesStatus;
     }).toList();
   }
-
   String _formatColombianTime(String timeStr) {
     try {
       final dateTime = DateFormat('HH:mm').parse(timeStr);
@@ -232,45 +215,40 @@ class _InventoryCheckScreenState extends State<InventoryCheckScreen> {
       return timeStr;
     }
   }
-
   String _determineItemStatus(int quantityFound, int quantityDamaged, int quantityMissing) {
     // If there are damaged items, prioritize maintenance status
     if (quantityDamaged > 0) {
       return 'maintenance';
     }
-    
+   
     // If there are missing items, mark as missing
     if (quantityMissing > 0) {
       return 'missing';
     }
-    
+   
     // If all items are found and none are damaged or missing, mark as available
     if (quantityFound > 0 && quantityDamaged == 0 && quantityMissing == 0) {
       return 'available';
     }
-    
+   
     // Default case - if no items found at all
     return 'missing';
   }
-
   int _calculateTotalEnvironmentItems() {
     return _items.fold(0, (sum, item) => sum + (item['quantity'] as int? ?? 1));
   }
-
   int _calculateDamagedEnvironmentItems() {
     return _items.fold(0, (sum, item) {
       final damagedQuantity = item['quantity_damaged'] as int? ?? 0;
       return sum + damagedQuantity;
     });
   }
-
   int _calculateMissingEnvironmentItems() {
     return _items.fold(0, (sum, item) {
       final missingQuantity = item['quantity_missing'] as int? ?? 0;
       return sum + missingQuantity;
     });
   }
-
   int _calculateAvailableEnvironmentItems() {
     return _items.fold(0, (sum, item) {
       final totalQuantity = item['quantity'] as int? ?? 1;
@@ -280,8 +258,7 @@ class _InventoryCheckScreenState extends State<InventoryCheckScreen> {
       return sum + availableQuantity;
     });
   }
-
-  
+ 
   Color getStatusColor(String? status) {
     switch (status) {
       case 'completed':
@@ -308,7 +285,6 @@ class _InventoryCheckScreenState extends State<InventoryCheckScreen> {
         return AppColors.grey500;
     }
   }
-
   void _showCheckDetails(Map<String, dynamic> check) {
     showDialog(
       context: context,
@@ -349,7 +325,7 @@ class _InventoryCheckScreenState extends State<InventoryCheckScreen> {
                 ),
               ),
               const SizedBox(height: 12),
-              
+             
               // Participants information
               Container(
                 padding: const EdgeInsets.all(12),
@@ -379,7 +355,7 @@ class _InventoryCheckScreenState extends State<InventoryCheckScreen> {
                 ),
               ),
               const SizedBox(height: 12),
-              
+             
               // Inventory statistics
               Container(
                 padding: const EdgeInsets.all(12),
@@ -399,7 +375,7 @@ class _InventoryCheckScreenState extends State<InventoryCheckScreen> {
                       ),
                     ),
                     const SizedBox(height: 8),
-                    _buildDetailRow('Total Items', (check['total_items'] ?? 0).toString()),
+                    _buildDetailRow('Total Items', '${_calculateTotalEnvironmentItems()}'),
                     _buildDetailRow('Items Buenos', (check['items_good'] ?? 0).toString()),
                     _buildDetailRow('Items Dañados', (check['items_damaged'] ?? 0).toString()),
                     _buildDetailRow('Items Faltantes', (check['items_missing'] ?? 0).toString()),
@@ -407,7 +383,7 @@ class _InventoryCheckScreenState extends State<InventoryCheckScreen> {
                 ),
               ),
               const SizedBox(height: 12),
-              
+             
               // Verification status
               Container(
                 padding: const EdgeInsets.all(12),
@@ -437,7 +413,7 @@ class _InventoryCheckScreenState extends State<InventoryCheckScreen> {
                 ),
               ),
               const SizedBox(height: 12),
-              
+             
               // Comments and notes
               Container(
                 padding: const EdgeInsets.all(12),
@@ -469,7 +445,7 @@ class _InventoryCheckScreenState extends State<InventoryCheckScreen> {
                 ),
               ),
               const SizedBox(height: 12),
-              
+             
               // Timestamps
               Container(
                 padding: const EdgeInsets.all(12),
@@ -514,7 +490,6 @@ class _InventoryCheckScreenState extends State<InventoryCheckScreen> {
       ),
     );
   }
-
   String _formatDateTime(dynamic dateTime) {
     if (dateTime == null) return 'N/A';
     try {
@@ -531,7 +506,6 @@ class _InventoryCheckScreenState extends State<InventoryCheckScreen> {
       return dateTime.toString();
     }
   }
-
   Widget _buildDetailRow(String label, String value) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4.0),
@@ -552,12 +526,10 @@ class _InventoryCheckScreenState extends State<InventoryCheckScreen> {
       ),
     );
   }
-
   Map<String, dynamic>? _getItemCheckData(String itemId) {
     // Return check data for specific item if available
     return null; // Placeholder - implement based on your data structure
   }
-
   void _showItemDetails(Map<String, dynamic> item) {
     showDialog(
       context: context,
@@ -597,7 +569,7 @@ class _InventoryCheckScreenState extends State<InventoryCheckScreen> {
                 ),
               ),
               const SizedBox(height: 12),
-              
+             
               // Quantity information
               Container(
                 padding: const EdgeInsets.all(12),
@@ -630,7 +602,7 @@ class _InventoryCheckScreenState extends State<InventoryCheckScreen> {
                 ),
               ),
               const SizedBox(height: 12),
-              
+             
               // Additional details
               if (item['brand'] != null || item['model'] != null || item['description'] != null || item['notes'] != null)
                 Container(
@@ -663,9 +635,9 @@ class _InventoryCheckScreenState extends State<InventoryCheckScreen> {
                   ),
                 ),
               const SizedBox(height: 12),
-              
+             
               // Dates information
-              if (item['purchase_date'] != null || item['warranty_expiry'] != null || 
+              if (item['purchase_date'] != null || item['warranty_expiry'] != null ||
                   item['last_maintenance'] != null || item['next_maintenance'] != null ||
                   item['created_at'] != null || item['updated_at'] != null)
                 Container(
@@ -713,7 +685,6 @@ class _InventoryCheckScreenState extends State<InventoryCheckScreen> {
       ),
     );
   }
-
   String _formatDate(dynamic date) {
     if (date == null) return 'N/A';
     try {
@@ -730,7 +701,6 @@ class _InventoryCheckScreenState extends State<InventoryCheckScreen> {
       return date.toString();
     }
   }
-
   IconData _getCategoryIcon(String? category) {
     switch (category) {
       case 'electronics':
@@ -749,7 +719,6 @@ class _InventoryCheckScreenState extends State<InventoryCheckScreen> {
         return Icons.inventory;
     }
   }
-
   Widget _buildInfoItem(IconData icon, String label, String? value) {
     return Row(
       children: [
@@ -781,7 +750,6 @@ class _InventoryCheckScreenState extends State<InventoryCheckScreen> {
       ],
     );
   }
-
   Widget _buildCheckDataSection(Map<String, dynamic> checkData, Map<String, dynamic> item) {
     return Container(
       padding: const EdgeInsets.all(12),
@@ -809,12 +777,10 @@ class _InventoryCheckScreenState extends State<InventoryCheckScreen> {
       ),
     );
   }
-
   void _editItemDialog(Map<String, dynamic> item) {
     final nameController = TextEditingController(text: item['name']);
     final descriptionController = TextEditingController(text: item['description']);
     final quantityController = TextEditingController(text: item['quantity']?.toString() ?? '1');
-
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
@@ -870,7 +836,6 @@ class _InventoryCheckScreenState extends State<InventoryCheckScreen> {
       ),
     );
   }
-
   void _deleteItem(Map<String, dynamic> item) {
     showDialog(
       context: context,
@@ -897,26 +862,29 @@ class _InventoryCheckScreenState extends State<InventoryCheckScreen> {
       ),
     );
   }
-
-  Future<void> _saveCheck() async {
+  Future<bool> _saveCheck({
+    required bool isClean,
+    required bool isOrganized,
+    required bool inventoryComplete,
+    required String cleaningNotes,
+    required String comments,
+  }) async {
     if (_selectedScheduleId == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Selecciona un turno/horario primero')),
       );
-      return;
+      return false;
     }
-
     final authProvider = Provider.of<AuthProvider>(context, listen: false);
     final user = authProvider.currentUser;
     final environmentId = authProvider.currentUser?.environmentId ?? '';
-    
+   
     if (user == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Error: Usuario no autenticado')),
       );
-      return;
+      return false;
     }
-
     try {
       final response = await http.post(
         Uri.parse('$baseUrl/api/inventory-checks/by-schedule'),
@@ -927,14 +895,13 @@ class _InventoryCheckScreenState extends State<InventoryCheckScreen> {
         body: jsonEncode({
           'environment_id': environmentId,
           'schedule_id': _selectedScheduleId,
-          'is_clean': _isClean,
-          'is_organized': _isOrganized,
-          'inventory_complete': _inventoryComplete,
-          'cleaning_notes': _cleaningNotes,
-          'comments': _comments,
+          'is_clean': isClean,
+          'is_organized': isOrganized,
+          'inventory_complete': inventoryComplete,
+          'cleaning_notes': cleaningNotes,
+          'comments': comments,
         }),
       );
-
       if (response.statusCode == 201) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
@@ -942,11 +909,17 @@ class _InventoryCheckScreenState extends State<InventoryCheckScreen> {
             backgroundColor: AppColors.success,
           ),
         );
-        Navigator.of(context).pop();
         _fetchScheduleCheck();
+        return true;
       } else {
         final errorData = jsonDecode(response.body);
-        throw Exception('Error: ${response.statusCode} - ${errorData.toString()}');
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error: ${response.statusCode} - ${errorData.toString()}'),
+            backgroundColor: AppColors.error,
+          ),
+        );
+        return false;
       }
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -955,15 +928,14 @@ class _InventoryCheckScreenState extends State<InventoryCheckScreen> {
           backgroundColor: AppColors.error,
         ),
       );
+      return false;
     }
   }
-
   @override
   Widget build(BuildContext context) {
     final authProvider = Provider.of<AuthProvider>(context);
     final role = authProvider.currentUser?.role ?? '';
     final environmentId = authProvider.currentUser?.environmentId ?? '';
-
     return Scaffold(
       appBar: SenaAppBar(
         title: 'Verificación de Inventario',
@@ -976,7 +948,7 @@ class _InventoryCheckScreenState extends State<InventoryCheckScreen> {
               onPressed: () => _showNotificationsModal(),
             ),
           ),
-          
+         
           // Botón de verificaciones pendientes
           if (_pendingChecks.isNotEmpty)
             Stack(
@@ -1011,13 +983,13 @@ class _InventoryCheckScreenState extends State<InventoryCheckScreen> {
                 ),
               ],
             ),
-          
+         
           // Botón de historial
           IconButton(
             icon: const Icon(Icons.history),
             onPressed: () => _showHistoryModal(),
           ),
-          
+         
           // Botón de solicitud de mantenimiento
           IconButton(
             icon: const Icon(Icons.build),
@@ -1250,7 +1222,7 @@ class _InventoryCheckScreenState extends State<InventoryCheckScreen> {
                                     }
                                   },
                                 ),
-                                if (_selectedSchedule != null) ...[ 
+                                if (_selectedSchedule != null) ...[
                                   Container(
                                     padding: const EdgeInsets.all(8),
                                     decoration: BoxDecoration(
@@ -1340,7 +1312,7 @@ class _InventoryCheckScreenState extends State<InventoryCheckScreen> {
             ),
             const SizedBox(height: 16),
           ],
-          if ((role == 'student' || role == 'instructor' || role == 'supervisor') && 
+          if ((role == 'student' || role == 'instructor' || role == 'supervisor') &&
               !_hasCheckedToday && _selectedScheduleId != null) ...[
             FloatingActionButton(
               heroTag: 'check',
@@ -1362,7 +1334,6 @@ class _InventoryCheckScreenState extends State<InventoryCheckScreen> {
       ),
     );
   }
-
   void _navigateToMaintenanceRequest(String environmentId, {String? itemId, String? itemName}) async {
     final result = await Navigator.push(
       context,
@@ -1374,11 +1345,11 @@ class _InventoryCheckScreenState extends State<InventoryCheckScreen> {
         ),
       ),
     );
-    
+   
     if (result == true) {
       // Actualizar datos después de crear solicitud de mantenimiento
       _fetchData();
-      
+     
       // Mostrar confirmación
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -1388,7 +1359,6 @@ class _InventoryCheckScreenState extends State<InventoryCheckScreen> {
       );
     }
   }
-
   void _showNotificationsModal() {
     showModalBottomSheet(
       context: context,
@@ -1438,7 +1408,7 @@ class _InventoryCheckScreenState extends State<InventoryCheckScreen> {
                       child: CircularProgressIndicator(color: AppColors.primary),
                     );
                   }
-                  
+                 
                   if (snapshot.hasError) {
                     return Center(
                       child: Column(
@@ -1451,9 +1421,9 @@ class _InventoryCheckScreenState extends State<InventoryCheckScreen> {
                       ),
                     );
                   }
-                  
+                 
                   final notifications = snapshot.data ?? [];
-                  
+                 
                   if (notifications.isEmpty) {
                     return const Center(
                       child: Column(
@@ -1466,7 +1436,7 @@ class _InventoryCheckScreenState extends State<InventoryCheckScreen> {
                       ),
                     );
                   }
-                  
+                 
                   return ListView.builder(
                     padding: const EdgeInsets.all(16),
                     itemCount: notifications.length,
@@ -1483,15 +1453,14 @@ class _InventoryCheckScreenState extends State<InventoryCheckScreen> {
       ),
     );
   }
-
   Widget _buildNotificationCard(Map<String, dynamic> notification) {
     final isRead = notification['is_read'] ?? false;
     final type = notification['type'] ?? 'system';
     final createdAt = DateTime.tryParse(notification['created_at'] ?? '') ?? DateTime.now();
-    
+   
     Color typeColor;
     IconData typeIcon;
-    
+   
     switch (type) {
       case 'verification_pending':
         typeColor = AppColors.warning;
@@ -1510,7 +1479,7 @@ class _InventoryCheckScreenState extends State<InventoryCheckScreen> {
         typeIcon = Icons.info;
         break;
     }
-    
+   
     return Card(
       margin: const EdgeInsets.only(bottom: 8),
       color: isRead ? null : AppColors.primary.withOpacity(0.05),
@@ -1558,11 +1527,10 @@ class _InventoryCheckScreenState extends State<InventoryCheckScreen> {
       ),
     );
   }
-
   String _formatTimestamp(DateTime timestamp) {
     final now = DateTime.now();
     final difference = now.difference(timestamp);
-    
+   
     if (difference.inMinutes < 60) {
       return 'Hace ${difference.inMinutes} min';
     } else if (difference.inHours < 24) {
@@ -1573,10 +1541,9 @@ class _InventoryCheckScreenState extends State<InventoryCheckScreen> {
       return DateFormat('dd/MM/yyyy').format(timestamp);
     }
   }
-
   void _showScheduleDetailsModal() {
     if (_selectedSchedule == null) return;
-    
+   
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -1723,7 +1690,7 @@ class _InventoryCheckScreenState extends State<InventoryCheckScreen> {
                                         Expanded(
                                           child: _buildStatItem(
                                             'Total Items',
-                                            '${_currentScheduleCheck!['total_items'] ?? 0}',
+                                            '${_calculateTotalEnvironmentItems()}',
                                             AppColors.primary,
                                           ),
                                         ),
@@ -1791,7 +1758,6 @@ class _InventoryCheckScreenState extends State<InventoryCheckScreen> {
       ),
     );
   }
-
   Future<void> _selectDate() async {
     final DateTime? picked = await showDatePicker(
       context: context,
@@ -1809,7 +1775,6 @@ class _InventoryCheckScreenState extends State<InventoryCheckScreen> {
       _fetchData();
     }
   }
-
   Widget _buildScheduleInfo(IconData icon, String label, String value) {
     return Column(
       children: [
@@ -1826,7 +1791,6 @@ class _InventoryCheckScreenState extends State<InventoryCheckScreen> {
       ],
     );
   }
-
   Widget _buildStatItem(String label, String value, Color color) {
     return Column(
       children: [
@@ -1845,7 +1809,6 @@ class _InventoryCheckScreenState extends State<InventoryCheckScreen> {
       ],
     );
   }
-
   String _calculateDuration(String startTime, String endTime) {
     try {
       final start = DateFormat('HH:mm').parse(startTime);
@@ -1858,7 +1821,6 @@ class _InventoryCheckScreenState extends State<InventoryCheckScreen> {
       return 'N/A';
     }
   }
-
   void _showPendingChecksModal() {
     showModalBottomSheet(
       context: context,
@@ -1957,7 +1919,6 @@ class _InventoryCheckScreenState extends State<InventoryCheckScreen> {
       ),
     );
   }
-
   void _showHistoryModal() {
     showModalBottomSheet(
       context: context,
@@ -2047,7 +2008,6 @@ class _InventoryCheckScreenState extends State<InventoryCheckScreen> {
       ),
     );
   }
-
   Widget _buildItemCard(Map<String, dynamic> item, String role) {
     Color statusColor = getStatusColor(item['status']);
     final isGroup = item['item_type'] == 'group';
@@ -2221,7 +2181,6 @@ class _InventoryCheckScreenState extends State<InventoryCheckScreen> {
       ),
     );
   }
-
   void _updateItemStatus(Map<String, dynamic> item) {
     final isGroup = item['item_type'] == 'group';
     int quantityExpected = item['quantity'] ?? 1;
@@ -2230,7 +2189,6 @@ class _InventoryCheckScreenState extends State<InventoryCheckScreen> {
     int quantityMissing = 0;
     String notes = '';
     String newStatus = 'good';
-
     showDialog(
       context: context,
       builder: (context) => StatefulBuilder(
@@ -2456,7 +2414,7 @@ class _InventoryCheckScreenState extends State<InventoryCheckScreen> {
                       'environment_id': authProvider.currentUser!.environmentId,
                     },
                   );
-                  
+                 
                   await _apiService.put(
                     '/api/inventory/${item['id']}/verification',
                     {
@@ -2466,7 +2424,7 @@ class _InventoryCheckScreenState extends State<InventoryCheckScreen> {
                       'status': _determineItemStatus(quantityFound, quantityDamaged, quantityMissing),
                     },
                   );
-                  
+                 
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(
                       content: Text('Item actualizado correctamente'),
@@ -2491,7 +2449,6 @@ class _InventoryCheckScreenState extends State<InventoryCheckScreen> {
       ),
     );
   }
-
   void _validateQuantities(int expected, int found, int damaged, int missing, StateSetter setDialogState) {
     // Auto-adjust if total exceeds expected
     final total = found + damaged + missing;
@@ -2507,7 +2464,6 @@ class _InventoryCheckScreenState extends State<InventoryCheckScreen> {
       setDialogState(() {});
     }
   }
-
   Color _getQuantityValidationColor(int expected, int found, int damaged, int missing) {
     final total = found + damaged + missing;
     if (total == expected) {
@@ -2518,7 +2474,6 @@ class _InventoryCheckScreenState extends State<InventoryCheckScreen> {
       return AppColors.error;
     }
   }
-
   String _getQuantityValidationMessage(int expected, int found, int damaged, int missing) {
     final total = found + damaged + missing;
     if (total == expected) {
@@ -2529,93 +2484,215 @@ class _InventoryCheckScreenState extends State<InventoryCheckScreen> {
       return 'Exceso de ${total - expected} items';
     }
   }
-
   void _showCheckDialog() {
-    final authProvider = Provider.of<AuthProvider>(context, listen: false);
-    final role = authProvider.currentUser?.role ?? '';
-    
-    if (role == 'supervisor') {
+    final role = Provider.of<AuthProvider>(context, listen: false).currentUser?.role ?? '';
+
+    if (role == 'student') {
+      _showStudentCheckDialog();
+    } else if (role == 'instructor') {
+      _showInstructorCheckDialog();
+    } else if (role == 'supervisor') {
       _showSupervisorCheckDialog();
-    } else {
-      _showBasicCheckDialog();
     }
   }
 
-  void _showBasicCheckDialog() {
+  void _showStudentCheckDialog() {
+    bool isClean = false;
+    bool isOrganized = false;
+    String comments = '';
+    // ignore: unused_local_variable
+    String cleaningNotes = '';
+
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Verificación de Inventario'),
-        content: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Text('¿El ambiente está limpio y organizado?'),
-              const SizedBox(height: 16),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceAround,
-                children: [
-                  Column(
-                    children: [
-                      IconButton(
-                        icon: const Icon(Icons.check_circle_outline, size: 48, color: AppColors.success),
-                        onPressed: () {
-                          Navigator.pop(context);
-                          _saveCheck();
-                        },
-                      ),
-                      const Text('Sí'),
-                    ],
-                  ),
-                  Column(
-                    children: [
-                      IconButton(
-                        icon: const Icon(Icons.cancel_outlined, size: 48, color: AppColors.error),
-                        onPressed: () {
-                          Navigator.pop(context);
-                          _saveCheck();
-                        },
-                      ),
-                      const Text('No'),
-                    ],
-                  ),
-                ],
-              ),
-              const SizedBox(height: 16),
-              TextField(
-                controller: _cleaningNotesController,
-                decoration: const InputDecoration(
-                  labelText: 'Notas de limpieza (opcional)',
-                  border: OutlineInputBorder(),
+      builder: (context) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          title: const Text('Verificación de Inventario - Estudiante'),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                CheckboxListTile(
+                  title: const Text('Aula aseada'),
+                  subtitle: const Text('El ambiente se encuentra limpio'),
+                  value: isClean,
+                  onChanged: (value) {
+                    setDialogState(() {
+                      isClean = value ?? false;
+                    });
+                  },
                 ),
-                maxLines: 3,
-              ),
-            ],
+                CheckboxListTile(
+                  title: const Text('Aula organizada'),
+                  subtitle: const Text('Los elementos están en su lugar'),
+                  value: isOrganized,
+                  onChanged: (value) {
+                    setDialogState(() {
+                      isOrganized = value ?? false;
+                    });
+                  },
+                ),
+                TextFormField(
+                  controller: _cleaningNotesController,
+                  decoration: const InputDecoration(
+                    labelText: 'Notas de limpieza (opcional)',
+                    border: OutlineInputBorder(),
+                  ),
+                  maxLines: 3,
+                  onChanged: (value) => cleaningNotes = value,
+                ),
+                const SizedBox(height: 16),
+                TextFormField(
+                  decoration: const InputDecoration(
+                    labelText: 'Comentarios (opcional)',
+                    border: OutlineInputBorder(),
+                  ),
+                  maxLines: 3,
+                  onChanged: (value) => comments = value,
+                ),
+              ],
+            ),
           ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Cancelar'),
+            ),
+            ElevatedButton(
+              onPressed: () async {
+                final success = await _saveCheck(
+                  isClean: isClean,
+                  isOrganized: isOrganized,
+                  inventoryComplete: false,
+                  cleaningNotes: _cleaningNotesController.text,
+                  comments: comments,
+                );
+                if (success) {
+                  Navigator.pop(context);
+                  _cleaningNotesController.clear();
+                }
+              },
+              child: const Text('Guardar'),
+            ),
+          ],
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancelar'),
+      ),
+    );
+  }
+
+  void _showInstructorCheckDialog() {
+    bool isClean = false;
+    bool isOrganized = false;
+    bool inventoryComplete = false;
+    String comments = '';
+    // ignore: unused_local_variable
+    String cleaningNotes = '';
+
+    showDialog(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          title: const Text('Verificación de Inventario - Instructor'),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: AppColors.primary.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: AppColors.primary.withOpacity(0.3)),
+                  ),
+                  child: const Text(
+                    'Como instructor, puede completar la verificación del estudiante si no se ha realizado y agregar la revisión de inventario completo.',
+                    style: TextStyle(fontSize: 12, color: AppColors.grey600),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                CheckboxListTile(
+                  title: const Text('Aula aseada'),
+                  subtitle: const Text('El ambiente se encuentra limpio'),
+                  value: isClean,
+                  onChanged: (value) {
+                    setDialogState(() {
+                      isClean = value ?? false;
+                    });
+                  },
+                ),
+                CheckboxListTile(
+                  title: const Text('Aula organizada'),
+                  subtitle: const Text('Los elementos están en su lugar'),
+                  value: isOrganized,
+                  onChanged: (value) {
+                    setDialogState(() {
+                      isOrganized = value ?? false;
+                    });
+                  },
+                ),
+                CheckboxListTile(
+                  title: const Text('Inventario completo'),
+                  subtitle: const Text('Todos los items están presentes y en buen estado'),
+                  value: inventoryComplete,
+                  onChanged: (value) {
+                    setDialogState(() {
+                      inventoryComplete = value ?? false;
+                    });
+                  },
+                ),
+                TextFormField(
+                  controller: _cleaningNotesController,
+                  decoration: const InputDecoration(
+                    labelText: 'Notas de limpieza (opcional)',
+                    border: OutlineInputBorder(),
+                  ),
+                  maxLines: 3,
+                  onChanged: (value) => cleaningNotes = value,
+                ),
+                const SizedBox(height: 16),
+                TextFormField(
+                  decoration: const InputDecoration(
+                    labelText: 'Comentarios (opcional)',
+                    border: OutlineInputBorder(),
+                  ),
+                  maxLines: 3,
+                  onChanged: (value) => comments = value,
+                ),
+              ],
+            ),
           ),
-          ElevatedButton(
-            onPressed: () {
-              Navigator.pop(context);
-              _saveCheck();
-            },
-            child: const Text('Guardar'),
-          ),
-        ],
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Cancelar'),
+            ),
+            ElevatedButton(
+              onPressed: () async {
+                final success = await _saveCheck(
+                  isClean: isClean,
+                  isOrganized: isOrganized,
+                  inventoryComplete: inventoryComplete,
+                  cleaningNotes: _cleaningNotesController.text,
+                  comments: comments,
+                );
+                if (success) {
+                  Navigator.pop(context);
+                  _cleaningNotesController.clear();
+                }
+              },
+              child: const Text('Guardar'),
+            ),
+          ],
+        ),
       ),
     );
   }
 
   void _showSupervisorCheckDialog() {
-    bool? isClean;
-    bool? isOrganized;
-    bool? inventoryComplete;
+    bool isClean = false;
+    bool isOrganized = false;
+    bool inventoryComplete = false;
     String comments = '';
-
     showDialog(
       context: context,
       builder: (context) => StatefulBuilder(
@@ -2667,31 +2744,28 @@ class _InventoryCheckScreenState extends State<InventoryCheckScreen> {
                 const SizedBox(height: 16),
                 CheckboxListTile(
                   title: const Text('Aula aseada'),
-                  subtitle: const Text('El ambiente se encuentra limpio'),
-                  value: isClean ?? false,
+                  value: isClean,
                   onChanged: (value) {
                     setDialogState(() {
-                      isClean = value;
+                      isClean = value ?? false;
                     });
                   },
                 ),
                 CheckboxListTile(
                   title: const Text('Aula organizada'),
-                  subtitle: const Text('Los elementos están en su lugar'),
-                  value: isOrganized ?? false,
+                  value: isOrganized,
                   onChanged: (value) {
                     setDialogState(() {
-                      isOrganized = value;
+                      isOrganized = value ?? false;
                     });
                   },
                 ),
                 CheckboxListTile(
                   title: const Text('Inventario completo'),
-                  subtitle: const Text('Todos los items están presentes'),
-                  value: inventoryComplete ?? false,
+                  value: inventoryComplete,
                   onChanged: (value) {
                     setDialogState(() {
-                      inventoryComplete = value;
+                      inventoryComplete = value ?? false;
                     });
                   },
                 ),
@@ -2725,28 +2799,16 @@ class _InventoryCheckScreenState extends State<InventoryCheckScreen> {
             ),
             ElevatedButton(
               onPressed: () async {
-                try {
-                  await _saveSupervisorCompleteCheck(
-                    isClean: isClean ?? false,
-                    isOrganized: isOrganized ?? false,
-                    inventoryComplete: inventoryComplete ?? false,
-                    comments: comments,
-                  );
+                final success = await _saveCheck(
+                  isClean: isClean,
+                  isOrganized: isOrganized,
+                  inventoryComplete: inventoryComplete,
+                  cleaningNotes: _cleaningNotesController.text,
+                  comments: comments,
+                );
+                if (success) {
                   Navigator.pop(context);
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('Verificación completa guardada exitosamente'),
-                      backgroundColor: AppColors.success,
-                    ),
-                  );
-                  _fetchData();
-                } catch (e) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text('Error al guardar verificación: $e'),
-                      backgroundColor: AppColors.error,
-                    ),
-                  );
+                  _cleaningNotesController.clear();
                 }
               },
               style: ElevatedButton.styleFrom(
@@ -2760,50 +2822,14 @@ class _InventoryCheckScreenState extends State<InventoryCheckScreen> {
       ),
     );
   }
-
-  Future<void> _saveSupervisorCompleteCheck({
-    required bool isClean,
-    required bool isOrganized,
-    required bool inventoryComplete,
-    required String comments,
-  }) async {
-    final authProvider = Provider.of<AuthProvider>(context, listen: false);
-    final user = authProvider.currentUser;
-    if (user == null) {
-      throw Exception('Usuario no autenticado');
-    }
-
-    if (_selectedScheduleId == null) {
-      throw Exception('Debe seleccionar un horario para realizar la verificación');
-    }
-
-    try {
-      // Use the by-schedule endpoint that allows supervisor to complete all stages
-      final checkData = {
-        'environment_id': user.environmentId,
-        'schedule_id': _selectedScheduleId,
-        'is_clean': isClean,
-        'is_organized': isOrganized,
-        'inventory_complete': inventoryComplete,
-        'comments': comments,
-        'cleaning_notes': _cleaningNotesController.text,
-      };
-
-      await _apiService.post('/api/inventory-checks/by-schedule', checkData);
-    } catch (e) {
-      throw Exception('Error al guardar verificación: $e');
-    }
-  }
-
   void _confirmInstructorCheck(Map<String, dynamic> check) async {
     final authProvider = Provider.of<AuthProvider>(context, listen: false);
     final role = authProvider.currentUser?.role ?? '';
-    
+   
     bool? isClean;
     bool? isOrganized;
     bool? inventoryComplete;
     String comments = '';
-
     showDialog(
       context: context,
       builder: (context) => StatefulBuilder(
@@ -2931,11 +2957,9 @@ class _InventoryCheckScreenState extends State<InventoryCheckScreen> {
       ),
     );
   }
-
   void _reviewSupervisorCheck(Map<String, dynamic> check) async {
     bool approved = true;
     String comments = '';
-
     showDialog(
       context: context,
       builder: (context) => StatefulBuilder(
@@ -2961,7 +2985,7 @@ class _InventoryCheckScreenState extends State<InventoryCheckScreen> {
                         style: TextStyle(fontWeight: FontWeight.bold),
                       ),
                       const SizedBox(height: 8),
-                      Text('Total Items: ${check['total_items'] ?? 0}'),
+                      Text('Total Items: ${_calculateTotalEnvironmentItems()}'),
                       Text('Items Buenos: ${check['items_good'] ?? 0}'),
                       Text('Items Dañados: ${check['items_damaged'] ?? 0}'),
                       Text('Items Faltantes: ${check['items_missing'] ?? 0}'),
@@ -3056,7 +3080,6 @@ class _InventoryCheckScreenState extends State<InventoryCheckScreen> {
       ),
     );
   }
-
   Widget _buildCompactStatChip(String label, String value, Color color) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
@@ -3086,7 +3109,6 @@ class _InventoryCheckScreenState extends State<InventoryCheckScreen> {
       ),
     );
   }
-
   Widget _buildCompactScheduleInfo(IconData icon, String text) {
     return Row(
       children: [
@@ -3105,7 +3127,6 @@ class _InventoryCheckScreenState extends State<InventoryCheckScreen> {
       ],
     );
   }
-
   // ignore: unused_element
   Widget _buildStatChip(String label, String value, Color color) {
     return Container(
