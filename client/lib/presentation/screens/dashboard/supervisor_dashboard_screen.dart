@@ -13,7 +13,8 @@ class SupervisorDashboardScreen extends StatefulWidget {
   const SupervisorDashboardScreen({super.key});
 
   @override
-  State<SupervisorDashboardScreen> createState() => _SupervisorDashboardScreenState();
+  State<SupervisorDashboardScreen> createState() =>
+      _SupervisorDashboardScreenState();
 }
 
 class _SupervisorDashboardScreenState extends State<SupervisorDashboardScreen> {
@@ -28,7 +29,9 @@ class _SupervisorDashboardScreenState extends State<SupervisorDashboardScreen> {
   @override
   void initState() {
     super.initState();
-    _apiService = ApiService(authProvider: Provider.of<AuthProvider>(context, listen: false));
+    _apiService = ApiService(
+      authProvider: Provider.of<AuthProvider>(context, listen: false),
+    );
     _fetchData();
   }
 
@@ -42,13 +45,13 @@ class _SupervisorDashboardScreenState extends State<SupervisorDashboardScreen> {
         final environment = await _apiService.getSingle(
           '$environmentsEndpoint${user!.environmentId}',
         );
-        
+
         // Fetch inventory items for detailed statistics
         final items = await _apiService.get(
           inventoryEndpoint,
           queryParams: {'environment_id': user.environmentId.toString()},
         );
-        
+
         // Calculate detailed inventory statistics
         int totalItems = items.length;
         int totalQuantity = 0;
@@ -57,28 +60,29 @@ class _SupervisorDashboardScreenState extends State<SupervisorDashboardScreen> {
         int missingQuantity = 0;
         int inUseQuantity = 0;
         int maintenanceQuantity = 0;
-        
+
         // Count by status
         int availableItems = 0;
         int inUseItems = 0;
         int maintenanceItems = 0;
         int damagedItems = 0;
         int missingItems = 0;
-        
+
         for (var item in items) {
           final quantity = (item['quantity'] as int? ?? 1);
           final quantityDamaged = (item['quantity_damaged'] as int? ?? 0);
           final quantityMissing = (item['quantity_missing'] as int? ?? 0);
           final status = item['status'] as String? ?? 'available';
-          
+
           totalQuantity += quantity;
           damagedQuantity += quantityDamaged;
           missingQuantity += quantityMissing;
-          
+
           // Calculate available quantity (total - damaged - missing)
-          final itemAvailableQuantity = quantity - quantityDamaged - quantityMissing;
+          final itemAvailableQuantity =
+              quantity - quantityDamaged - quantityMissing;
           availableQuantity += itemAvailableQuantity;
-          
+
           // Count by status
           switch (status) {
             case 'available':
@@ -102,13 +106,13 @@ class _SupervisorDashboardScreenState extends State<SupervisorDashboardScreen> {
               break;
           }
         }
-        
+
         // Fetch maintenance requests
         final maintenanceRequests = await _apiService.get(
           '/api/maintenance-requests/',
           queryParams: {'environment_id': user.environmentId.toString()},
         );
-        
+
         setState(() {
           _environment = environment;
           _inventoryStats = {
@@ -125,31 +129,35 @@ class _SupervisorDashboardScreenState extends State<SupervisorDashboardScreen> {
             'damaged_items': damagedItems,
             'missing_items': missingItems,
           };
-          _maintenanceRequests = List<Map<String, dynamic>>.from(maintenanceRequests);
+          _maintenanceRequests = List<Map<String, dynamic>>.from(
+            maintenanceRequests,
+          );
         });
       } else {
         // Para supervisor sin ambiente específico, fetch general stats
         final items = await _apiService.get(inventoryEndpoint);
-        
+
         int totalItems = items.length;
         int totalQuantity = 0;
         int availableQuantity = 0;
         int damagedQuantity = 0;
         int missingQuantity = 0;
-        
+
         for (var item in items) {
           final quantity = (item['quantity'] as int? ?? 1);
           final quantityDamaged = (item['quantity_damaged'] as int? ?? 0);
           final quantityMissing = (item['quantity_missing'] as int? ?? 0);
-          
+
           totalQuantity += quantity;
           damagedQuantity += quantityDamaged;
           missingQuantity += quantityMissing;
           availableQuantity += (quantity - quantityDamaged - quantityMissing);
         }
-        
-        final maintenanceRequests = await _apiService.get('/api/maintenance-requests/');
-        
+
+        final maintenanceRequests = await _apiService.get(
+          '/api/maintenance-requests/',
+        );
+
         setState(() {
           _inventoryStats = {
             'total_items': totalItems,
@@ -157,20 +165,32 @@ class _SupervisorDashboardScreenState extends State<SupervisorDashboardScreen> {
             'available_quantity': availableQuantity,
             'damaged_quantity': damagedQuantity,
             'missing_quantity': missingQuantity,
-            'available_items': items.where((item) => item['status'] == 'available').length,
-            'in_use_items': items.where((item) => item['status'] == 'in_use').length,
-            'maintenance_items': items.where((item) => item['status'] == 'maintenance').length,
-            'damaged_items': items.where((item) => item['status'] == 'damaged').length,
-            'missing_items': items.where((item) => ['missing', 'lost'].contains(item['status'])).length,
+            'available_items': items
+                .where((item) => item['status'] == 'available')
+                .length,
+            'in_use_items': items
+                .where((item) => item['status'] == 'in_use')
+                .length,
+            'maintenance_items': items
+                .where((item) => item['status'] == 'maintenance')
+                .length,
+            'damaged_items': items
+                .where((item) => item['status'] == 'damaged')
+                .length,
+            'missing_items': items
+                .where((item) => ['missing', 'lost'].contains(item['status']))
+                .length,
           };
-          _maintenanceRequests = List<Map<String, dynamic>>.from(maintenanceRequests);
+          _maintenanceRequests = List<Map<String, dynamic>>.from(
+            maintenanceRequests,
+          );
         });
       }
-      
+
       // Fetch notifications
       final notifications = await NotificationService.getNotifications();
       final unreadCount = await NotificationService.getUnreadCount();
-      
+
       setState(() {
         _recentNotifications = notifications.take(3).toList();
         _unreadNotificationsCount = unreadCount;
@@ -180,9 +200,9 @@ class _SupervisorDashboardScreenState extends State<SupervisorDashboardScreen> {
       setState(() {
         _isLoading = false;
       });
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error al cargar datos: $e')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Error al cargar datos: $e')));
     }
   }
 
@@ -212,7 +232,9 @@ class _SupervisorDashboardScreenState extends State<SupervisorDashboardScreen> {
         ],
       ),
       body: _isLoading
-          ? const Center(child: CircularProgressIndicator(color: AppColors.accent))
+          ? const Center(
+              child: CircularProgressIndicator(color: AppColors.accent),
+            )
           : RefreshIndicator(
               onRefresh: _fetchData,
               child: SingleChildScrollView(
@@ -275,7 +297,10 @@ class _SupervisorDashboardScreenState extends State<SupervisorDashboardScreen> {
                     const SizedBox(height: 24),
                     const Text(
                       'Estadísticas de Inventario',
-                      style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
                     const SizedBox(height: 12),
                     if (_inventoryStats != null) ...[
@@ -284,20 +309,12 @@ class _SupervisorDashboardScreenState extends State<SupervisorDashboardScreen> {
                           Expanded(
                             child: _buildStatCard(
                               'Items Totales',
-                              _inventoryStats!['total_items'].toString(),
+                              _inventoryStats!['total_quantity'].toString(),
                               Icons.inventory,
                               AppColors.accent,
                             ),
                           ),
                           const SizedBox(width: 12),
-                          Expanded(
-                            child: _buildStatCard(
-                              'Cantidad Total',
-                              _inventoryStats!['total_quantity'].toString(),
-                              Icons.numbers,
-                              AppColors.primary,
-                            ),
-                          ),
                         ],
                       ),
                       const SizedBox(height: 12),
@@ -359,7 +376,10 @@ class _SupervisorDashboardScreenState extends State<SupervisorDashboardScreen> {
                           Expanded(
                             child: _buildStatCard(
                               'Solicitudes',
-                              _maintenanceRequests.where((req) => req['status'] == 'pending').length.toString(),
+                              _maintenanceRequests
+                                  .where((req) => req['status'] == 'pending')
+                                  .length
+                                  .toString(),
                               Icons.notifications_active,
                               AppColors.warning,
                             ),
@@ -375,18 +395,47 @@ class _SupervisorDashboardScreenState extends State<SupervisorDashboardScreen> {
                             children: [
                               const Text(
                                 'Desglose Detallado',
-                                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                                style: TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.bold,
+                                ),
                               ),
                               const SizedBox(height: 12),
-                              _buildDetailRow('Items Únicos', _inventoryStats!['total_items'].toString()),
-                              _buildDetailRow('Cantidad Total de Unidades', _inventoryStats!['total_quantity'].toString()),
+                              _buildDetailRow(
+                                'Items Únicos',
+                                _inventoryStats!['total_items'].toString(),
+                              ),
+                              _buildDetailRow(
+                                'Cantidad Total de Unidades',
+                                _inventoryStats!['total_quantity'].toString(),
+                              ),
                               const Divider(),
-                              _buildDetailRow('Unidades Disponibles', _inventoryStats!['available_quantity'].toString(), AppColors.success),
-                              _buildDetailRow('Unidades Dañadas', _inventoryStats!['damaged_quantity'].toString(), AppColors.warning),
-                              _buildDetailRow('Unidades Faltantes', _inventoryStats!['missing_quantity'].toString(), AppColors.error),
+                              _buildDetailRow(
+                                'Unidades Disponibles',
+                                _inventoryStats!['available_quantity']
+                                    .toString(),
+                                AppColors.success,
+                              ),
+                              _buildDetailRow(
+                                'Unidades Dañadas',
+                                _inventoryStats!['damaged_quantity'].toString(),
+                                AppColors.warning,
+                              ),
+                              _buildDetailRow(
+                                'Unidades Faltantes',
+                                _inventoryStats!['missing_quantity'].toString(),
+                                AppColors.error,
+                              ),
                               const Divider(),
-                              _buildDetailRow('Items en Mantenimiento', _inventoryStats!['maintenance_items'].toString()),
-                              _buildDetailRow('Items en Uso', _inventoryStats!['in_use_items'].toString()),
+                              _buildDetailRow(
+                                'Items en Mantenimiento',
+                                _inventoryStats!['maintenance_items']
+                                    .toString(),
+                              ),
+                              _buildDetailRow(
+                                'Items en Uso',
+                                _inventoryStats!['in_use_items'].toString(),
+                              ),
                             ],
                           ),
                         ),
@@ -400,7 +449,10 @@ class _SupervisorDashboardScreenState extends State<SupervisorDashboardScreen> {
                     const SizedBox(height: 24),
                     const Text(
                       'Panel de Control',
-                      style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
                     const SizedBox(height: 12),
                     GridView.count(
@@ -441,7 +493,9 @@ class _SupervisorDashboardScreenState extends State<SupervisorDashboardScreen> {
                           'Supervisa ambiente vinculado',
                           Icons.location_on,
                           AppColors.success,
-                          _environment != null ? '/environment-overview' : '/qr-scan',
+                          _environment != null
+                              ? '/environment-overview'
+                              : '/qr-scan',
                           extra: _environment != null
                               ? {
                                   'environmentId': _environment!['id'],
@@ -527,7 +581,10 @@ class _SupervisorDashboardScreenState extends State<SupervisorDashboardScreen> {
                                 const Spacer(),
                                 if (_unreadNotificationsCount > 0)
                                   Container(
-                                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 8,
+                                      vertical: 4,
+                                    ),
                                     decoration: BoxDecoration(
                                       color: AppColors.error,
                                       borderRadius: BorderRadius.circular(12),
@@ -545,11 +602,13 @@ class _SupervisorDashboardScreenState extends State<SupervisorDashboardScreen> {
                             ),
                             const SizedBox(height: 12),
                             if (_recentNotifications.isNotEmpty) ...[
-                              ..._recentNotifications.map((notification) => 
-                                _buildNotificationItem(
+                              ..._recentNotifications.map(
+                                (notification) => _buildNotificationItem(
                                   notification['title'] ?? 'Sin título',
                                   notification['message'] ?? 'Sin mensaje',
-                                  _getNotificationColor(notification['type'] ?? 'system'),
+                                  _getNotificationColor(
+                                    notification['type'] ?? 'system',
+                                  ),
                                   !(notification['is_read'] ?? false),
                                 ),
                               ),
@@ -584,10 +643,7 @@ class _SupervisorDashboardScreenState extends State<SupervisorDashboardScreen> {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Text(
-            label,
-            style: const TextStyle(fontSize: 14),
-          ),
+          Text(label, style: const TextStyle(fontSize: 14)),
           Text(
             value,
             style: TextStyle(
@@ -630,7 +686,9 @@ class _SupervisorDashboardScreenState extends State<SupervisorDashboardScreen> {
                           minHeight: 16,
                         ),
                         child: Text(
-                          _unreadNotificationsCount > 99 ? '99+' : _unreadNotificationsCount.toString(),
+                          _unreadNotificationsCount > 99
+                              ? '99+'
+                              : _unreadNotificationsCount.toString(),
                           style: const TextStyle(
                             color: Colors.white,
                             fontSize: 10,
@@ -646,21 +704,15 @@ class _SupervisorDashboardScreenState extends State<SupervisorDashboardScreen> {
               const Text(
                 'Notificaciones',
                 textAlign: TextAlign.center,
-                style: TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.bold,
-                ),
+                style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
               ),
               const SizedBox(height: 4),
               Text(
-                _unreadNotificationsCount > 0 
+                _unreadNotificationsCount > 0
                     ? '$_unreadNotificationsCount sin leer'
                     : 'Revisa alertas',
                 textAlign: TextAlign.center,
-                style: const TextStyle(
-                  fontSize: 10,
-                  color: AppColors.grey600,
-                ),
+                style: const TextStyle(fontSize: 10, color: AppColors.grey600),
               ),
             ],
           ),
@@ -688,7 +740,12 @@ class _SupervisorDashboardScreenState extends State<SupervisorDashboardScreen> {
     }
   }
 
-  Widget _buildNotificationItem(String title, String subtitle, Color statusColor, bool isUnread) {
+  Widget _buildNotificationItem(
+    String title,
+    String subtitle,
+    Color statusColor,
+    bool isUnread,
+  ) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 8.0),
       child: Row(
@@ -712,7 +769,9 @@ class _SupervisorDashboardScreenState extends State<SupervisorDashboardScreen> {
                       child: Text(
                         title,
                         style: TextStyle(
-                          fontWeight: isUnread ? FontWeight.bold : FontWeight.w500,
+                          fontWeight: isUnread
+                              ? FontWeight.bold
+                              : FontWeight.w500,
                           fontSize: 14,
                         ),
                       ),
@@ -821,7 +880,7 @@ class _SupervisorDashboardScreenState extends State<SupervisorDashboardScreen> {
   Widget _buildDrawer(BuildContext context) {
     final authProvider = Provider.of<AuthProvider>(context);
     final user = authProvider.currentUser;
-    
+
     return Drawer(
       child: ListView(
         padding: EdgeInsets.zero,
@@ -870,18 +929,13 @@ class _SupervisorDashboardScreenState extends State<SupervisorDashboardScreen> {
             onTap: () => context.go('/supervisor-dashboard-screen'),
           ),
           ListTile(
-            leading: const Icon(Icons.supervisor_account),
-            title: const Text('Panel Supervisor'),
-            onTap: () => context.push('/supervisor-dashboard'),
-          ),
-          ListTile(
             leading: const Icon(Icons.checklist),
             title: const Text('Verificar Inventario'),
             onTap: () => context.push('/inventory-check'),
           ),
           ListTile(
             leading: const Icon(Icons.location_on),
-            title: const Text('Mi Ambiente'),
+            title: const Text('Ambiente'),
             onTap: () => context.push(
               '/environment-overview',
               extra: _environment != null
@@ -931,7 +985,9 @@ class _SupervisorDashboardScreenState extends State<SupervisorDashboardScreen> {
                         minHeight: 12,
                       ),
                       child: Text(
-                        _unreadNotificationsCount > 9 ? '9+' : _unreadNotificationsCount.toString(),
+                        _unreadNotificationsCount > 9
+                            ? '9+'
+                            : _unreadNotificationsCount.toString(),
                         style: const TextStyle(
                           color: Colors.white,
                           fontSize: 8,
@@ -961,7 +1017,10 @@ class _SupervisorDashboardScreenState extends State<SupervisorDashboardScreen> {
             leading: const Icon(Icons.logout),
             title: const Text('Cerrar Sesión'),
             onTap: () async {
-              final authProvider = Provider.of<AuthProvider>(context, listen: false);
+              final authProvider = Provider.of<AuthProvider>(
+                context,
+                listen: false,
+              );
               await authProvider.logout();
               context.go('/login');
             },

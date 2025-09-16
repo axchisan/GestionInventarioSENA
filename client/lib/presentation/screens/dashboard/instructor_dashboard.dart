@@ -224,20 +224,12 @@ class _InstructorDashboardState extends State<InstructorDashboard> {
                           Expanded(
                             child: _buildStatCard(
                               'Items Totales',
-                              _inventoryStats!['total'].toString(),
+                              _inventoryStats!['total_quantity'].toString(),
                               Icons.inventory,
                               AppColors.secondary,
                             ),
                           ),
                           const SizedBox(width: 12),
-                          Expanded(
-                            child: _buildStatCard(
-                              'Cantidad Total',
-                              _inventoryStats!['total_quantity'].toString(),
-                              Icons.numbers,
-                              AppColors.primary,
-                            ),
-                          ),
                         ],
                       ),
                       const SizedBox(height: 12),
