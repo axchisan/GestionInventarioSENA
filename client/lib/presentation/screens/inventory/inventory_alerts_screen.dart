@@ -1,5 +1,10 @@
 import 'package:flutter/material.dart';
 import '../../widgets/common/sena_app_bar.dart';
+import '../../../core/services/alert_service.dart';
+import '../../../core/services/notification_service.dart';
+import '../../../data/models/alert_model.dart';
+import '../../../data/models/notification_model.dart';
+import '../../../data/models/inventory_check_item_model.dart';
 
 class InventoryAlertsScreen extends StatefulWidget {
   const InventoryAlertsScreen({Key? key}) : super(key: key);
@@ -12,107 +17,130 @@ class _InventoryAlertsScreenState extends State<InventoryAlertsScreen> with Tick
   late TabController _tabController;
   String _selectedPriority = 'Todas';
   String _selectedType = 'Todas';
-
-  final List<Map<String, dynamic>> _alerts = [
-    {
-      'id': '001',
-      'title': 'Stock Bajo - Multímetros',
-      'description': 'Solo quedan 2 multímetros disponibles en el Laboratorio de Electrónica',
-      'type': 'Stock Bajo',
-      'priority': 'Alta',
-      'timestamp': '2024-01-15 09:30',
-      'location': 'Lab. Electrónica',
-      'isRead': false,
-      'icon': Icons.warning,
-      'color': Colors.orange,
-    },
-    {
-      'id': '002',
-      'title': 'Equipo Vencido - Extintor',
-      'description': 'El extintor EXT-001 ha vencido y requiere mantenimiento inmediato',
-      'type': 'Mantenimiento',
-      'priority': 'Crítica',
-      'timestamp': '2024-01-15 08:45',
-      'location': 'Taller Mecánica',
-      'isRead': false,
-      'icon': Icons.error,
-      'color': Colors.red,
-    },
-    {
-      'id': '003',
-      'title': 'Préstamo Vencido',
-      'description': 'El taladro TD-005 no ha sido devuelto por Juan Pérez',
-      'type': 'Préstamo',
-      'priority': 'Media',
-      'timestamp': '2024-01-15 07:20',
-      'location': 'Taller Carpintería',
-      'isRead': true,
-      'icon': Icons.schedule,
-      'color': Colors.blue,
-    },
-    {
-      'id': '004',
-      'title': 'Nuevo Equipo Registrado',
-      'description': 'Se ha agregado una nueva sierra circular al inventario',
-      'type': 'Información',
-      'priority': 'Baja',
-      'timestamp': '2024-01-14 16:15',
-      'location': 'Taller Carpintería',
-      'isRead': true,
-      'icon': Icons.info,
-      'color': Colors.green,
-    },
-    {
-      'id': '005',
-      'title': 'Calibración Pendiente',
-      'description': '5 equipos requieren calibración en los próximos 7 días',
-      'type': 'Mantenimiento',
-      'priority': 'Media',
-      'timestamp': '2024-01-14 14:30',
-      'location': 'Múltiples',
-      'isRead': false,
-      'icon': Icons.build,
-      'color': Colors.amber,
-    },
-  ];
-
-  final List<Map<String, dynamic>> _configurations = [
-    {
-      'type': 'Stock Bajo',
-      'enabled': true,
-      'threshold': 5,
-      'description': 'Alertar cuando el stock sea menor a',
-    },
-    {
-      'type': 'Mantenimiento',
-      'enabled': true,
-      'threshold': 7,
-      'description': 'Alertar con días de anticipación',
-    },
-    {
-      'type': 'Préstamos Vencidos',
-      'enabled': true,
-      'threshold': 1,
-      'description': 'Alertar después de días de retraso',
-    },
-    {
-      'type': 'Calibración',
-      'enabled': false,
-      'threshold': 30,
-      'description': 'Alertar con días de anticipación',
-    },
-  ];
+  
+  List<AlertModel> _systemAlerts = [];
+  List<NotificationModel> _maintenanceNotifications = [];
+  List<InventoryCheckItemModel> _inventoryIssues = [];
+  List<Map<String, dynamic>> _configurations = [];
+  
+  bool _isLoading = true;
+  String? _error;
+  int _totalUnresolved = 0;
 
   @override
   void initState() {
     super.initState();
     _tabController = TabController(length: 2, vsync: this);
+    _loadAlertsData();
+    _loadConfigurations();
   }
 
   @override
   void dispose() {
     _tabController.dispose();
     super.dispose();
+  }
+
+  Future<void> _loadAlertsData() async {
+    setState(() {
+      _isLoading = true;
+      _error = null;
+    });
+
+    try {
+      final data = await AlertService.getCombinedAlertsData();
+      
+      setState(() {
+        _systemAlerts = data['systemAlerts'] as List<AlertModel>;
+        _maintenanceNotifications = data['maintenanceNotifications'] as List<NotificationModel>;
+        _inventoryIssues = data['inventoryIssues'] as List<InventoryCheckItemModel>;
+        _totalUnresolved = data['totalUnresolved'] as int;
+        _isLoading = false;
+      });
+    } catch (e) {
+      setState(() {
+        _error = 'Error al cargar las alertas: $e';
+        _isLoading = false;
+      });
+    }
+  }
+
+  Future<void> _loadConfigurations() async {
+  try {
+    final configs = await AlertService.getAlertConfigurations();
+    setState(() {
+      _configurations = configs;
+    });
+  } catch (e) {
+    print('Error loading configurations: $e');
+  }
+}
+
+  List<Map<String, dynamic>> get _combinedAlerts {
+    List<Map<String, dynamic>> combined = [];
+    
+    // Add system alerts
+    for (var alert in _systemAlerts) {
+      combined.add({
+        'id': alert.id,
+        'title': alert.title,
+        'description': alert.message,
+        'type': alert.typeText,
+        'priority': alert.priorityText,
+        'timestamp': _formatDateTime(alert.createdAt),
+        'location': alert.entityType ?? 'Sistema',
+        'isRead': alert.isResolved,
+        'icon': alert.typeIcon,
+        'color': alert.priorityColor,
+        'source': 'system_alert',
+        'data': alert,
+      });
+    }
+    
+    // Add maintenance notifications
+    for (var notification in _maintenanceNotifications) {
+      combined.add({
+        'id': notification.id,
+        'title': notification.title,
+        'description': notification.message,
+        'type': notification.typeText,
+        'priority': notification.priorityText,
+        'timestamp': _formatDateTime(notification.createdAt),
+        'location': 'Mantenimiento',
+        'isRead': notification.isRead,
+        'icon': notification.typeIcon,
+        'color': notification.priorityColor,
+        'source': 'notification',
+        'data': notification,
+      });
+    }
+    
+    // Add inventory issues
+    for (var issue in _inventoryIssues) {
+      combined.add({
+        'id': issue.id,
+        'title': 'Problema en ${issue.itemName ?? 'Item'}',
+        'description': 'Estado: ${issue.statusText}. ${issue.issueDescription}',
+        'type': 'Verificación',
+        'priority': issue.hasIssues ? 'Alta' : 'Media',
+        'timestamp': _formatDateTime(issue.updatedAt),
+        'location': issue.environmentName ?? 'Desconocido',
+        'isRead': false,
+        'icon': Icons.assignment_late,
+        'color': issue.statusColor,
+        'source': 'inventory_check',
+        'data': issue,
+      });
+    }
+    
+    // Sort by timestamp (newest first)
+    combined.sort((a, b) => b['timestamp'].compareTo(a['timestamp']));
+    
+    return combined;
+  }
+
+  String _formatDateTime(DateTime dateTime) {
+    return '${dateTime.day.toString().padLeft(2, '0')}/${dateTime.month.toString().padLeft(2, '0')}/${dateTime.year} ${dateTime.hour.toString().padLeft(2, '0')}:${dateTime.minute.toString().padLeft(2, '0')}';
   }
 
   @override
@@ -125,6 +153,11 @@ class _InventoryAlertsScreenState extends State<InventoryAlertsScreen> with Tick
             onPressed: _markAllAsRead,
             icon: const Icon(Icons.done_all),
             tooltip: 'Marcar todas como leídas',
+          ),
+          IconButton(
+            onPressed: _loadAlertsData,
+            icon: const Icon(Icons.refresh),
+            tooltip: 'Actualizar',
           ),
         ],
         bottom: TabBar(
@@ -143,7 +176,7 @@ class _InventoryAlertsScreenState extends State<InventoryAlertsScreen> with Tick
                       borderRadius: BorderRadius.circular(10),
                     ),
                     child: Text(
-                      '${_alerts.where((alert) => !alert['isRead']).length}',
+                      '$_totalUnresolved',
                       style: const TextStyle(color: Colors.white, fontSize: 12),
                     ),
                   ),
@@ -165,7 +198,38 @@ class _InventoryAlertsScreenState extends State<InventoryAlertsScreen> with Tick
   }
 
   Widget _buildAlertsTab() {
-    final filteredAlerts = _alerts.where((alert) {
+    if (_isLoading) {
+      return const Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            CircularProgressIndicator(),
+            SizedBox(height: 16),
+            Text('Cargando alertas...'),
+          ],
+        ),
+      );
+    }
+
+    if (_error != null) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Icon(Icons.error_outline, size: 64, color: Colors.red),
+            const SizedBox(height: 16),
+            Text(_error!, textAlign: TextAlign.center),
+            const SizedBox(height: 16),
+            ElevatedButton(
+              onPressed: _loadAlertsData,
+              child: const Text('Reintentar'),
+            ),
+          ],
+        ),
+      );
+    }
+
+    final filteredAlerts = _combinedAlerts.where((alert) {
       final matchesPriority = _selectedPriority == 'Todas' || alert['priority'] == _selectedPriority;
       final matchesType = _selectedType == 'Todas' || alert['type'] == _selectedType;
       return matchesPriority && matchesType;
@@ -186,13 +250,16 @@ class _InventoryAlertsScreenState extends State<InventoryAlertsScreen> with Tick
                     ],
                   ),
                 )
-              : ListView.builder(
-                  padding: const EdgeInsets.all(16),
-                  itemCount: filteredAlerts.length,
-                  itemBuilder: (context, index) {
-                    final alert = filteredAlerts[index];
-                    return _buildAlertCard(alert);
-                  },
+              : RefreshIndicator(
+                  onRefresh: _loadAlertsData,
+                  child: ListView.builder(
+                    padding: const EdgeInsets.all(16),
+                    itemCount: filteredAlerts.length,
+                    itemBuilder: (context, index) {
+                      final alert = filteredAlerts[index];
+                      return _buildAlertCard(alert);
+                    },
+                  ),
                 ),
         ),
       ],
@@ -211,6 +278,17 @@ class _InventoryAlertsScreenState extends State<InventoryAlertsScreen> with Tick
   }
 
   Widget _buildFilters() {
+    final availableTypes = ['Todas'];
+    final availablePriorities = ['Todas', 'Crítica', 'Alta', 'Media', 'Baja'];
+    
+    // Extract unique types from combined alerts
+    for (var alert in _combinedAlerts) {
+      final type = alert['type'] as String;
+      if (!availableTypes.contains(type)) {
+        availableTypes.add(type);
+      }
+    }
+
     return Container(
       padding: const EdgeInsets.all(16),
       color: Colors.grey[50],
@@ -224,7 +302,7 @@ class _InventoryAlertsScreenState extends State<InventoryAlertsScreen> with Tick
                 border: OutlineInputBorder(),
                 contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
               ),
-              items: ['Todas', 'Crítica', 'Alta', 'Media', 'Baja']
+              items: availablePriorities
                   .map((priority) => DropdownMenuItem(value: priority, child: Text(priority)))
                   .toList(),
               onChanged: (value) {
@@ -243,7 +321,7 @@ class _InventoryAlertsScreenState extends State<InventoryAlertsScreen> with Tick
                 border: OutlineInputBorder(),
                 contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
               ),
-              items: ['Todas', 'Stock Bajo', 'Mantenimiento', 'Préstamo', 'Información']
+              items: availableTypes
                   .map((type) => DropdownMenuItem(value: type, child: Text(type)))
                   .toList(),
               onChanged: (value) {
@@ -405,10 +483,22 @@ class _InventoryAlertsScreenState extends State<InventoryAlertsScreen> with Tick
                 ),
                 Switch(
                   value: config['enabled'],
-                  onChanged: (value) {
-                    setState(() {
-                      config['enabled'] = value;
-                    });
+                  onChanged: (value) async {
+                    final success = await AlertService.updateAlertConfiguration(
+                      type: config['type'],
+                      enabled: value,
+                      threshold: config['threshold'],
+                    );
+                    
+                    if (success) {
+                      setState(() {
+                        config['enabled'] = value;
+                      });
+                    } else {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('Error al actualizar configuración')),
+                      );
+                    }
                   },
                   activeColor: const Color(0xFF00A651),
                 ),
@@ -419,7 +509,7 @@ class _InventoryAlertsScreenState extends State<InventoryAlertsScreen> with Tick
               config['description'],
               style: TextStyle(color: Colors.grey[600]),
             ),
-            if (config['enabled']) ...[
+            if (config['enabled']) ...[ 
               const SizedBox(height: 12),
               Row(
                 children: [
@@ -433,7 +523,22 @@ class _InventoryAlertsScreenState extends State<InventoryAlertsScreen> with Tick
                       ),
                       keyboardType: TextInputType.number,
                       onChanged: (value) {
-                        config['threshold'] = int.tryParse(value) ?? config['threshold'];
+                        final newThreshold = int.tryParse(value) ?? config['threshold'];
+                        config['threshold'] = newThreshold;
+                      },
+                      onFieldSubmitted: (value) async {
+                        final newThreshold = int.tryParse(value) ?? config['threshold'];
+                        final success = await AlertService.updateAlertConfiguration(
+                          type: config['type'],
+                          enabled: config['enabled'],
+                          threshold: newThreshold,
+                        );
+                        
+                        if (!success) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(content: Text('Error al actualizar umbral')),
+                          );
+                        }
                       },
                     ),
                   ),
@@ -466,18 +571,44 @@ class _InventoryAlertsScreenState extends State<InventoryAlertsScreen> with Tick
     }
   }
 
-  void _markAsRead(Map<String, dynamic> alert) {
-    setState(() {
-      alert['isRead'] = true;
-    });
+  Future<void> _markAsRead(Map<String, dynamic> alert) async {
+    final source = alert['source'] as String;
+    final id = alert['id'] as String;
+    
+    bool success = false;
+    
+    switch (source) {
+      case 'system_alert':
+        success = await AlertService.resolveAlert(id);
+        break;
+      case 'notification':
+        success = await NotificationService.markAsRead(id);
+        break;
+      case 'inventory_check':
+        // For inventory checks, we just mark as read locally
+        success = true;
+        break;
+    }
+    
+    if (success) {
+      setState(() {
+        alert['isRead'] = true;
+        if (_totalUnresolved > 0) _totalUnresolved--;
+      });
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Error al marcar como leída')),
+      );
+    }
   }
 
-  void _markAllAsRead() {
-    setState(() {
-      for (var alert in _alerts) {
-        alert['isRead'] = true;
-      }
-    });
+  Future<void> _markAllAsRead() async {
+    final unreadAlerts = _combinedAlerts.where((alert) => !alert['isRead']).toList();
+    
+    for (var alert in unreadAlerts) {
+      await _markAsRead(alert);
+    }
+    
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(content: Text('Todas las alertas marcadas como leídas')),
     );

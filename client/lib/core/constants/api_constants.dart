@@ -8,3 +8,7 @@ const String qrGenerateEndpoint = '/api/qr/generate/';
 const String inventoryChecksEndpoint = '/api/inventory-checks/';
 const String loansEndpoint = '/api/loans/';
 const String loansWarehousesEndpoint = '/api/loans/warehouses';
+const String notificationsEndpoint = '/api/notifications/';
+const String systemAlertsEndpoint = '/api/system-alerts/';
+const String inventoryCheckItemsEndpoint = '/api/inventory-check-items/';
+const String maintenanceRequestsEndpoint = '/api/maintenance-requests/';
