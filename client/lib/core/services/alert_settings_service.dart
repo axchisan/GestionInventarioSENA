@@ -5,7 +5,7 @@ import '../constants/api_constants.dart' as ApiConfig;
 import 'session_service.dart';
 
 class AlertSettingsService {
-  static const String _baseUrl = '${ApiConfig.baseUrl}/alert-settings';
+  static const String _baseUrl = '${ApiConfig.baseUrl}/api/alert-settings/';
 
   static Future<List<AlertSettingsModel>> getUserAlertSettings() async {
     try {
@@ -15,7 +15,7 @@ class AlertSettingsService {
       }
 
       final response = await http.get(
-        Uri.parse('$_baseUrl/user'),
+        Uri.parse('api/alert-settings/user'),
         headers: {
           'Content-Type': 'application/json',
           'Authorization': 'Bearer $token',
