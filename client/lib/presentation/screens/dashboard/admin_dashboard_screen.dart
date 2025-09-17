@@ -12,7 +12,7 @@ class AdminDashboardScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: const SenaAppBar(
-        title: 'Panel de Administrador',
+        title: 'Panel de Administrador de Almacen',
         showBackButton: false,
       ),
       body: SingleChildScrollView(
@@ -48,7 +48,7 @@ class AdminDashboardScreen extends StatelessWidget {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            '¡Bienvenido, Administrador!',
+                            '¡Bienvenido, Administrador de Almacen!',
                             style: TextStyle(
                               fontSize: 20,
                               fontWeight: FontWeight.bold,
@@ -57,7 +57,7 @@ class AdminDashboardScreen extends StatelessWidget {
                           ),
                           SizedBox(height: 4),
                           Text(
-                            'Control total del sistema de inventario SENA',
+                            'Control total de inventario de Almacen SENA',
                             style: TextStyle(
                               color: AppColors.grey600,
                               fontSize: 14,
@@ -144,22 +144,6 @@ class AdminDashboardScreen extends StatelessWidget {
               children: [
                 _buildActionCard(
                   context,
-                  'Panel Admin',
-                  'Dashboard administrativo completo',
-                  Icons.admin_panel_settings,
-                  AppColors.error,
-                  '/admin-dashboard',
-                ),
-                _buildActionCard(
-                  context,
-                  'Gestión de Usuarios',
-                  'Administrar todos los usuarios',
-                  Icons.people,
-                  AppColors.primary,
-                  '/user-management',
-                ),
-                _buildActionCard(
-                  context,
                   'Historial de Préstamos',
                   'Gestionar historial de préstamos',
                   Icons.history,
@@ -173,6 +157,22 @@ class AdminDashboardScreen extends StatelessWidget {
                   Icons.assignment_turned_in,
                   AppColors.secondary,
                   '/loan-management',
+                ),
+                _buildActionCard(
+                  context,
+                  'Escáner QR',
+                  'Escanear códigos QR para inventario',
+                  Icons.qr_code_scanner,
+                  AppColors.primary,
+                  '/qr-scan',
+                ),
+                _buildActionCard(
+                  context,
+                  'Generador QR',
+                  'Crear códigos QR para equipos o ambientes',
+                  Icons.qr_code,
+                  AppColors.primary,
+                  '/qr-generator',
                 ),
                 _buildActionCard(
                   context,
@@ -192,27 +192,11 @@ class AdminDashboardScreen extends StatelessWidget {
                 ),
                 _buildActionCard(
                   context,
-                  'Auditoría Completa',
-                  'Registro detallado de actividades',
-                  Icons.history,
-                  AppColors.info,
-                  '/audit-log',
-                ),
-                _buildActionCard(
-                  context,
                   'Generador de Reportes',
                   'Reportes personalizados avanzados',
                   Icons.description,
                   AppColors.success,
                   '/report-generator',
-                ),
-                _buildActionCard(
-                  context,
-                  'Configuración Global',
-                  'Configuraciones del sistema',
-                  Icons.settings,
-                  AppColors.grey600,
-                  '/settings',
                 ),
                 _buildActionCard(
                   context,
@@ -245,25 +229,6 @@ class AdminDashboardScreen extends StatelessWidget {
                     _buildSystemStatusItem('Almacenamiento', '85% utilizado', AppColors.warning),
                     _buildSystemStatusItem('Backup', 'Último: hace 2 horas', AppColors.success),
                     const SizedBox(height: 8),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: OutlinedButton.icon(
-                            onPressed: () => context.push('/admin-dashboard'),
-                            icon: const Icon(Icons.admin_panel_settings),
-                            label: const Text('Panel Completo'),
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: ElevatedButton.icon(
-                            onPressed: () => context.push('/settings'),
-                            icon: const Icon(Icons.settings),
-                            label: const Text('Configurar'),
-                          ),
-                        ),
-                      ],
-                    ),
                   ],
                 ),
               ),
@@ -438,16 +403,6 @@ class AdminDashboardScreen extends StatelessWidget {
             onTap: () => context.go('/admin-dashboard-screen'),
           ),
           ListTile(
-            leading: const Icon(Icons.admin_panel_settings),
-            title: const Text('Panel Admin'),
-            onTap: () => context.push('/admin-dashboard'),
-          ),
-          ListTile(
-            leading: const Icon(Icons.people),
-            title: const Text('Gestión de Usuarios'),
-            onTap: () => context.push('/user-management'),
-          ),
-          ListTile(
             leading: const Icon(Icons.history),
             title: const Text('Historial de Préstamos'),
             onTap: () => context.push('/loan-history'),
@@ -456,6 +411,16 @@ class AdminDashboardScreen extends StatelessWidget {
             leading: const Icon(Icons.check_circle),
             title: const Text('Gestión de Préstamos'),
             onTap: () => context.push('/loan-management'),
+          ),
+          ListTile(
+            leading: const Icon(Icons.qr_code_scanner),
+            title: const Text('Escáner QR'),
+            onTap: () => context.push('/qr-scan'),
+          ),
+          ListTile(
+            leading: const Icon(Icons.qr_code),
+            title: const Text('Generador QR'),
+            onTap: () => context.push('/qr-generate'),
           ),
           ListTile(
             leading: const Icon(Icons.analytics),
@@ -468,14 +433,14 @@ class AdminDashboardScreen extends StatelessWidget {
             onTap: () => context.push('/inventory-alerts'),
           ),
           ListTile(
-            leading: const Icon(Icons.history),
-            title: const Text('Auditoría'),
-            onTap: () => context.push('/audit-log'),
-          ),
-          ListTile(
             leading: const Icon(Icons.description),
             title: const Text('Reportes'),
             onTap: () => context.push('/report-generator'),
+          ),
+          ListTile(
+            leading: const Icon(Icons.feedback),
+            title: const Text('Feedback'),
+            onTap: () => context.push('/feedback-form'),
           ),
           const Divider(),
           ListTile(
