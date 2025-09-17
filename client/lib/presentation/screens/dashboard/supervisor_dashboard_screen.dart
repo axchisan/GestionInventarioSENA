@@ -469,19 +469,19 @@ class _SupervisorDashboardScreenState extends State<SupervisorDashboardScreen> {
                         ),
                         _buildActionCard(
                           context,
-                          'Generar QR',
-                          'Crea QR para items/ambientes',
-                          Icons.qr_code,
-                          AppColors.accent,
-                          '/qr-generate',
-                        ),
-                        _buildActionCard(
-                          context,
                           'Verificar Inventario',
                           'Revisa y aprueba checks',
                           Icons.checklist,
                           AppColors.secondary,
                           '/inventory-check',
+                        ),
+                        _buildActionCard(
+                          context,
+                          'Generar QR',
+                          'Crea QR para items/ambientes',
+                          Icons.qr_code,
+                          AppColors.accent,
+                          '/qr-generate',
                         ),
                         _buildActionCard(
                           context,
@@ -501,19 +501,19 @@ class _SupervisorDashboardScreenState extends State<SupervisorDashboardScreen> {
                         ),
                         _buildActionCard(
                           context,
-                          'Estadísticas',
-                          'Reportes generales',
-                          Icons.analytics,
-                          AppColors.secondary,
-                          '/statistics-dashboard',
-                        ),
-                        _buildActionCard(
-                          context,
                           'Alertas de Inventario',
                           'Monitorea alertas',
                           Icons.warning,
                           AppColors.warning,
                           '/inventory-alerts',
+                        ),
+                        _buildActionCard(
+                          context,
+                          'Estadísticas',
+                          'Reportes generales',
+                          Icons.analytics,
+                          AppColors.secondary,
+                          '/statistics-dashboard',
                         ),
                         _buildActionCard(
                           context,
@@ -524,14 +524,6 @@ class _SupervisorDashboardScreenState extends State<SupervisorDashboardScreen> {
                           '/report-generator',
                         ),
                         _buildNotificationActionCard(context),
-                        _buildActionCard(
-                          context,
-                          'Configuración',
-                          'Ajustes del sistema',
-                          Icons.settings,
-                          AppColors.grey600,
-                          '/settings',
-                        ),
                       ],
                     ),
                     const SizedBox(height: 24),
@@ -901,9 +893,19 @@ class _SupervisorDashboardScreenState extends State<SupervisorDashboardScreen> {
             onTap: () => context.go('/supervisor-dashboard-screen'),
           ),
           ListTile(
+            leading: const Icon(Icons.qr_code_scanner),
+            title: const Text('Escanear QR'),
+            onTap: () => context.push('/qr-scan'),
+          ),
+          ListTile(
             leading: const Icon(Icons.checklist),
             title: const Text('Verificar Inventario'),
             onTap: () => context.push('/inventory-check'),
+          ),
+          ListTile(
+            leading: const Icon(Icons.qr_code),
+            title: const Text('Generar QR'),
+            onTap: () => context.push('/qr-generate'),
           ),
           ListTile(
             leading: const Icon(Icons.location_on),
@@ -919,14 +921,19 @@ class _SupervisorDashboardScreenState extends State<SupervisorDashboardScreen> {
             ),
           ),
           ListTile(
+            leading: const Icon(Icons.warning),
+            title: const Text('Alertas de Inventario'),
+            onTap: () => context.push('/inventory-alerts'),
+          ),
+          ListTile(
             leading: const Icon(Icons.analytics),
             title: const Text('Estadísticas'),
             onTap: () => context.push('/statistics-dashboard'),
           ),
           ListTile(
-            leading: const Icon(Icons.warning),
-            title: const Text('Alertas'),
-            onTap: () => context.push('/inventory-alerts'),
+            leading: const Icon(Icons.description),
+            title: const Text('generar Reportes'),
+            onTap: () => context.push('/report-generator'),
           ),
           ListTile(
             leading: Stack(
