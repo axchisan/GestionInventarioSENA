@@ -1,11 +1,11 @@
 {
-    "name": "client",
-    "short_name": "client",
+    "name": "SENA Inventario",
+    "short_name": "SENA Inventario",
     "start_url": ".",
     "display": "standalone",
-    "background_color": "#0175C2",
-    "theme_color": "#0175C2",
-    "description": "A new Flutter project.",
+    "background_color": "#FFFFFF",
+    "theme_color": "#000000",
+    "description": "Sistema de gestión de inventario.",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [
