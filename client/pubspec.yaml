@@ -1,5 +1,5 @@
 name: client
-description: "SENA Gestion de Inventario"
+description: "sistema de gestion de inventario"
 publish_to: 'none'
 version: 0.1.0
 
@@ -37,8 +37,29 @@ dev_dependencies:
   flutter_lints: ^6.0.0
   build_runner: ^2.4.13
   json_serializable: ^6.8.0
+  flutter_launcher_icons: ^0.14.4
 
 flutter:
   uses-material-design: true
   assets:
     - assets/images/
+    - assets/icon/
+
+flutter_launcher_icons:
+  image_path: "assets/icon/icon.png"  # Icono base para todas las plataformas
+  android: true  # Generar icono para Android
+  adaptive_icon_background: "#FFFFFF"  # Fondo blanco para iconos adaptativos (Android 8+)
+  adaptive_icon_foreground: "assets/icon/icon.png"  # Mismo icono para foreground
+  ios: true  # Generar icono para iOS
+  remove_alpha_ios: true  # Eliminar canal alfa para iOS (recomendado)
+  web:
+    generate: true
+    background_color: "#FFFFFF"  # Fondo para manifest.json
+    theme_color: "#000000"  # Color del tema para la barra del navegador
+  windows:
+    generate: true
+    icon_size: 48  # Tamaño estándar para .ico
+  macos:
+    generate: true
+  linux:
+    generate: true

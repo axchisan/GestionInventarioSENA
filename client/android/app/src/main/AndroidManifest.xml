@@ -7,7 +7,7 @@
 <uses-feature android:name="android.hardware.camera"/>
 
     <application
-        android:label="client"
+        android:label="SENA Gestion de Inventario"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
         <activity
