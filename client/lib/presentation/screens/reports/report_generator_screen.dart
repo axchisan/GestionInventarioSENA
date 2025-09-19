@@ -1,5 +1,12 @@
+import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart' as material;
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import '../../widgets/common/sena_app_bar.dart';
+import '../../providers/auth_provider.dart';
+import '../../../core/services/report_service.dart';
+import '../../../core/services/api_service.dart';
+import '../../../data/models/environment_model.dart';
 
 class ReportGeneratorScreen extends StatefulWidget {
   const ReportGeneratorScreen({Key? key}) : super(key: key);
@@ -11,11 +18,17 @@ class ReportGeneratorScreen extends StatefulWidget {
 class _ReportGeneratorScreenState extends State<ReportGeneratorScreen> {
   String selectedReportType = 'inventory';
   String selectedFormat = 'pdf';
-  DateTimeRange? selectedDateRange;
+  material.DateTimeRange? selectedDateRange;
   String selectedEnvironment = 'all';
   bool includeImages = false;
   bool includeStatistics = true;
   bool isGenerating = false;
+  
+  List<EnvironmentModel> environments = [];
+  List<Map<String, dynamic>> recentReports = [];
+  bool isLoadingData = true;
+  late ReportService _reportService;
+  String? userRole;
 
   final List<Map<String, dynamic>> reportTypes = [
     {
@@ -23,68 +36,106 @@ class _ReportGeneratorScreenState extends State<ReportGeneratorScreen> {
       'title': 'Reporte de Inventario',
       'description': 'Estado actual de todos los equipos',
       'icon': Icons.inventory_2,
+      'roles': ['admin', 'supervisor', 'admin_general'],
     },
     {
       'id': 'loans',
       'title': 'Reporte de Préstamos',
       'description': 'Historial de préstamos y devoluciones',
       'icon': Icons.assignment_return,
+      'roles': ['admin', 'supervisor', 'admin_general'],
     },
     {
       'id': 'maintenance',
       'title': 'Reporte de Mantenimiento',
       'description': 'Solicitudes y estado de mantenimientos',
       'icon': Icons.build,
+      'roles': ['admin', 'supervisor', 'admin_general'],
     },
     {
       'id': 'audit',
       'title': 'Reporte de Auditoría',
       'description': 'Log de actividades del sistema',
       'icon': Icons.security,
+      'roles': ['supervisor', 'admin_general'],
     },
     {
       'id': 'statistics',
       'title': 'Reporte Estadístico',
       'description': 'Análisis y métricas del inventario',
       'icon': Icons.analytics,
-    },
-  ];
-
-  final List<String> environments = [
-    'all',
-    'Laboratorio de Sistemas',
-    'Taller de Mecánica',
-    'Aula de Electrónica',
-    'Biblioteca',
-    'Oficina Administrativa',
-  ];
-
-  final List<Map<String, dynamic>> recentReports = [
-    {
-      'name': 'Inventario_Enero_2024.pdf',
-      'type': 'Inventario',
-      'date': '15/01/2024',
-      'size': '2.3 MB',
-      'status': 'Completado',
-    },
-    {
-      'name': 'Prestamos_Diciembre_2023.xlsx',
-      'type': 'Préstamos',
-      'date': '28/12/2023',
-      'size': '1.8 MB',
-      'status': 'Completado',
-    },
-    {
-      'name': 'Mantenimiento_Q4_2023.pdf',
-      'type': 'Mantenimiento',
-      'date': '20/12/2023',
-      'size': '3.1 MB',
-      'status': 'Completado',
+      'roles': ['admin', 'supervisor', 'admin_general'],
     },
   ];
 
   @override
+  void initState() {
+    super.initState();
+    _initializeServices();
+    _loadInitialData();
+  }
+
+  void _initializeServices() {
+    final authProvider = Provider.of<AuthProvider>(context, listen: false);
+    final apiService = ApiService(authProvider: authProvider);
+    _reportService = ReportService(apiService);
+    userRole = authProvider.currentUser?.role;
+  }
+
+  Future<void> _loadInitialData() async {
+    try {
+      setState(() => isLoadingData = true);
+      
+      final [environmentsResult, recentReportsResult] = await Future.wait([
+        _reportService.getEnvironments(),
+        _reportService.getRecentReports(),
+      ]);
+      
+      setState(() {
+        environments = List<EnvironmentModel>.from(environmentsResult);
+        recentReports = List<Map<String, dynamic>>.from(recentReportsResult);
+        isLoadingData = false;
+      });
+    } catch (e) {
+      setState(() => isLoadingData = false);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error cargando datos: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
+  List<Map<String, dynamic>> get availableReportTypes {
+    if (userRole == null) return [];
+    
+    return reportTypes.where((type) {
+      List<String> allowedRoles = List<String>.from(type['roles']);
+      return allowedRoles.contains(userRole);
+    }).toList();
+  }
+
+  @override
   Widget build(BuildContext context) {
+    if (isLoadingData) {
+      return Scaffold(
+        appBar: const SenaAppBar(title: 'Generador de Reportes'),
+        body: const Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              CircularProgressIndicator(color: Color(0xFF00A651)),
+              SizedBox(height: 16),
+              Text('Cargando datos...'),
+            ],
+          ),
+        ),
+      );
+    }
+
     return Scaffold(
       appBar: const SenaAppBar(title: 'Generador de Reportes'),
       body: SingleChildScrollView(
@@ -137,7 +188,7 @@ class _ReportGeneratorScreenState extends State<ReportGeneratorScreen> {
               ],
             ),
             const SizedBox(height: 16),
-            ...reportTypes.map((type) => _buildReportTypeCard(type)),
+            ...availableReportTypes.map((type) => _buildReportTypeCard(type)),
           ],
         ),
       ),
@@ -238,7 +289,6 @@ class _ReportGeneratorScreenState extends State<ReportGeneratorScreen> {
                     items: const [
                       DropdownMenuItem(value: 'pdf', child: Text('PDF')),
                       DropdownMenuItem(value: 'excel', child: Text('Excel')),
-                      DropdownMenuItem(value: 'csv', child: Text('CSV')),
                     ],
                     onChanged: (value) => setState(() => selectedFormat = value!),
                   ),
@@ -285,7 +335,7 @@ class _ReportGeneratorScreenState extends State<ReportGeneratorScreen> {
             ),
             const SizedBox(height: 16),
             
-            // Ambiente
+            // Ambiente - Usar ambientes reales de la API
             Row(
               children: [
                 const Expanded(
@@ -300,10 +350,16 @@ class _ReportGeneratorScreenState extends State<ReportGeneratorScreen> {
                       border: OutlineInputBorder(),
                       contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                     ),
-                    items: environments.map((env) => DropdownMenuItem(
-                      value: env,
-                      child: Text(env == 'all' ? 'Todos los ambientes' : env),
-                    )).toList(),
+                    items: [
+                      const DropdownMenuItem(
+                        value: 'all',
+                        child: Text('Todos los ambientes'),
+                      ),
+                      ...environments.map((env) => DropdownMenuItem(
+                        value: env.id,
+                        child: Text(env.displayName),
+                      )),
+                    ],
                     onChanged: (value) => setState(() => selectedEnvironment = value!),
                   ),
                 ),
@@ -385,15 +441,39 @@ class _ReportGeneratorScreenState extends State<ReportGeneratorScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text(
-              'Reportes Recientes',
-              style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-              ),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const Text(
+                  'Reportes Recientes',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                IconButton(
+                  onPressed: _loadInitialData,
+                  icon: const Icon(Icons.refresh),
+                  tooltip: 'Actualizar',
+                ),
+              ],
             ),
             const SizedBox(height: 16),
-            ...recentReports.map((report) => _buildRecentReportItem(report)),
+            if (recentReports.isEmpty)
+              const Center(
+                child: Padding(
+                  padding: EdgeInsets.all(20),
+                  child: Text(
+                    'No hay reportes recientes',
+                    style: TextStyle(
+                      color: Colors.grey,
+                      fontSize: 16,
+                    ),
+                  ),
+                ),
+              )
+            else
+              ...recentReports.map((report) => _buildRecentReportItem(report)),
           ],
         ),
       ),
@@ -468,7 +548,7 @@ class _ReportGeneratorScreenState extends State<ReportGeneratorScreen> {
   }
 
   void _selectDateRange() async {
-    final DateTimeRange? picked = await showDateRangePicker(
+    final material.DateTimeRange? picked = await material.showDateRangePicker(
       context: context,
       firstDate: DateTime(2020),
       lastDate: DateTime.now(),
@@ -486,18 +566,54 @@ class _ReportGeneratorScreenState extends State<ReportGeneratorScreen> {
   void _generateReport() async {
     setState(() => isGenerating = true);
     
-    // Simular generación de reporte
-    await Future.delayed(const Duration(seconds: 3));
-    
-    setState(() => isGenerating = false);
-    
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Reporte generado exitosamente'),
-          backgroundColor: Color(0xFF00A651),
-        ),
+    try {
+      DateTimeRange? reportDateRange;
+      if (selectedDateRange != null) {
+        reportDateRange = DateTimeRange(
+          start: selectedDateRange!.start,
+          end: selectedDateRange!.end,
+        );
+      }
+      
+      final filePath = await _reportService.generateReport(
+        reportType: selectedReportType,
+        format: selectedFormat,
+        dateRange: reportDateRange,
+        environmentId: selectedEnvironment == 'all' ? null : selectedEnvironment,
+        includeImages: includeImages,
+        includeStatistics: includeStatistics,
       );
+      
+      setState(() => isGenerating = false);
+      
+      if (mounted) {
+        if (!kIsWeb) {
+          // Mostrar diálogo con la ruta del archivo en plataformas no web
+          _reportService.showFileSavedDialog(context, filePath);
+        }
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(kIsWeb
+                ? 'Reporte descargado exitosamente'
+                : 'Reporte generado y compartido exitosamente'),
+            backgroundColor: const Color(0xFF00A651),
+          ),
+        );
+        
+        // Actualizar la lista de reportes recientes
+        _loadInitialData();
+      }
+    } catch (e) {
+      setState(() => isGenerating = false);
+      
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error generando reporte: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
     }
   }
 
@@ -508,5 +624,6 @@ class _ReportGeneratorScreenState extends State<ReportGeneratorScreen> {
         backgroundColor: const Color(0xFF00A651),
       ),
     );
+    // Aquí puedes implementar la lógica para descargar reportes recientes si están almacenados localmente o en un servidor
   }
 }
