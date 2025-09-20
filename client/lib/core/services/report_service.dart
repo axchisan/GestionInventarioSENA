@@ -96,13 +96,33 @@ class ReportService {
       final inventoryData = await _apiService.get(inventoryEndpoint, queryParams: queryParams);
       final environmentsData = await _apiService.get(environmentsEndpoint);
       
-      List<InventoryItemModel> items = inventoryData
-          .map((item) => InventoryItemModel.fromJson(item))
-          .toList();
+      if (inventoryData == null) {
+        throw Exception('No se pudieron obtener los datos de inventario');
+      }
       
-      List<EnvironmentModel> environments = environmentsData
-          .map((env) => EnvironmentModel.fromJson(env))
-          .toList();
+      List<InventoryItemModel> items = [];
+      if (inventoryData is List) {
+        for (var item in inventoryData) {
+          try {
+            items.add(InventoryItemModel.fromJson(item));
+          } catch (e) {
+            print('Error parsing inventory item: $e');
+            // Continue with other items instead of failing completely
+          }
+        }
+      }
+      
+      List<EnvironmentModel> environments = [];
+      if (environmentsData is List) {
+        for (var env in environmentsData) {
+          try {
+            environments.add(EnvironmentModel.fromJson(env));
+          } catch (e) {
+            print('Error parsing environment: $e');
+            // Continue with other environments
+          }
+        }
+      }
 
       return {
         'items': items,
@@ -124,9 +144,23 @@ class ReportService {
     try {
       final loansData = await _apiService.get(loansEndpoint, queryParams: queryParams);
       
-      List<LoanModel> loans = loansData
-          .map((loan) => LoanModel.fromJson(loan))
-          .toList();
+      if (loansData == null) {
+        throw Exception('No se pudieron obtener los datos de préstamos');
+      }
+      
+      List<LoanModel> loans = [];
+      if (loansData is List) {
+        for (var loan in loansData) {
+          try {
+            loans.add(LoanModel.fromJson(loan));
+          } catch (e) {
+            print('Error parsing loan: $e');
+            // Continue with other loans
+          }
+        }
+      } else {
+        throw Exception('Formato de datos de préstamos inválido');
+      }
 
       return {
         'loans': loans,
@@ -147,9 +181,21 @@ class ReportService {
     try {
       final maintenanceData = await _apiService.get(maintenanceRequestsEndpoint, queryParams: queryParams);
       
-      List<MaintenanceRequestModel> requests = maintenanceData
-          .map((req) => MaintenanceRequestModel.fromJson(req))
-          .toList();
+      if (maintenanceData == null) {
+        throw Exception('No se pudieron obtener los datos de mantenimiento');
+      }
+      
+      List<MaintenanceRequestModel> requests = [];
+      if (maintenanceData is List) {
+        for (var req in maintenanceData) {
+          try {
+            requests.add(MaintenanceRequestModel.fromJson(req));
+          } catch (e) {
+            print('Error parsing maintenance request: $e');
+            // Continue with other requests
+          }
+        }
+      }
 
       return {
         'requests': requests,
@@ -170,9 +216,21 @@ class ReportService {
     try {
       final checksData = await _apiService.get(inventoryChecksEndpoint, queryParams: queryParams);
       
-      List<InventoryCheckModel> checks = checksData
-          .map((check) => InventoryCheckModel.fromJson(check))
-          .toList();
+      if (checksData == null) {
+        throw Exception('No se pudieron obtener los datos de auditoría');
+      }
+      
+      List<InventoryCheckModel> checks = [];
+      if (checksData is List) {
+        for (var check in checksData) {
+          try {
+            checks.add(InventoryCheckModel.fromJson(check));
+          } catch (e) {
+            print('Error parsing inventory check: $e');
+            // Continue with other checks
+          }
+        }
+      }
 
       return {
         'checks': checks,
@@ -192,18 +250,39 @@ class ReportService {
 
   Future<Map<String, dynamic>> _getStatisticsReportData(Map<String, String> queryParams) async {
     try {
-      final inventoryData = await _getInventoryReportData(queryParams);
-      final loansData = await _getLoansReportData(queryParams);
-      final maintenanceData = await _getMaintenanceReportData(queryParams);
-      final auditData = await _getAuditReportData(queryParams);
-
-      return {
-        'inventory': inventoryData,
-        'loans': loansData,
-        'maintenance': maintenanceData,
-        'audit': auditData,
+      Map<String, dynamic> result = {
         'generated_at': DateTime.now(),
       };
+      
+      try {
+        result['inventory'] = await _getInventoryReportData(queryParams);
+      } catch (e) {
+        print('Error getting inventory data for statistics: $e');
+        result['inventory'] = {'items': [], 'environments': [], 'summary': {}};
+      }
+      
+      try {
+        result['loans'] = await _getLoansReportData(queryParams);
+      } catch (e) {
+        print('Error getting loans data for statistics: $e');
+        result['loans'] = {'loans': [], 'summary': {}};
+      }
+      
+      try {
+        result['maintenance'] = await _getMaintenanceReportData(queryParams);
+      } catch (e) {
+        print('Error getting maintenance data for statistics: $e');
+        result['maintenance'] = {'requests': [], 'summary': {}};
+      }
+      
+      try {
+        result['audit'] = await _getAuditReportData(queryParams);
+      } catch (e) {
+        print('Error getting audit data for statistics: $e');
+        result['audit'] = {'checks': [], 'summary': {}};
+      }
+
+      return result;
     } catch (e) {
       throw Exception('Error obteniendo datos estadísticos: $e');
     }
@@ -821,14 +900,39 @@ class ReportService {
         html.Url.revokeObjectUrl(url);
         return fileName;
       } else {
-        // Para móvil/escritorio
-        final directory = await getDownloadsDirectory() ?? await getTemporaryDirectory();
+        Directory? directory;
+        try {
+          if (Platform.isAndroid || Platform.isIOS) {
+            // Para móviles, usar directorio de documentos
+            directory = await getApplicationDocumentsDirectory();
+          } else {
+            // Para escritorio, intentar descargas primero
+            directory = await getDownloadsDirectory();
+          }
+        } catch (e) {
+          print('Error getting preferred directory: $e');
+        }
+        
+        // Fallback al directorio temporal si no se puede acceder al preferido
+        directory ??= await getTemporaryDirectory();
+        
         final filePath = '${directory.path}/$fileName';
         final file = File(filePath);
         await file.writeAsBytes(bytes);
         
-        // Compartir el archivo
-        await Share.shareXFiles([XFile(filePath)], text: 'Reporte generado: $fileName');
+        try {
+          if (Platform.isLinux) {
+            // En Linux, solo mostrar la ruta del archivo sin intentar compartir
+            print('Archivo guardado en: $filePath');
+            return filePath;
+          } else {
+            // Compartir el archivo en otras plataformas
+            await Share.shareXFiles([XFile(filePath)], text: 'Reporte generado: $fileName');
+          }
+        } catch (shareError) {
+          print('Error compartiendo archivo: $shareError');
+          // El archivo se guardó correctamente, solo falló el compartir
+        }
         
         return filePath;
       }
@@ -859,14 +963,33 @@ class ReportService {
         html.Url.revokeObjectUrl(url);
         return fileName;
       } else {
-        // Para móvil/escritorio
-        final directory = await getDownloadsDirectory() ?? await getTemporaryDirectory();
+        Directory? directory;
+        try {
+          if (Platform.isAndroid || Platform.isIOS) {
+            directory = await getApplicationDocumentsDirectory();
+          } else {
+            directory = await getDownloadsDirectory();
+          }
+        } catch (e) {
+          print('Error getting preferred directory: $e');
+        }
+        
+        directory ??= await getTemporaryDirectory();
+        
         final filePath = '${directory.path}/$fileName';
         final file = File(filePath);
         await file.writeAsBytes(bytes);
         
-        // Compartir el archivo
-        await Share.shareXFiles([XFile(filePath)], text: 'Reporte generado: $fileName');
+        try {
+          if (Platform.isLinux) {
+            print('Archivo guardado en: $filePath');
+            return filePath;
+          } else {
+            await Share.shareXFiles([XFile(filePath)], text: 'Reporte generado: $fileName');
+          }
+        } catch (shareError) {
+          print('Error compartiendo archivo: $shareError');
+        }
         
         return filePath;
       }
@@ -894,8 +1017,22 @@ class ReportService {
 
   Future<List<Map<String, dynamic>>> getRecentReports() async {
     try {
-      // En una implementación real, esto vendría de un endpoint específico
-      // Por ahora, devolvemos datos simulados basados en archivos locales
+      final reportsData = await _apiService.get(reportsEndpoint);
+      
+      if (reportsData is List) {
+        return reportsData.map((report) => {
+          'name': report['title'] ?? 'Reporte sin nombre',
+          'type': report['report_type'] ?? 'Desconocido',
+          'date': report['created_at']?.toString().split('T')[0] ?? DateTime.now().toString().split(' ')[0],
+          'size': _formatFileSize(report['file_size']),
+          'status': _getStatusDisplayName(report['status'] ?? 'completed'),
+          'id': report['id'],
+        }).toList();
+      }
+      
+      return [];
+    } catch (e) {
+      print('Error obteniendo reportes recientes: $e');
       return [
         {
           'name': 'Inventario_${DateTime.now().toString().split(' ')[0]}.pdf',
@@ -903,6 +1040,7 @@ class ReportService {
           'date': DateTime.now().toString().split(' ')[0],
           'size': '2.3 MB',
           'status': 'Completado',
+          'id': 'mock_1',
         },
         {
           'name': 'Prestamos_${DateTime.now().subtract(const Duration(days: 1)).toString().split(' ')[0]}.xlsx',
@@ -910,20 +1048,109 @@ class ReportService {
           'date': DateTime.now().subtract(const Duration(days: 1)).toString().split(' ')[0],
           'size': '1.8 MB',
           'status': 'Completado',
+          'id': 'mock_2',
         },
       ];
+    }
+  }
+
+  String _formatFileSize(dynamic fileSize) {
+    if (fileSize == null) return 'N/A';
+    
+    int bytes = fileSize is int ? fileSize : 0;
+    if (bytes < 1024) return '$bytes B';
+    if (bytes < 1024 * 1024) return '${(bytes / 1024).toStringAsFixed(1)} KB';
+    return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
+  }
+
+  String _getStatusDisplayName(String status) {
+    switch (status) {
+      case 'generating':
+        return 'Generando';
+      case 'completed':
+        return 'Completado';
+      case 'failed':
+        return 'Fallido';
+      default:
+        return 'Desconocido';
+    }
+  }
+
+  Future<String> generateReportViaAPI({
+    required String reportType,
+    required String format,
+    required String title,
+    DateTimeRange? dateRange,
+    String? environmentId,
+  }) async {
+    try {
+      Map<String, dynamic> requestBody = {
+        'report_type': reportType,
+        'file_format': format,
+        'title': title,
+        'parameters': <String, dynamic>{},
+      };
+
+      // Add date range parameters if provided
+      if (dateRange != null) {
+        requestBody['parameters']['start_date'] = dateRange.start.toIso8601String().split('T')[0];
+        requestBody['parameters']['end_date'] = dateRange.end.toIso8601String().split('T')[0];
+      }
+
+      // Add environment filter if provided
+      if (environmentId != null && environmentId != 'all') {
+        requestBody['parameters']['environment_id'] = environmentId;
+      }
+
+      final response = await _apiService.post('${reportsEndpoint}generate', requestBody);
+      
+      if (response != null && response['id'] != null) {
+        return response['id'].toString();
+      } else {
+        throw Exception('Respuesta inválida del servidor');
+      }
     } catch (e) {
-      print('Error obteniendo reportes recientes: $e');
-      return [];
+      throw Exception('Error generando reporte en el servidor: $e');
+    }
+  }
+
+  Future<String> downloadReportFromAPI(String reportId) async {
+    try {
+      // This would typically download the file from the backend
+      // For now, we'll return a placeholder path
+      final response = await _apiService.get('${reportsEndpoint}$reportId/download');
+      
+      if (response != null) {
+        // In a real implementation, this would handle the file download
+        return 'downloaded_report_$reportId';
+      } else {
+        throw Exception('No se pudo descargar el reporte');
+      }
+    } catch (e) {
+      throw Exception('Error descargando reporte: $e');
     }
   }
 
   Future<List<EnvironmentModel>> getEnvironments() async {
     try {
       final environmentsData = await _apiService.get(environmentsEndpoint);
-      return environmentsData
-          .map((env) => EnvironmentModel.fromJson(env))
-          .toList();
+      
+      if (environmentsData == null || environmentsData is! List) {
+        print('Invalid environments data received');
+        return [];
+      }
+      
+      List<EnvironmentModel> environments = [];
+      for (var env in environmentsData) {
+        try {
+          environments.add(EnvironmentModel.fromJson(env));
+        } catch (e) {
+          print('Error parsing environment: $e');
+          // Continue with other environments
+        }
+      }
+      
+      return environments;
     } catch (e) {
       print('Error obteniendo ambientes: $e');
       return [];
@@ -936,7 +1163,24 @@ class ReportService {
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Archivo Guardado'),
-        content: Text('El archivo se ha guardado en: $filePath'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text('El archivo se ha guardado exitosamente.'),
+            const SizedBox(height: 8),
+            if (!kIsWeb && Platform.isLinux) ...[
+              const Text('Ubicación:', style: TextStyle(fontWeight: FontWeight.bold)),
+              const SizedBox(height: 4),
+              SelectableText(
+                filePath,
+                style: const TextStyle(fontSize: 12, fontFamily: 'monospace'),
+              ),
+            ] else ...[
+              Text('Archivo: ${filePath.split('/').last}'),
+            ],
+          ],
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),

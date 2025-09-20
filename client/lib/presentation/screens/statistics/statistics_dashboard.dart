@@ -31,9 +31,35 @@ class _StatisticsDashboardState extends State<StatisticsDashboard> {
   Map<String, dynamic> loanStats = {};
   Map<String, dynamic> maintenanceStats = {};
   Map<String, dynamic> checkStats = {};
+  Map<String, dynamic> userStats = {};
+  Map<String, dynamic> environmentStats = {};
   List<Map<String, dynamic>> monthlyLoans = [];
   List<Map<String, dynamic>> categoryDistribution = [];
   List<Map<String, dynamic>> topItems = [];
+
+  final Map<String, Map<String, dynamic>> roleBasedContent = {
+    'supervisor': {
+      'title': 'Panel de Supervisor',
+      'description': 'Verificaciones, mantenimiento y auditorías',
+      'primaryMetrics': ['checkStats', 'maintenanceStats'],
+      'charts': ['monthlyChecks', 'maintenanceByPriority'],
+      'sections': ['verification_summary', 'maintenance_overview', 'environment_status'],
+    },
+    'admin': {
+      'title': 'Panel de Administrador de Almacén',
+      'description': 'Préstamos, inventario y alertas de almacén',
+      'primaryMetrics': ['loanStats', 'inventoryStats'],
+      'charts': ['monthlyLoans', 'categoryDistribution'],
+      'sections': ['loan_management', 'inventory_overview', 'alerts_monitoring'],
+    },
+    'admin_general': {
+      'title': 'Panel de Administrador General',
+      'description': 'Vista completa del sistema',
+      'primaryMetrics': ['userStats', 'loanStats', 'inventoryStats', 'maintenanceStats'],
+      'charts': ['monthlyLoans', 'categoryDistribution', 'userActivity'],
+      'sections': ['system_overview', 'user_management', 'complete_statistics'],
+    },
+  };
 
   @override
   void initState() {
@@ -78,25 +104,62 @@ class _StatisticsDashboardState extends State<StatisticsDashboard> {
         'end_date': endDate.toIso8601String().split('T')[0],
       };
 
-      // Cargar datos en paralelo
-      final results = await Future.wait([
+      List<Future> futures = [];
+      
+      // Common data for all roles
+      futures.addAll([
         _loadInventoryStatistics(queryParams),
         _loadLoanStatistics(queryParams),
         _loadMaintenanceStatistics(queryParams),
         _loadCheckStatistics(queryParams),
-        _loadMonthlyLoanData(queryParams),
-        _loadCategoryDistribution(),
-        _loadTopItems(queryParams),
       ]);
 
+      // Role-specific data
+      if (userRole == 'admin_general') {
+        futures.addAll([
+          _loadUserStatistics(queryParams),
+          _loadEnvironmentStatistics(queryParams),
+          _loadMonthlyLoanData(queryParams),
+          _loadCategoryDistribution(),
+          _loadTopItems(queryParams),
+        ]);
+      } else if (userRole == 'admin') {
+        futures.addAll([
+          _loadMonthlyLoanData(queryParams),
+          _loadCategoryDistribution(),
+          _loadTopItems(queryParams),
+        ]);
+      } else if (userRole == 'supervisor') {
+        futures.addAll([
+          _loadEnvironmentStatistics(queryParams),
+          _loadMonthlyCheckData(queryParams),
+        ]);
+      }
+
+      final results = await Future.wait(futures);
+      
       setState(() {
         inventoryStats = results[0] as Map<String, dynamic>;
         loanStats = results[1] as Map<String, dynamic>;
         maintenanceStats = results[2] as Map<String, dynamic>;
         checkStats = results[3] as Map<String, dynamic>;
-        monthlyLoans = results[4] as List<Map<String, dynamic>>;
-        categoryDistribution = results[5] as List<Map<String, dynamic>>;
-        topItems = results[6] as List<Map<String, dynamic>>;
+        
+        int resultIndex = 4;
+        if (userRole == 'admin_general') {
+          userStats = results[resultIndex++] as Map<String, dynamic>;
+          environmentStats = results[resultIndex++] as Map<String, dynamic>;
+          monthlyLoans = results[resultIndex++] as List<Map<String, dynamic>>;
+          categoryDistribution = results[resultIndex++] as List<Map<String, dynamic>>;
+          topItems = results[resultIndex++] as List<Map<String, dynamic>>;
+        } else if (userRole == 'admin') {
+          monthlyLoans = results[resultIndex++] as List<Map<String, dynamic>>;
+          categoryDistribution = results[resultIndex++] as List<Map<String, dynamic>>;
+          topItems = results[resultIndex++] as List<Map<String, dynamic>>;
+        } else if (userRole == 'supervisor') {
+          environmentStats = results[resultIndex++] as Map<String, dynamic>;
+          monthlyLoans = results[resultIndex++] as List<Map<String, dynamic>>; // Actually monthly checks for supervisor
+        }
+        
         isLoading = false;
       });
     } catch (e) {
@@ -115,9 +178,19 @@ class _StatisticsDashboardState extends State<StatisticsDashboard> {
   Future<Map<String, dynamic>> _loadInventoryStatistics(Map<String, String> queryParams) async {
     try {
       final inventoryData = await _apiService.get(inventoryEndpoint, queryParams: queryParams);
-      List<InventoryItemModel> items = inventoryData
-          .map((item) => InventoryItemModel.fromJson(item))
-          .toList();
+      
+      if (inventoryData == null || inventoryData is! List) {
+        return {};
+      }
+      
+      List<InventoryItemModel> items = [];
+      for (var item in inventoryData) {
+        try {
+          items.add(InventoryItemModel.fromJson(item));
+        } catch (e) {
+          print('Error parsing inventory item: $e');
+        }
+      }
 
       return {
         'total_items': items.length,
@@ -136,9 +209,19 @@ class _StatisticsDashboardState extends State<StatisticsDashboard> {
   Future<Map<String, dynamic>> _loadLoanStatistics(Map<String, String> queryParams) async {
     try {
       final loansData = await _apiService.get(loansEndpoint, queryParams: queryParams);
-      List<LoanModel> loans = loansData
-          .map((loan) => LoanModel.fromJson(loan))
-          .toList();
+      
+      if (loansData == null || loansData is! List) {
+        return {};
+      }
+      
+      List<LoanModel> loans = [];
+      for (var loan in loansData) {
+        try {
+          loans.add(LoanModel.fromJson(loan));
+        } catch (e) {
+          print('Error parsing loan: $e');
+        }
+      }
 
       // Calcular tiempo promedio de préstamo
       double averageDays = 0;
@@ -146,9 +229,8 @@ class _StatisticsDashboardState extends State<StatisticsDashboard> {
       
       for (var loan in loans) {
         if (loan.actualReturnDate != null) {
-          // Parse the actualReturnDate string to DateTime
           DateTime returnDate = DateTime.parse(loan.actualReturnDate!);
-          DateTime startDate = DateTime.parse(loan.startDate); // Ensure startDate is also parsed
+          DateTime startDate = DateTime.parse(loan.startDate);
           int days = returnDate.difference(startDate).inDays;
           averageDays += days;
           completedLoans++;
@@ -166,7 +248,7 @@ class _StatisticsDashboardState extends State<StatisticsDashboard> {
         'overdue_loans': loans.where((l) => l.status == 'overdue').length,
         'returned_loans': loans.where((l) => l.status == 'returned').length,
         'average_days': averageDays.round(),
-        'satisfaction_rate': 4.8, // Esto podría venir de una encuesta real
+        'satisfaction_rate': 4.8,
       };
     } catch (e) {
       print('Error loading loan statistics: $e');
@@ -177,9 +259,19 @@ class _StatisticsDashboardState extends State<StatisticsDashboard> {
   Future<Map<String, dynamic>> _loadMaintenanceStatistics(Map<String, String> queryParams) async {
     try {
       final maintenanceData = await _apiService.get(maintenanceRequestsEndpoint, queryParams: queryParams);
-      List<MaintenanceRequestModel> requests = maintenanceData
-          .map((req) => MaintenanceRequestModel.fromJson(req))
-          .toList();
+      
+      if (maintenanceData == null || maintenanceData is! List) {
+        return {};
+      }
+      
+      List<MaintenanceRequestModel> requests = [];
+      for (var req in maintenanceData) {
+        try {
+          requests.add(MaintenanceRequestModel.fromJson(req));
+        } catch (e) {
+          print('Error parsing maintenance request: $e');
+        }
+      }
 
       double totalCost = requests
           .where((r) => r.cost != null)
@@ -202,9 +294,19 @@ class _StatisticsDashboardState extends State<StatisticsDashboard> {
   Future<Map<String, dynamic>> _loadCheckStatistics(Map<String, String> queryParams) async {
     try {
       final checksData = await _apiService.get(inventoryChecksEndpoint, queryParams: queryParams);
-      List<InventoryCheckModel> checks = checksData
-          .map((check) => InventoryCheckModel.fromJson(check))
-          .toList();
+      
+      if (checksData == null || checksData is! List) {
+        return {};
+      }
+      
+      List<InventoryCheckModel> checks = [];
+      for (var check in checksData) {
+        try {
+          checks.add(InventoryCheckModel.fromJson(check));
+        } catch (e) {
+          print('Error parsing inventory check: $e');
+        }
+      }
 
       int completedChecks = checks.where((c) => c.isComplete).length;
       double complianceRate = checks.isNotEmpty ? (completedChecks / checks.length * 100) : 0;
@@ -222,12 +324,72 @@ class _StatisticsDashboardState extends State<StatisticsDashboard> {
     }
   }
 
+  Future<Map<String, dynamic>> _loadUserStatistics(Map<String, String> queryParams) async {
+    try {
+      final usersData = await _apiService.get('/api/users', queryParams: queryParams);
+      
+      if (usersData == null || usersData is! List) {
+        return {};
+      }
+
+      return {
+        'total_users': usersData.length,
+        'active_users': usersData.where((u) => u['is_active'] == true).length,
+        'students': usersData.where((u) => u['role'] == 'student').length,
+        'instructors': usersData.where((u) => u['role'] == 'instructor').length,
+        'admins': usersData.where((u) => u['role']?.contains('admin') == true).length,
+      };
+    } catch (e) {
+      print('Error loading user statistics: $e');
+      return {};
+    }
+  }
+
+  Future<Map<String, dynamic>> _loadEnvironmentStatistics(Map<String, String> queryParams) async {
+    try {
+      final environmentsData = await _apiService.get(environmentsEndpoint);
+      
+      if (environmentsData == null || environmentsData is! List) {
+        return {};
+      }
+
+      List<EnvironmentModel> environments = [];
+      for (var env in environmentsData) {
+        try {
+          environments.add(EnvironmentModel.fromJson(env));
+        } catch (e) {
+          print('Error parsing environment: $e');
+        }
+      }
+
+      return {
+        'total_environments': environments.length,
+        'active_environments': environments.where((e) => e.isActive).length,
+        'warehouses': environments.where((e) => e.isWarehouse).length,
+        'classrooms': environments.where((e) => !e.isWarehouse).length,
+      };
+    } catch (e) {
+      print('Error loading environment statistics: $e');
+      return {};
+    }
+  }
+
   Future<List<Map<String, dynamic>>> _loadMonthlyLoanData(Map<String, String> queryParams) async {
     try {
       final loansData = await _apiService.get(loansEndpoint, queryParams: queryParams);
-      List<LoanModel> loans = loansData
-          .map((loan) => LoanModel.fromJson(loan))
-          .toList();
+      
+      if (loansData == null || loansData is! List) {
+        return [];
+      }
+      
+      List<LoanModel> loans = [];
+      for (var loan in loansData) {
+        try {
+          loans.add(LoanModel.fromJson(loan));
+        } catch (e) {
+          print('Error parsing loan for monthly data: $e');
+        }
+      }
 
       // Agrupar préstamos por mes
       Map<int, int> monthlyCount = {};
@@ -239,7 +401,6 @@ class _StatisticsDashboardState extends State<StatisticsDashboard> {
       }
 
       for (var loan in loans) {
-        // Parse the startDate string to DateTime
         DateTime startDate = DateTime.parse(loan.startDate);
         int month = startDate.month;
         if (monthlyCount.containsKey(month)) {
@@ -260,12 +421,67 @@ class _StatisticsDashboardState extends State<StatisticsDashboard> {
     }
   }
 
+  Future<List<Map<String, dynamic>>> _loadMonthlyCheckData(Map<String, String> queryParams) async {
+    try {
+      final checksData = await _apiService.get(inventoryChecksEndpoint, queryParams: queryParams);
+      
+      if (checksData == null || checksData is! List) {
+        return [];
+      }
+      
+      List<InventoryCheckModel> checks = [];
+      for (var check in checksData) {
+        try {
+          checks.add(InventoryCheckModel.fromJson(check));
+        } catch (e) {
+          print('Error parsing check for monthly data: $e');
+        }
+      }
+
+      Map<int, int> monthlyCount = {};
+      DateTime now = DateTime.now();
+      
+      for (int i = 5; i >= 0; i--) {
+        DateTime monthDate = DateTime(now.year, now.month - i, 1);
+        monthlyCount[monthDate.month] = 0;
+      }
+
+      for (var check in checks) {
+        int month = check.checkDate.month;
+        if (monthlyCount.containsKey(month)) {
+          monthlyCount[month] = monthlyCount[month]! + 1;
+        }
+      }
+
+      List<String> monthNames = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 
+                                'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
+
+      return monthlyCount.entries.map((entry) => {
+        'month': monthNames[entry.key - 1],
+        'count': entry.value,
+      }).toList();
+    } catch (e) {
+      print('Error loading monthly check data: $e');
+      return [];
+    }
+  }
+
   Future<List<Map<String, dynamic>>> _loadCategoryDistribution() async {
     try {
       final inventoryData = await _apiService.get(inventoryEndpoint);
-      List<InventoryItemModel> items = inventoryData
-          .map((item) => InventoryItemModel.fromJson(item))
-          .toList();
+      
+      if (inventoryData == null || inventoryData is! List) {
+        return [];
+      }
+      
+      List<InventoryItemModel> items = [];
+      for (var item in inventoryData) {
+        try {
+          items.add(InventoryItemModel.fromJson(item));
+        } catch (e) {
+          print('Error parsing item for category distribution: $e');
+        }
+      }
 
       Map<String, int> categoryCount = {};
       for (var item in items) {
@@ -288,9 +504,19 @@ class _StatisticsDashboardState extends State<StatisticsDashboard> {
   Future<List<Map<String, dynamic>>> _loadTopItems(Map<String, String> queryParams) async {
     try {
       final loansData = await _apiService.get(loansEndpoint, queryParams: queryParams);
-      List<LoanModel> loans = loansData
-          .map((loan) => LoanModel.fromJson(loan))
-          .toList();
+      
+      if (loansData == null || loansData is! List) {
+        return [];
+      }
+      
+      List<LoanModel> loans = [];
+      for (var loan in loansData) {
+        try {
+          loans.add(LoanModel.fromJson(loan));
+        } catch (e) {
+          print('Error parsing loan for top items: $e');
+        }
+      }
 
       // Contar préstamos por item
       Map<String, int> itemCount = {};
@@ -315,8 +541,10 @@ class _StatisticsDashboardState extends State<StatisticsDashboard> {
 
   @override
   Widget build(BuildContext context) {
+    String title = roleBasedContent[userRole]?['title'] ?? 'Estadísticas y Reportes';
+    
     return Scaffold(
-      appBar: const SenaAppBar(title: 'Estadísticas y Reportes'),
+      appBar: SenaAppBar(title: title),
       body: isLoading 
           ? const Center(
               child: Column(
@@ -333,6 +561,9 @@ class _StatisticsDashboardState extends State<StatisticsDashboard> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  _buildRoleIndicator(),
+                  const SizedBox(height: 16),
+                  
                   // Selector de período
                   Card(
                     child: Padding(
@@ -387,25 +618,182 @@ class _StatisticsDashboardState extends State<StatisticsDashboard> {
                   ),
                   const SizedBox(height: 16),
                   
-                  _buildMetricsSection(),
-                  const SizedBox(height: 24),
-                  
-                  _buildMonthlyLoansChart(),
-                  const SizedBox(height: 16),
-                  
-                  _buildCategoryDistributionChart(),
-                  const SizedBox(height: 16),
-                  
-                  _buildTopItemsSection(),
+                  ..._buildRoleBasedContent(),
                 ],
               ),
             ),
     );
   }
 
+  Widget _buildRoleIndicator() {
+    if (userRole == null || !roleBasedContent.containsKey(userRole)) {
+      return const SizedBox.shrink();
+    }
+    
+    final roleConfig = roleBasedContent[userRole]!;
+    Color roleColor = _getRoleColor(userRole!);
+    
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: roleColor.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Icon(
+                _getRoleIcon(userRole!),
+                color: roleColor,
+                size: 24,
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    roleConfig['title'],
+                    style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  Text(
+                    roleConfig['description'],
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: Colors.grey.shade600,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Color _getRoleColor(String role) {
+    switch (role) {
+      case 'supervisor':
+        return Colors.blue;
+      case 'admin':
+        return const Color(0xFF00A651);
+      case 'admin_general':
+        return Colors.purple;
+      default:
+        return Colors.grey;
+    }
+  }
+
+  IconData _getRoleIcon(String role) {
+    switch (role) {
+      case 'supervisor':
+        return Icons.supervisor_account;
+      case 'admin':
+        return Icons.admin_panel_settings;
+      case 'admin_general':
+        return Icons.manage_accounts;
+      default:
+        return Icons.person;
+    }
+  }
+
+  List<Widget> _buildRoleBasedContent() {
+    if (userRole == null || !roleBasedContent.containsKey(userRole)) {
+      return [_buildMetricsSection()];
+    }
+
+    List<Widget> widgets = [];
+    
+    // Always show metrics section
+    widgets.add(_buildMetricsSection());
+    widgets.add(const SizedBox(height: 24));
+    
+    // Role-specific charts
+    if (userRole == 'supervisor') {
+      widgets.add(_buildMonthlyChecksChart());
+      widgets.add(const SizedBox(height: 16));
+      widgets.add(_buildEnvironmentStatusSection());
+    } else if (userRole == 'admin') {
+      widgets.add(_buildMonthlyLoansChart());
+      widgets.add(const SizedBox(height: 16));
+      widgets.add(_buildCategoryDistributionChart());
+      widgets.add(const SizedBox(height: 16));
+      widgets.add(_buildTopItemsSection());
+    } else if (userRole == 'admin_general') {
+      widgets.add(_buildMonthlyLoansChart());
+      widgets.add(const SizedBox(height: 16));
+      widgets.add(_buildCategoryDistributionChart());
+      widgets.add(const SizedBox(height: 16));
+      widgets.add(_buildTopItemsSection());
+      widgets.add(const SizedBox(height: 16));
+      widgets.add(_buildUserManagementSection());
+    }
+    
+    return widgets;
+  }
+
   Widget _buildMetricsSection() {
-    return Column(
-      children: [
+    List<Widget> metricCards = [];
+    
+    if (userRole == 'supervisor') {
+      metricCards.addAll([
+        Row(
+          children: [
+            Expanded(
+              child: _buildStatCard(
+                'Verificaciones',
+                '${checkStats['total_checks'] ?? 0}',
+                _calculateChange(checkStats['total_checks'] ?? 0, 50),
+                AppColors.primary,
+                Icons.fact_check,
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: _buildStatCard(
+                'Cumplimiento',
+                '${checkStats['compliance_rate'] ?? 0}%',
+                _calculateChange(checkStats['compliance_rate'] ?? 0, 85),
+                AppColors.success,
+                Icons.check_circle,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 12),
+        Row(
+          children: [
+            Expanded(
+              child: _buildStatCard(
+                'Mantenimientos',
+                '${maintenanceStats['total_requests'] ?? 0}',
+                _calculateChange(maintenanceStats['total_requests'] ?? 0, 15),
+                AppColors.warning,
+                Icons.build,
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: _buildStatCard(
+                'Ambientes',
+                '${environmentStats['total_environments'] ?? 0}',
+                _calculateChange(environmentStats['total_environments'] ?? 0, 20),
+                AppColors.info,
+                Icons.location_on,
+              ),
+            ),
+          ],
+        ),
+      ]);
+    } else if (userRole == 'admin') {
+      metricCards.addAll([
         Row(
           children: [
             Expanded(
@@ -434,52 +822,363 @@ class _StatisticsDashboardState extends State<StatisticsDashboard> {
           children: [
             Expanded(
               child: _buildStatCard(
-                'Tiempo Promedio',
-                '${loanStats['average_days'] ?? 0} días',
-                _calculateChange(loanStats['average_days'] ?? 0, 7),
+                'Préstamos Activos',
+                '${loanStats['active_loans'] ?? 0}',
+                _calculateChange(loanStats['active_loans'] ?? 0, 25),
                 AppColors.info,
-                Icons.schedule,
+                Icons.assignment_turned_in,
               ),
             ),
             const SizedBox(width: 12),
             Expanded(
               child: _buildStatCard(
-                'Cumplimiento',
-                '${checkStats['compliance_rate'] ?? 0}%',
-                _calculateChange(checkStats['compliance_rate'] ?? 0, 85),
-                AppColors.success,
-                Icons.check_circle,
+                'Items en Mantenimiento',
+                '${inventoryStats['in_maintenance'] ?? 0}',
+                _calculateChange(inventoryStats['in_maintenance'] ?? 0, 5),
+                AppColors.warning,
+                Icons.build,
               ),
             ),
           ],
         ),
-        if (userRole == 'admin' || userRole == 'admin_general') ...[
-          const SizedBox(height: 12),
-          Row(
+      ]);
+    } else if (userRole == 'admin_general') {
+      metricCards.addAll([
+        Row(
+          children: [
+            Expanded(
+              child: _buildStatCard(
+                'Usuarios Totales',
+                '${userStats['total_users'] ?? 0}',
+                _calculateChange(userStats['total_users'] ?? 0, 150),
+                AppColors.primary,
+                Icons.people,
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: _buildStatCard(
+                'Préstamos Totales',
+                '${loanStats['total_loans'] ?? 0}',
+                _calculateChange(loanStats['total_loans'] ?? 0, 100),
+                AppColors.secondary,
+                Icons.assignment,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 12),
+        Row(
+          children: [
+            Expanded(
+              child: _buildStatCard(
+                'Items Disponibles',
+                '${inventoryStats['available_items'] ?? 0}',
+                _calculateChange(inventoryStats['available_items'] ?? 0, 80),
+                AppColors.info,
+                Icons.inventory,
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: _buildStatCard(
+                'Mantenimientos',
+                '${maintenanceStats['total_requests'] ?? 0}',
+                _calculateChange(maintenanceStats['total_requests'] ?? 0, 15),
+                AppColors.warning,
+                Icons.build,
+              ),
+            ),
+          ],
+        ),
+      ]);
+    }
+    
+    return Column(children: metricCards);
+  }
+
+  Widget _buildMonthlyChecksChart() {
+    if (monthlyLoans.isEmpty) {
+      return Card(
+        child: Padding(
+          padding: const EdgeInsets.all(16.0),
+          child: Column(
             children: [
-              Expanded(
-                child: _buildStatCard(
-                  'Mantenimientos',
-                  '${maintenanceStats['total_requests'] ?? 0}',
-                  _calculateChange(maintenanceStats['total_requests'] ?? 0, 15),
-                  AppColors.warning,
-                  Icons.build,
+              const Text(
+                'Verificaciones por Mes',
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
                 ),
               ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: _buildStatCard(
-                  'Costo Total',
-                  '\$${(maintenanceStats['total_cost'] ?? 0.0).toStringAsFixed(0)}',
-                  _calculateChange((maintenanceStats['total_cost'] ?? 0.0).round(), 5000),
-                  AppColors.error,
-                  Icons.attach_money,
+              const SizedBox(height: 20),
+              Container(
+                height: 200,
+                child: const Center(
+                  child: Text('No hay datos disponibles'),
                 ),
               ),
             ],
           ),
+        ),
+      );
+    }
+
+    double maxY = monthlyLoans.map((e) => e['count'] as int).reduce((a, b) => a > b ? a : b).toDouble();
+    if (maxY == 0) maxY = 100;
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Verificaciones por Mes',
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 16),
+            SizedBox(
+              height: 200,
+              child: BarChart(
+                BarChartData(
+                  alignment: BarChartAlignment.spaceAround,
+                  maxY: maxY * 1.2,
+                  barTouchData: BarTouchData(enabled: false),
+                  titlesData: FlTitlesData(
+                    show: true,
+                    bottomTitles: AxisTitles(
+                      sideTitles: SideTitles(
+                        showTitles: true,
+                        getTitlesWidget: (value, meta) {
+                          if (value.toInt() < monthlyLoans.length) {
+                            return Text(monthlyLoans[value.toInt()]['month']);
+                          }
+                          return const Text('');
+                        },
+                      ),
+                    ),
+                    leftTitles: const AxisTitles(
+                      sideTitles: SideTitles(showTitles: false),
+                    ),
+                    topTitles: const AxisTitles(
+                      sideTitles: SideTitles(showTitles: false),
+                    ),
+                    rightTitles: const AxisTitles(
+                      sideTitles: SideTitles(showTitles: false),
+                    ),
+                  ),
+                  borderData: FlBorderData(show: false),
+                  barGroups: monthlyLoans.asMap().entries.map((entry) {
+                    return BarChartGroupData(
+                      x: entry.key,
+                      barRods: [
+                        BarChartRodData(
+                          toY: entry.value['count'].toDouble(),
+                          color: Colors.blue,
+                        )
+                      ],
+                    );
+                  }).toList(),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildEnvironmentStatusSection() {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Estado de Ambientes',
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 16),
+            Row(
+              children: [
+                Expanded(
+                  child: _buildEnvironmentStatusCard(
+                    'Total',
+                    '${environmentStats['total_environments'] ?? 0}',
+                    Icons.location_on,
+                    AppColors.primary,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: _buildEnvironmentStatusCard(
+                    'Activos',
+                    '${environmentStats['active_environments'] ?? 0}',
+                    Icons.check_circle,
+                    AppColors.success,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                Expanded(
+                  child: _buildEnvironmentStatusCard(
+                    'Almacenes',
+                    '${environmentStats['warehouses'] ?? 0}',
+                    Icons.warehouse,
+                    AppColors.warning,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: _buildEnvironmentStatusCard(
+                    'Aulas',
+                    '${environmentStats['classrooms'] ?? 0}',
+                    Icons.school,
+                    AppColors.info,
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildEnvironmentStatusCard(String title, String value, IconData icon, Color color) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        border: Border.all(color: Colors.grey.shade300),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Column(
+        children: [
+          Icon(icon, color: color, size: 24),
+          const SizedBox(height: 8),
+          Text(
+            value,
+            style: TextStyle(
+              fontSize: 20,
+              fontWeight: FontWeight.bold,
+              color: color,
+            ),
+          ),
+          Text(
+            title,
+            style: const TextStyle(
+              fontSize: 12,
+              color: AppColors.grey600,
+            ),
+          ),
         ],
-      ],
+      ),
+    );
+  }
+
+  Widget _buildUserManagementSection() {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Gestión de Usuarios',
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 16),
+            Row(
+              children: [
+                Expanded(
+                  child: _buildUserTypeCard(
+                    'Estudiantes',
+                    '${userStats['students'] ?? 0}',
+                    Icons.school,
+                    AppColors.primary,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: _buildUserTypeCard(
+                    'Instructores',
+                    '${userStats['instructors'] ?? 0}',
+                    Icons.person,
+                    AppColors.secondary,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                Expanded(
+                  child: _buildUserTypeCard(
+                    'Administradores',
+                    '${userStats['admins'] ?? 0}',
+                    Icons.admin_panel_settings,
+                    AppColors.warning,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: _buildUserTypeCard(
+                    'Usuarios Activos',
+                    '${userStats['active_users'] ?? 0}',
+                    Icons.check_circle,
+                    AppColors.success,
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildUserTypeCard(String title, String value, IconData icon, Color color) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        border: Border.all(color: Colors.grey.shade300),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Column(
+        children: [
+          Icon(icon, color: color, size: 24),
+          const SizedBox(height: 8),
+          Text(
+            value,
+            style: TextStyle(
+              fontSize: 20,
+              fontWeight: FontWeight.bold,
+              color: color,
+            ),
+          ),
+          Text(
+            title,
+            style: const TextStyle(
+              fontSize: 12,
+              color: AppColors.grey600,
+            ),
+          ),
+        ],
+      ),
     );
   }
 

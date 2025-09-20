@@ -38,9 +38,6 @@ class EnvironmentModel {
 
   factory EnvironmentModel.fromJson(Map<String, dynamic> json) {
     try {
-      return _$EnvironmentModelFromJson(json);
-    } catch (e) {
-      print('Error parsing EnvironmentModel from JSON: $e');
       return EnvironmentModel(
         id: json['id']?.toString() ?? 'unknown',
         centerId: json['center_id']?.toString() ?? 'unknown',
@@ -51,8 +48,8 @@ class EnvironmentModel {
             : 30,
         qrCode: json['qr_code']?.toString() ?? 'unknown',
         description: json['description']?.toString(),
-        isWarehouse: json['is_warehouse'] == true,
-        isActive: json['is_active'] != false,
+        isWarehouse: _parseBool(json['is_warehouse']) ?? false,
+        isActive: _parseBool(json['is_active']) ?? true,
         createdAt: json['created_at'] != null 
             ? DateTime.tryParse(json['created_at'].toString()) ?? DateTime.now()
             : DateTime.now(),
@@ -60,7 +57,36 @@ class EnvironmentModel {
             ? DateTime.tryParse(json['updated_at'].toString()) ?? DateTime.now()
             : DateTime.now(),
       );
+    } catch (e) {
+      print('Error parsing EnvironmentModel from JSON: $e');
+      return EnvironmentModel(
+        id: json['id']?.toString() ?? 'unknown',
+        centerId: json['center_id']?.toString() ?? 'unknown',
+        name: json['name']?.toString() ?? 'Sin nombre',
+        location: json['location']?.toString() ?? 'Sin ubicación',
+        capacity: 30,
+        qrCode: 'unknown',
+        description: null,
+        isWarehouse: false,
+        isActive: true,
+        createdAt: DateTime.now(),
+        updatedAt: DateTime.now(),
+      );
     }
+  }
+
+  static bool? _parseBool(dynamic value) {
+    if (value == null) return null;
+    if (value is bool) return value;
+    if (value is String) {
+      final lower = value.toLowerCase();
+      if (lower == 'true' || lower == '1') return true;
+      if (lower == 'false' || lower == '0') return false;
+    }
+    if (value is int) {
+      return value == 1;
+    }
+    return null;
   }
 
   Map<String, dynamic> toJson() => _$EnvironmentModelToJson(this);
