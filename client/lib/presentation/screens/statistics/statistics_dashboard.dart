@@ -132,7 +132,7 @@ class _StatisticsDashboardState extends State<StatisticsDashboard> {
       } else if (userRole == 'supervisor') {
         futures.addAll([
           _loadEnvironmentStatistics(queryParams),
-          _loadMonthlyCheckData(queryParams),
+          _loadMonthlyCheckData(queryParams), // This should be _loadMonthlyCheckData for supervisor
         ]);
       }
 
@@ -210,49 +210,92 @@ class _StatisticsDashboardState extends State<StatisticsDashboard> {
     try {
       final loansData = await _apiService.get(loansEndpoint, queryParams: queryParams);
       
-      if (loansData == null || loansData is! List) {
-        return {};
+      if (loansData == null) {
+        return {
+          'total_loans': 0,
+          'active_loans': 0,
+          'pending_loans': 0,
+          'overdue_loans': 0,
+          'returned_loans': 0,
+          'average_days': 0,
+          'satisfaction_rate': 4.8,
+        };
       }
       
-      List<LoanModel> loans = [];
-      for (var loan in loansData) {
-        try {
-          loans.add(LoanModel.fromJson(loan));
-        } catch (e) {
-          print('Error parsing loan: $e');
+      // If API returns a Map (statistics), use it directly
+      if (loansData is Map<String, dynamic>) {
+        return {
+          'total_loans': loansData['total_loans'] ?? 0,
+          'active_loans': loansData['active_loans'] ?? 0,
+          'pending_loans': loansData['pending_loans'] ?? 0,
+          'overdue_loans': loansData['overdue_loans'] ?? 0,
+          'returned_loans': loansData['returned_loans'] ?? 0,
+          'average_days': loansData['average_days'] ?? 0,
+          'satisfaction_rate': loansData['satisfaction_rate'] ?? 4.8,
+        };
+      }
+      
+      // If API returns a List, process it to calculate statistics
+      if (loansData is List) {
+        List<LoanModel> loans = [];
+        for (var loan in loansData) {
+          try {
+            loans.add(LoanModel.fromJson(loan));
+          } catch (e) {
+            print('Error parsing loan: $e');
+          }
         }
-      }
 
-      // Calcular tiempo promedio de préstamo
-      double averageDays = 0;
-      int completedLoans = 0;
-      
-      for (var loan in loans) {
-        if (loan.actualReturnDate != null) {
-          DateTime returnDate = DateTime.parse(loan.actualReturnDate!);
-          DateTime startDate = DateTime.parse(loan.startDate);
-          int days = returnDate.difference(startDate).inDays;
-          averageDays += days;
-          completedLoans++;
+        // Calcular tiempo promedio de préstamo
+        double averageDays = 0;
+        int completedLoans = 0;
+        
+        for (var loan in loans) {
+          if (loan.actualReturnDate != null) {
+            DateTime returnDate = DateTime.parse(loan.actualReturnDate!);
+            DateTime startDate = DateTime.parse(loan.startDate);
+            int days = returnDate.difference(startDate).inDays;
+            averageDays += days;
+            completedLoans++;
+          }
         }
+        
+        if (completedLoans > 0) {
+          averageDays = averageDays / completedLoans;
+        }
+
+        return {
+          'total_loans': loans.length,
+          'active_loans': loans.where((l) => l.status == 'active').length,
+          'pending_loans': loans.where((l) => l.status == 'pending').length,
+          'overdue_loans': loans.where((l) => l.status == 'overdue').length,
+          'returned_loans': loans.where((l) => l.status == 'returned').length,
+          'average_days': averageDays.round(),
+          'satisfaction_rate': 4.8,
+        };
       }
       
-      if (completedLoans > 0) {
-        averageDays = averageDays / completedLoans;
-      }
-
+      // Fallback for unexpected data types
       return {
-        'total_loans': loans.length,
-        'active_loans': loans.where((l) => l.status == 'active').length,
-        'pending_loans': loans.where((l) => l.status == 'pending').length,
-        'overdue_loans': loans.where((l) => l.status == 'overdue').length,
-        'returned_loans': loans.where((l) => l.status == 'returned').length,
-        'average_days': averageDays.round(),
+        'total_loans': 0,
+        'active_loans': 0,
+        'pending_loans': 0,
+        'overdue_loans': 0,
+        'returned_loans': 0,
+        'average_days': 0,
         'satisfaction_rate': 4.8,
       };
     } catch (e) {
       print('Error loading loan statistics: $e');
-      return {};
+      return {
+        'total_loans': 0,
+        'active_loans': 0,
+        'pending_loans': 0,
+        'overdue_loans': 0,
+        'returned_loans': 0,
+        'average_days': 0,
+        'satisfaction_rate': 4.8,
+      };
     }
   }
 
@@ -260,34 +303,73 @@ class _StatisticsDashboardState extends State<StatisticsDashboard> {
     try {
       final maintenanceData = await _apiService.get(maintenanceRequestsEndpoint, queryParams: queryParams);
       
-      if (maintenanceData == null || maintenanceData is! List) {
-        return {};
+      if (maintenanceData == null) {
+        return {
+          'total_requests': 0,
+          'pending_requests': 0,
+          'in_progress_requests': 0,
+          'completed_requests': 0,
+          'total_cost': 0.0,
+          'urgent_requests': 0,
+        };
       }
       
-      List<MaintenanceRequestModel> requests = [];
-      for (var req in maintenanceData) {
-        try {
-          requests.add(MaintenanceRequestModel.fromJson(req));
-        } catch (e) {
-          print('Error parsing maintenance request: $e');
-        }
+      // If API returns a Map (statistics), use it directly
+      if (maintenanceData is Map<String, dynamic>) {
+        return {
+          'total_requests': maintenanceData['total_requests'] ?? 0,
+          'pending_requests': maintenanceData['pending_requests'] ?? 0,
+          'in_progress_requests': maintenanceData['in_progress_requests'] ?? 0,
+          'completed_requests': maintenanceData['completed_requests'] ?? 0,
+          'total_cost': (maintenanceData['total_cost'] ?? 0.0).toDouble(),
+          'urgent_requests': maintenanceData['urgent_requests'] ?? 0,
+        };
       }
+      
+      // If API returns a List, process it to calculate statistics
+      if (maintenanceData is List) {
+        List<MaintenanceRequestModel> requests = [];
+        for (var req in maintenanceData) {
+          try {
+            requests.add(MaintenanceRequestModel.fromJson(req));
+          } catch (e) {
+            print('Error parsing maintenance request: $e');
+          }
+        }
 
-      double totalCost = requests
-          .where((r) => r.cost != null)
-          .fold(0.0, (sum, r) => sum + r.cost!);
+        double totalCost = requests
+            .where((r) => r.cost != null)
+            .fold(0.0, (sum, r) => sum + r.cost!);
 
+        return {
+          'total_requests': requests.length,
+          'pending_requests': requests.where((r) => r.status == 'pending').length,
+          'in_progress_requests': requests.where((r) => r.status == 'in_progress').length,
+          'completed_requests': requests.where((r) => r.status == 'completed').length,
+          'total_cost': totalCost,
+          'urgent_requests': requests.where((r) => r.priority == 'urgent' || r.priority == 'urgente').length,
+        };
+      }
+      
+      // Fallback for unexpected data types
       return {
-        'total_requests': requests.length,
-        'pending_requests': requests.where((r) => r.status == 'pending').length,
-        'in_progress_requests': requests.where((r) => r.status == 'in_progress').length,
-        'completed_requests': requests.where((r) => r.status == 'completed').length,
-        'total_cost': totalCost,
-        'urgent_requests': requests.where((r) => r.priority == 'urgent' || r.priority == 'urgente').length,
+        'total_requests': 0,
+        'pending_requests': 0,
+        'in_progress_requests': 0,
+        'completed_requests': 0,
+        'total_cost': 0.0,
+        'urgent_requests': 0,
       };
     } catch (e) {
       print('Error loading maintenance statistics: $e');
-      return {};
+      return {
+        'total_requests': 0,
+        'pending_requests': 0,
+        'in_progress_requests': 0,
+        'completed_requests': 0,
+        'total_cost': 0.0,
+        'urgent_requests': 0,
+      };
     }
   }
 
@@ -328,20 +410,55 @@ class _StatisticsDashboardState extends State<StatisticsDashboard> {
     try {
       final usersData = await _apiService.get('/api/users', queryParams: queryParams);
       
-      if (usersData == null || usersData is! List) {
-        return {};
+      if (usersData == null) {
+        return {
+          'total_users': 0,
+          'active_users': 0,
+          'students': 0,
+          'instructors': 0,
+          'admins': 0,
+        };
       }
 
+      // If API returns a Map (statistics), use it directly
+      if (usersData is Map<String, dynamic>) {
+        return {
+          'total_users': usersData['total_users'] ?? 0,
+          'active_users': usersData['active_users'] ?? 0,
+          'students': usersData['students'] ?? 0,
+          'instructors': usersData['instructors'] ?? 0,
+          'admins': usersData['admins'] ?? 0,
+        };
+      }
+
+      // If API returns a List, process it to calculate statistics
+      if (usersData is List) {
+        return {
+          'total_users': usersData.length,
+          'active_users': usersData.where((u) => u['is_active'] == true).length,
+          'students': usersData.where((u) => u['role'] == 'student').length,
+          'instructors': usersData.where((u) => u['role'] == 'instructor').length,
+          'admins': usersData.where((u) => u['role']?.contains('admin') == true).length,
+        };
+      }
+      
+      // Fallback for unexpected data types
       return {
-        'total_users': usersData.length,
-        'active_users': usersData.where((u) => u['is_active'] == true).length,
-        'students': usersData.where((u) => u['role'] == 'student').length,
-        'instructors': usersData.where((u) => u['role'] == 'instructor').length,
-        'admins': usersData.where((u) => u['role']?.contains('admin') == true).length,
+        'total_users': 0,
+        'active_users': 0,
+        'students': 0,
+        'instructors': 0,
+        'admins': 0,
       };
     } catch (e) {
       print('Error loading user statistics: $e');
-      return {};
+      return {
+        'total_users': 0,
+        'active_users': 0,
+        'students': 0,
+        'instructors': 0,
+        'admins': 0,
+      };
     }
   }
 
@@ -378,46 +495,60 @@ class _StatisticsDashboardState extends State<StatisticsDashboard> {
     try {
       final loansData = await _apiService.get(loansEndpoint, queryParams: queryParams);
       
-      if (loansData == null || loansData is! List) {
-        return [];
+      if (loansData == null) {
+        return _generateEmptyMonthlyData();
       }
       
-      List<LoanModel> loans = [];
-      for (var loan in loansData) {
-        try {
-          loans.add(LoanModel.fromJson(loan));
-        } catch (e) {
-          print('Error parsing loan for monthly data: $e');
+      // If API returns a Map with monthly data, use it directly
+      if (loansData is Map<String, dynamic> && loansData.containsKey('monthly_data')) {
+        final monthlyData = loansData['monthly_data'];
+        if (monthlyData is List) {
+          return List<Map<String, dynamic>>.from(monthlyData);
         }
       }
-
-      // Agrupar préstamos por mes
-      Map<int, int> monthlyCount = {};
-      DateTime now = DateTime.now();
       
-      for (int i = 5; i >= 0; i--) {
-        DateTime monthDate = DateTime(now.year, now.month - i, 1);
-        monthlyCount[monthDate.month] = 0;
-      }
-
-      for (var loan in loans) {
-        DateTime startDate = DateTime.parse(loan.startDate);
-        int month = startDate.month;
-        if (monthlyCount.containsKey(month)) {
-          monthlyCount[month] = monthlyCount[month]! + 1;
+      // If API returns a List of loans, process it to calculate monthly data
+      if (loansData is List) {
+        List<LoanModel> loans = [];
+        for (var loan in loansData) {
+          try {
+            loans.add(LoanModel.fromJson(loan));
+          } catch (e) {
+            print('Error parsing loan for monthly data: $e');
+          }
         }
+
+        // Agrupar préstamos por mes
+        Map<int, int> monthlyCount = {};
+        DateTime now = DateTime.now();
+        
+        for (int i = 5; i >= 0; i--) {
+          DateTime monthDate = DateTime(now.year, now.month - i, 1);
+          monthlyCount[monthDate.month] = 0;
+        }
+
+        for (var loan in loans) {
+          DateTime startDate = DateTime.parse(loan.startDate);
+          int month = startDate.month;
+          if (monthlyCount.containsKey(month)) {
+            monthlyCount[month] = monthlyCount[month]! + 1;
+          }
+        }
+
+        List<String> monthNames = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 
+                                  'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
+
+        return monthlyCount.entries.map((entry) => {
+          'month': monthNames[entry.key - 1],
+          'count': entry.value,
+        }).toList();
       }
-
-      List<String> monthNames = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 
-                                'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
-
-      return monthlyCount.entries.map((entry) => {
-        'month': monthNames[entry.key - 1],
-        'count': entry.value,
-      }).toList();
+      
+      // Fallback for unexpected data types
+      return _generateEmptyMonthlyData();
     } catch (e) {
       print('Error loading monthly loan data: $e');
-      return [];
+      return _generateEmptyMonthlyData();
     }
   }
 
@@ -470,31 +601,45 @@ class _StatisticsDashboardState extends State<StatisticsDashboard> {
     try {
       final inventoryData = await _apiService.get(inventoryEndpoint);
       
-      if (inventoryData == null || inventoryData is! List) {
+      if (inventoryData == null) {
         return [];
       }
       
-      List<InventoryItemModel> items = [];
-      for (var item in inventoryData) {
-        try {
-          items.add(InventoryItemModel.fromJson(item));
-        } catch (e) {
-          print('Error parsing item for category distribution: $e');
+      // If API returns a Map with category distribution, use it directly
+      if (inventoryData is Map<String, dynamic> && inventoryData.containsKey('category_distribution')) {
+        final categoryData = inventoryData['category_distribution'];
+        if (categoryData is List) {
+          return List<Map<String, dynamic>>.from(categoryData);
         }
       }
+      
+      // If API returns a List of inventory items, process it to calculate distribution
+      if (inventoryData is List) {
+        List<InventoryItemModel> items = [];
+        for (var item in inventoryData) {
+          try {
+            items.add(InventoryItemModel.fromJson(item));
+          } catch (e) {
+            print('Error parsing item for category distribution: $e');
+          }
+        }
 
-      Map<String, int> categoryCount = {};
-      for (var item in items) {
-        String category = item.categoryDisplayName;
-        categoryCount[category] = (categoryCount[category] ?? 0) + 1;
+        Map<String, int> categoryCount = {};
+        for (var item in items) {
+          String category = item.categoryDisplayName;
+          categoryCount[category] = (categoryCount[category] ?? 0) + 1;
+        }
+
+        int total = items.length;
+        return categoryCount.entries.map((entry) => {
+          'category': entry.key,
+          'count': entry.value,
+          'percentage': total > 0 ? (entry.value / total * 100).round() : 0,
+        }).toList();
       }
-
-      int total = items.length;
-      return categoryCount.entries.map((entry) => {
-        'category': entry.key,
-        'count': entry.value,
-        'percentage': total > 0 ? (entry.value / total * 100).round() : 0,
-      }).toList();
+      
+      // Fallback for unexpected data types
+      return [];
     } catch (e) {
       print('Error loading category distribution: $e');
       return [];
@@ -505,38 +650,69 @@ class _StatisticsDashboardState extends State<StatisticsDashboard> {
     try {
       final loansData = await _apiService.get(loansEndpoint, queryParams: queryParams);
       
-      if (loansData == null || loansData is! List) {
+      if (loansData == null) {
         return [];
       }
       
-      List<LoanModel> loans = [];
-      for (var loan in loansData) {
-        try {
-          loans.add(LoanModel.fromJson(loan));
-        } catch (e) {
-          print('Error parsing loan for top items: $e');
+      // If API returns a Map with top items data, use it directly
+      if (loansData is Map<String, dynamic> && loansData.containsKey('top_items')) {
+        final topItemsData = loansData['top_items'];
+        if (topItemsData is List) {
+          return List<Map<String, dynamic>>.from(topItemsData);
         }
       }
+      
+      // If API returns a List of loans, process it to calculate top items
+      if (loansData is List) {
+        List<LoanModel> loans = [];
+        for (var loan in loansData) {
+          try {
+            loans.add(LoanModel.fromJson(loan));
+          } catch (e) {
+            print('Error parsing loan for top items: $e');
+          }
+        }
 
-      // Contar préstamos por item
-      Map<String, int> itemCount = {};
-      for (var loan in loans) {
-        String itemName = loan.itemName ?? 'Item desconocido';
-        itemCount[itemName] = (itemCount[itemName] ?? 0) + 1;
+        // Contar préstamos por item
+        Map<String, int> itemCount = {};
+        for (var loan in loans) {
+          String itemName = loan.itemName ?? 'Item desconocido';
+          itemCount[itemName] = (itemCount[itemName] ?? 0) + 1;
+        }
+
+        // Ordenar y tomar los top 5
+        var sortedItems = itemCount.entries.toList()
+          ..sort((a, b) => b.value.compareTo(a.value));
+
+        return sortedItems.take(5).map((entry) => {
+          'name': entry.key,
+          'count': entry.value,
+        }).toList();
       }
-
-      // Ordenar y tomar los top 5
-      var sortedItems = itemCount.entries.toList()
-        ..sort((a, b) => b.value.compareTo(a.value));
-
-      return sortedItems.take(5).map((entry) => {
-        'name': entry.key,
-        'count': entry.value,
-      }).toList();
+      
+      // Fallback for unexpected data types
+      return [];
     } catch (e) {
       print('Error loading top items: $e');
       return [];
     }
+  }
+
+  List<Map<String, dynamic>> _generateEmptyMonthlyData() {
+    List<String> monthNames = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 
+                              'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
+    DateTime now = DateTime.now();
+    
+    List<Map<String, dynamic>> emptyData = [];
+    for (int i = 5; i >= 0; i--) {
+      DateTime monthDate = DateTime(now.year, now.month - i, 1);
+      emptyData.add({
+        'month': monthNames[monthDate.month - 1],
+        'count': 0,
+      });
+    }
+    
+    return emptyData;
   }
 
   @override
