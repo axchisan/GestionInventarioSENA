@@ -542,28 +542,6 @@ class _ReportGeneratorScreenState extends State<ReportGeneratorScreen> {
                 ),
               ],
             ),
-            const SizedBox(height: 16),
-            
-            // Opciones adicionales
-            const Text(
-              'Opciones adicionales:',
-              style: TextStyle(fontWeight: FontWeight.w600),
-            ),
-            const SizedBox(height: 8),
-            CheckboxListTile(
-              title: const Text('Incluir imágenes'),
-              subtitle: const Text('Fotografías de los equipos'),
-              value: includeImages,
-              onChanged: (value) => setState(() => includeImages = value!),
-              controlAffinity: ListTileControlAffinity.leading,
-            ),
-            CheckboxListTile(
-              title: const Text('Incluir estadísticas'),
-              subtitle: const Text('Gráficos y métricas'),
-              value: includeStatistics,
-              onChanged: (value) => setState(() => includeStatistics = value!),
-              controlAffinity: ListTileControlAffinity.leading,
-            ),
           ],
         ),
       ),
