@@ -20,6 +20,8 @@ MarkupSafe==3.0.2
 minio==7.2.16
 mypy==1.17.0
 mypy_extensions==1.1.0
+numpy==2.3.3
+pandas==2.3.2
 passlib==1.7.4
 pathspec==0.12.1
 pillow==11.3.0
@@ -30,6 +32,7 @@ pycryptodome==3.23.0
 pydantic==2.11.7
 pydantic-settings==2.10.1
 pydantic_core==2.33.2
+python-dateutil==2.9.0.post0
 python-dotenv==1.1.1
 python-jose==3.5.0
 python-multipart==0.0.20
@@ -43,5 +46,6 @@ sqlalchemy-stubs==0.4
 starlette==0.47.1
 typing-inspection==0.4.1
 typing_extensions==4.14.1
+tzdata==2025.2
 urllib3==2.5.0
 uvicorn==0.35.0

@@ -30,43 +30,104 @@ class _ReportGeneratorScreenState extends State<ReportGeneratorScreen> {
   late ReportService _reportService;
   String? userRole;
 
-  final List<Map<String, dynamic>> reportTypes = [
-    {
-      'id': 'inventory',
-      'title': 'Reporte de Inventario',
-      'description': 'Estado actual de todos los equipos',
-      'icon': Icons.inventory_2,
-      'roles': ['admin', 'supervisor', 'admin_general'],
-    },
-    {
-      'id': 'loans',
-      'title': 'Reporte de Préstamos',
-      'description': 'Historial de préstamos y devoluciones',
-      'icon': Icons.assignment_return,
-      'roles': ['admin', 'supervisor', 'admin_general'],
-    },
-    {
-      'id': 'maintenance',
-      'title': 'Reporte de Mantenimiento',
-      'description': 'Solicitudes y estado de mantenimientos',
-      'icon': Icons.build,
-      'roles': ['admin', 'supervisor', 'admin_general'],
-    },
-    {
-      'id': 'audit',
-      'title': 'Reporte de Auditoría',
-      'description': 'Log de actividades del sistema',
-      'icon': Icons.security,
-      'roles': ['supervisor', 'admin_general'],
-    },
-    {
-      'id': 'statistics',
-      'title': 'Reporte Estadístico',
-      'description': 'Análisis y métricas del inventario',
-      'icon': Icons.analytics,
-      'roles': ['admin', 'supervisor', 'admin_general'],
-    },
-  ];
+  final Map<String, List<Map<String, dynamic>>> roleBasedReportTypes = {
+    'supervisor': [
+      {
+        'id': 'inventory_checks',
+        'title': 'Verificaciones de Inventario',
+        'description': 'Estado de verificaciones diarias por ambiente',
+        'icon': Icons.fact_check,
+      },
+      {
+        'id': 'maintenance',
+        'title': 'Reporte de Mantenimiento',
+        'description': 'Solicitudes y estado de mantenimientos',
+        'icon': Icons.build,
+      },
+      {
+        'id': 'environment_status',
+        'title': 'Estado de Ambientes',
+        'description': 'Lista y estado de todos los ambientes',
+        'icon': Icons.location_on,
+      },
+      {
+        'id': 'audit',
+        'title': 'Reporte de Auditoría',
+        'description': 'Log de actividades del sistema',
+        'icon': Icons.security,
+      },
+    ],
+    'admin': [
+      {
+        'id': 'loans',
+        'title': 'Gestión de Préstamos',
+        'description': 'Solicitudes y historial de préstamos',
+        'icon': Icons.assignment_return,
+      },
+      {
+        'id': 'inventory',
+        'title': 'Inventario de Almacén',
+        'description': 'Estado de equipos en almacén',
+        'icon': Icons.inventory_2,
+      },
+      {
+        'id': 'alerts',
+        'title': 'Alertas de Ambientes',
+        'description': 'Monitoreo de alertas en ambientes',
+        'icon': Icons.warning,
+      },
+      {
+        'id': 'maintenance',
+        'title': 'Reporte de Mantenimiento',
+        'description': 'Solicitudes de mantenimiento',
+        'icon': Icons.build,
+      },
+    ],
+    'admin_general': [
+      {
+        'id': 'users',
+        'title': 'Gestión de Usuarios',
+        'description': 'Reporte de usuarios del sistema',
+        'icon': Icons.people,
+      },
+      {
+        'id': 'loans',
+        'title': 'Reporte de Préstamos',
+        'description': 'Historial completo de préstamos',
+        'icon': Icons.assignment_return,
+      },
+      {
+        'id': 'environments',
+        'title': 'Gestión de Ambientes',
+        'description': 'Estado y configuración de ambientes',
+        'icon': Icons.location_on,
+      },
+      {
+        'id': 'inventory',
+        'title': 'Reporte de Inventario',
+        'description': 'Estado general del inventario',
+        'icon': Icons.inventory_2,
+      },
+      {
+        'id': 'maintenance',
+        'title': 'Reporte de Mantenimiento',
+        'description': 'Solicitudes y estado de mantenimientos',
+        'icon': Icons.build,
+      },
+      {
+        'id': 'audit',
+        'title': 'Reporte de Auditoría',
+        'description': 'Log completo de actividades',
+        'icon': Icons.security,
+      },
+      {
+        'id': 'statistics',
+        'title': 'Reporte Estadístico',
+        'description': 'Análisis y métricas completas',
+        'icon': Icons.analytics,
+      },
+    ],
+  };
 
   @override
   void initState() {
@@ -80,6 +141,13 @@ class _ReportGeneratorScreenState extends State<ReportGeneratorScreen> {
     final apiService = ApiService(authProvider: authProvider);
     _reportService = ReportService(apiService);
     userRole = authProvider.currentUser?.role;
+    
+    if (userRole != null && roleBasedReportTypes.containsKey(userRole)) {
+      final availableTypes = roleBasedReportTypes[userRole]!;
+      if (availableTypes.isNotEmpty) {
+        selectedReportType = availableTypes.first['id'];
+      }
+    }
   }
 
   Future<void> _loadInitialData() async {
@@ -110,12 +178,19 @@ class _ReportGeneratorScreenState extends State<ReportGeneratorScreen> {
   }
 
   List<Map<String, dynamic>> get availableReportTypes {
-    if (userRole == null) return [];
-    
-    return reportTypes.where((type) {
-      List<String> allowedRoles = List<String>.from(type['roles']);
-      return allowedRoles.contains(userRole);
-    }).toList();
+    if (userRole == null || !roleBasedReportTypes.containsKey(userRole)) {
+      return [];
+    }
+    return roleBasedReportTypes[userRole]!;
+  }
+
+  List<EnvironmentModel> get availableEnvironments {
+    if (userRole == 'admin') {
+      // Admin only sees warehouse environments
+      return environments.where((env) => env.isWarehouse).toList();
+    }
+    // Other roles see all environments
+    return environments;
   }
 
   @override
@@ -143,6 +218,8 @@ class _ReportGeneratorScreenState extends State<ReportGeneratorScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            _buildRoleIndicator(),
+            const SizedBox(height: 16),
             _buildReportTypeSelection(),
             const SizedBox(height: 24),
             _buildConfigurationSection(),
@@ -154,6 +231,107 @@ class _ReportGeneratorScreenState extends State<ReportGeneratorScreen> {
         ),
       ),
     );
+  }
+
+  Widget _buildRoleIndicator() {
+    String roleDisplayName = _getRoleDisplayName(userRole);
+    Color roleColor = _getRoleColor(userRole);
+    
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: roleColor.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Icon(
+                _getRoleIcon(userRole),
+                color: roleColor,
+                size: 24,
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Perfil: $roleDisplayName',
+                    style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  Text(
+                    _getRoleDescription(userRole),
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: Colors.grey.shade600,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  String _getRoleDisplayName(String? role) {
+    switch (role) {
+      case 'supervisor':
+        return 'Supervisor';
+      case 'admin':
+        return 'Administrador de Almacén';
+      case 'admin_general':
+        return 'Administrador General';
+      default:
+        return 'Usuario';
+    }
+  }
+
+  String _getRoleDescription(String? role) {
+    switch (role) {
+      case 'supervisor':
+        return 'Acceso a verificaciones, mantenimiento y auditorías';
+      case 'admin':
+        return 'Gestión de préstamos, inventario de almacén y alertas';
+      case 'admin_general':
+        return 'Acceso completo a todos los reportes del sistema';
+      default:
+        return 'Acceso limitado';
+    }
+  }
+
+  Color _getRoleColor(String? role) {
+    switch (role) {
+      case 'supervisor':
+        return Colors.blue;
+      case 'admin':
+        return const Color(0xFF00A651);
+      case 'admin_general':
+        return Colors.purple;
+      default:
+        return Colors.grey;
+    }
+  }
+
+  IconData _getRoleIcon(String? role) {
+    switch (role) {
+      case 'supervisor':
+        return Icons.supervisor_account;
+      case 'admin':
+        return Icons.admin_panel_settings;
+      case 'admin_general':
+        return Icons.manage_accounts;
+      default:
+        return Icons.person;
+    }
   }
 
   Widget _buildReportTypeSelection() {
@@ -335,7 +513,6 @@ class _ReportGeneratorScreenState extends State<ReportGeneratorScreen> {
             ),
             const SizedBox(height: 16),
             
-            // Ambiente - Usar ambientes reales de la API
             Row(
               children: [
                 const Expanded(
@@ -351,11 +528,11 @@ class _ReportGeneratorScreenState extends State<ReportGeneratorScreen> {
                       contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                     ),
                     items: [
-                      const DropdownMenuItem(
+                      DropdownMenuItem(
                         value: 'all',
-                        child: Text('Todos los ambientes'),
+                        child: Text(userRole == 'admin' ? 'Todos los almacenes' : 'Todos los ambientes'),
                       ),
-                      ...environments.map((env) => DropdownMenuItem(
+                      ...availableEnvironments.map((env) => DropdownMenuItem(
                         value: env.id,
                         child: Text(env.displayName),
                       )),
@@ -595,7 +772,7 @@ class _ReportGeneratorScreenState extends State<ReportGeneratorScreen> {
           SnackBar(
             content: Text(kIsWeb
                 ? 'Reporte descargado exitosamente'
-                : 'Reporte generado y compartido exitosamente'),
+                : 'Reporte generado y guardado exitosamente'),
             backgroundColor: const Color(0xFF00A651),
           ),
         );
@@ -624,6 +801,6 @@ class _ReportGeneratorScreenState extends State<ReportGeneratorScreen> {
         backgroundColor: const Color(0xFF00A651),
       ),
     );
-    // Aquí puedes implementar la lógica para descargar reportes recientes si están almacenados localmente o en un servidor
+    // TODO: Implement actual download functionality using report['id']
   }
 }
