@@ -6,6 +6,7 @@ import 'package:permission_handler/permission_handler.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:excel/excel.dart';
+import 'package:printing/printing.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:universal_html/html.dart' as html;
 import '../constants/api_constants.dart';
@@ -86,6 +87,16 @@ class ReportService {
         return await _getAuditReportData(queryParams);
       case 'statistics':
         return await _getStatisticsReportData(queryParams);
+      case 'inventory_checks':
+        return await _getInventoryChecksReportData(queryParams);
+      case 'environment_status':
+        return await _getEnvironmentStatusReportData(queryParams);
+      case 'alerts':
+        return await _getAlertsReportData(queryParams);
+      case 'users':
+        return await _getUsersReportData(queryParams);
+      case 'environments':
+        return await _getEnvironmentsReportData(queryParams);
       default:
         throw Exception('Tipo de reporte no válido: $reportType');
     }
@@ -140,40 +151,196 @@ class ReportService {
     }
   }
 
+  Future<Map<String, dynamic>> _getInventoryChecksReportData(Map<String, String> queryParams) async {
+    try {
+      final checksData = await _apiService.get(inventoryChecksEndpoint, queryParams: queryParams);
+      
+      if (checksData == null) {
+        return {'checks': [], 'total': 0};
+      }
+      
+      if (checksData is List) {
+        return <String, dynamic>{
+          'checks': checksData,
+          'total': checksData.length,
+          'completed': checksData.where((c) => c['is_complete'] == true).length,
+          'pending': checksData.where((c) => c['status'] == 'student_pending').length,
+        };
+      } else if (checksData is Map) {
+        return Map<String, dynamic>.from(checksData);
+      }
+      
+      return <String, dynamic>{'checks': [], 'total': 0};
+    } catch (e) {
+      print('Error obteniendo datos de verificaciones: $e');
+      throw Exception('Error obteniendo datos de verificaciones: $e');
+    }
+  }
+
+  Future<Map<String, dynamic>> _getEnvironmentStatusReportData(Map<String, String> queryParams) async {
+    try {
+      final environmentsData = await _apiService.get(environmentsEndpoint, queryParams: queryParams);
+      
+      if (environmentsData == null) {
+        return <String, dynamic>{'environments': [], 'total': 0};
+      }
+      
+      if (environmentsData is List) {
+        return <String, dynamic>{
+          'environments': environmentsData,
+          'total': environmentsData.length,
+          'active': environmentsData.where((e) => e['is_active'] == true).length,
+          'warehouses': environmentsData.where((e) => e['is_warehouse'] == true).length,
+        };
+      } else if (environmentsData is Map) {
+        return Map<String, dynamic>.from(environmentsData);
+      }
+      
+      return <String, dynamic>{'environments': [], 'total': 0};
+    } catch (e) {
+      print('Error obteniendo datos de ambientes: $e');
+      throw Exception('Error obteniendo datos de ambientes: $e');
+    }
+  }
+
+  Future<Map<String, dynamic>> _getAlertsReportData(Map<String, String> queryParams) async {
+    try {
+      final alertsData = await _apiService.get(systemAlertsEndpoint, queryParams: queryParams);
+      
+      if (alertsData == null) {
+        return <String, dynamic>{'alerts': [], 'total': 0};
+      }
+      
+      if (alertsData is List) {
+        return <String, dynamic>{
+          'alerts': alertsData,
+          'total': alertsData.length,
+          'active': alertsData.where((a) => a['is_active'] == true).length,
+          'critical': alertsData.where((a) => a['priority'] == 'critical').length,
+        };
+      } else if (alertsData is Map) {
+        return Map<String, dynamic>.from(alertsData);
+      }
+      
+      return <String, dynamic>{'alerts': [], 'total': 0};
+    } catch (e) {
+      print('Error obteniendo datos de alertas: $e');
+      throw Exception('Error obteniendo datos de alertas: $e');
+    }
+  }
+
+  Future<Map<String, dynamic>> _getUsersReportData(Map<String, String> queryParams) async {
+    try {
+      final usersData = await _apiService.get(usersEndpoint, queryParams: queryParams);
+      
+      if (usersData == null) {
+        return <String, dynamic>{'users': [], 'total': 0};
+      }
+      
+      if (usersData is List) {
+        final List<Map<String, dynamic>> users = usersData
+            .map((item) => Map<String, dynamic>.from(item as Map))
+            .toList();
+            
+        return <String, dynamic>{
+          'users': users,
+          'total': users.length,
+          'by_role': _groupUsersByRole(users),
+        };
+      } else if (usersData is Map) {
+        final Map<String, dynamic> dataMap = Map<String, dynamic>.from(usersData);
+        
+        if (dataMap.containsKey('users') && dataMap['users'] is List) {
+          final List<Map<String, dynamic>> users = (dataMap['users'] as List)
+              .map((item) => Map<String, dynamic>.from(item as Map))
+              .toList();
+          dataMap['users'] = users;
+          dataMap['by_role'] = _groupUsersByRole(users);
+        }
+        
+        return dataMap;
+      }
+      
+      return <String, dynamic>{'users': [], 'total': 0};
+    } catch (e) {
+      print('Error obteniendo datos de usuarios: $e');
+      return <String, dynamic>{'users': [], 'total': 0, 'error': e.toString()};
+    }
+  }
+
+  Map<String, int> _groupUsersByRole(List<Map<String, dynamic>> users) {
+    final Map<String, int> roleCount = {};
+    for (final user in users) {
+      final role = user['role'] as String? ?? 'unknown';
+      roleCount[role] = (roleCount[role] ?? 0) + 1;
+    }
+    return roleCount;
+  }
+
+  Future<Map<String, dynamic>> _getEnvironmentsReportData(Map<String, String> queryParams) async {
+    try {
+      final environmentsData = await _apiService.get(environmentsEndpoint, queryParams: queryParams);
+      
+      if (environmentsData == null) {
+        return <String, dynamic>{'environments': [], 'total': 0};
+      }
+      
+      if (environmentsData is List) {
+        return <String, dynamic>{
+          'environments': environmentsData,
+          'total': environmentsData.length,
+          'active': environmentsData.where((e) => e['is_active'] == true).length,
+          'warehouses': environmentsData.where((e) => e['is_warehouse'] == true).length,
+          'classrooms': environmentsData.where((e) => e['is_warehouse'] != true).length,
+        };
+      } else if (environmentsData is Map) {
+        return Map<String, dynamic>.from(environmentsData);
+      }
+      
+      return <String, dynamic>{'environments': [], 'total': 0};
+    } catch (e) {
+      print('Error obteniendo datos de ambientes: $e');
+      throw Exception('Error obteniendo datos de ambientes: $e');
+    }
+  }
+
   Future<Map<String, dynamic>> _getLoansReportData(Map<String, String> queryParams) async {
     try {
       final loansData = await _apiService.get(loansEndpoint, queryParams: queryParams);
       
       if (loansData == null) {
-        throw Exception('No se pudieron obtener los datos de préstamos');
+        return <String, dynamic>{'loans': <LoanModel>[], 'total': 0};
       }
       
-      List<LoanModel> loans = [];
       if (loansData is List) {
-        for (var loan in loansData) {
-          try {
-            loans.add(LoanModel.fromJson(loan));
-          } catch (e) {
-            print('Error parsing loan: $e');
-            // Continue with other loans
-          }
+        final List<LoanModel> loans = loansData
+            .map((item) => LoanModel.fromJson(Map<String, dynamic>.from(item as Map)))
+            .toList();
+            
+        return <String, dynamic>{
+          'loans': loans,
+          'total': loans.length,
+          'active': loans.where((l) => l.status == 'active').length,
+          'pending': loans.where((l) => l.status == 'pending').length,
+          'overdue': loans.where((l) => l.status == 'overdue').length,
+        };
+      } else if (loansData is Map) {
+        final Map<String, dynamic> dataMap = Map<String, dynamic>.from(loansData);
+        
+        if (dataMap.containsKey('loans') && dataMap['loans'] is List) {
+          final List<LoanModel> loans = (dataMap['loans'] as List)
+              .map((item) => LoanModel.fromJson(Map<String, dynamic>.from(item as Map)))
+              .toList();
+          dataMap['loans'] = loans;
         }
-      } else {
-        throw Exception('Formato de datos de préstamos inválido');
+        
+        return dataMap;
       }
-
-      return {
-        'loans': loans,
-        'summary': {
-          'total_loans': loans.length,
-          'active_loans': loans.where((l) => l.status == 'active').length,
-          'pending_loans': loans.where((l) => l.status == 'pending').length,
-          'overdue_loans': loans.where((l) => l.status == 'overdue').length,
-          'returned_loans': loans.where((l) => l.status == 'returned').length,
-        }
-      };
+      
+      return <String, dynamic>{'loans': <LoanModel>[], 'total': 0};
     } catch (e) {
-      throw Exception('Error obteniendo datos de préstamos: $e');
+      print('Error obteniendo datos de préstamos: $e');
+      return <String, dynamic>{'loans': <LoanModel>[], 'total': 0, 'error': e.toString()};
     }
   }
 
@@ -296,14 +463,46 @@ class ReportService {
   ) async {
     final pdf = pw.Document();
     
+    pw.Font? regularFont;
+    pw.Font? boldFont;
+    
+    try {
+      // Try to load system fonts that support Unicode
+      if (Platform.isAndroid || Platform.isIOS) {
+        // For mobile platforms, use built-in fonts
+        regularFont = await PdfGoogleFonts.notoSansRegular();
+        boldFont = await PdfGoogleFonts.notoSansBold();
+      } else {
+        // For desktop platforms, try to load system fonts
+        try {
+          regularFont = await PdfGoogleFonts.notoSansRegular();
+          boldFont = await PdfGoogleFonts.notoSansBold();
+        } catch (e) {
+          print('Could not load Google Fonts, using fallback fonts: $e');
+          // Fallback to basic fonts if Google Fonts are not available
+          regularFont = pw.Font.helvetica();
+          boldFont = pw.Font.helveticaBold();
+        }
+      }
+    } catch (e) {
+      print('Error loading fonts: $e');
+      // Ultimate fallback to basic fonts
+      regularFont = pw.Font.helvetica();
+      boldFont = pw.Font.helveticaBold();
+    }
+    
     pdf.addPage(
       pw.MultiPage(
         pageFormat: PdfPageFormat.a4,
+        theme: pw.ThemeData.withFont(
+          base: regularFont,
+          bold: boldFont,
+        ),
         build: (pw.Context context) {
           return [
-            _buildPDFHeader(reportType),
+            _buildPDFHeader(reportType, boldFont, regularFont),
             pw.SizedBox(height: 20),
-            _buildPDFContent(reportType, data, includeStatistics),
+            _buildPDFContent(reportType, data, includeStatistics, boldFont, regularFont),
           ];
         },
       ),
@@ -312,7 +511,7 @@ class ReportService {
     return await _savePDFFile(pdf, reportType);
   }
 
-  pw.Widget _buildPDFHeader(String reportType) {
+  pw.Widget _buildPDFHeader(String reportType, pw.Font? boldFont, pw.Font? regularFont) {
     String title = _getReportTitle(reportType);
     
     return pw.Header(
@@ -325,38 +524,65 @@ class ReportService {
             children: [
               pw.Text(
                 'SENA - Sistema de Gestión de Inventario',
-                style: pw.TextStyle(fontSize: 16, fontWeight: pw.FontWeight.bold),
+                style: pw.TextStyle(
+                  fontSize: 16, 
+                  fontWeight: pw.FontWeight.bold,
+                  font: boldFont,
+                ),
               ),
-              pw.Text(title, style: pw.TextStyle(fontSize: 14)),
+              pw.Text(
+                title, 
+                style: pw.TextStyle(
+                  fontSize: 14,
+                  font: regularFont,
+                ),
+              ),
             ],
           ),
           pw.Text(
             'Generado: ${DateTime.now().toString().split('.')[0]}',
-            style: pw.TextStyle(fontSize: 10),
+            style: pw.TextStyle(
+              fontSize: 10,
+              font: regularFont,
+            ),
           ),
         ],
       ),
     );
   }
 
-  pw.Widget _buildPDFContent(String reportType, Map<String, dynamic> data, bool includeStatistics) {
+  pw.Widget _buildPDFContent(String reportType, Map<String, dynamic> data, bool includeStatistics, pw.Font? boldFont, pw.Font? regularFont) {
     switch (reportType) {
       case 'inventory':
-        return _buildInventoryPDFContent(data, includeStatistics);
+        return _buildInventoryPDFContent(data, includeStatistics, boldFont, regularFont);
       case 'loans':
-        return _buildLoansPDFContent(data, includeStatistics);
+        return _buildLoansPDFContent(data, includeStatistics, boldFont, regularFont);
       case 'maintenance':
-        return _buildMaintenancePDFContent(data, includeStatistics);
+        return _buildMaintenancePDFContent(data, includeStatistics, boldFont, regularFont);
       case 'audit':
-        return _buildAuditPDFContent(data, includeStatistics);
+        return _buildAuditPDFContent(data, includeStatistics, boldFont, regularFont);
       case 'statistics':
-        return _buildStatisticsPDFContent(data);
+        return _buildStatisticsPDFContent(data, boldFont, regularFont);
+      // Added PDF content builders for new report types
+      case 'inventory_checks':
+        return _buildInventoryChecksPDFContent(data, boldFont, regularFont);
+      case 'environment_status':
+        return _buildEnvironmentStatusPDFContent(data, boldFont, regularFont);
+      case 'alerts':
+        return _buildAlertsPDFContent(data, boldFont, regularFont);
+      case 'users':
+        return _buildUsersPDFContent(data, boldFont, regularFont);
+      case 'environments':
+        return _buildEnvironmentsPDFContent(data, boldFont, regularFont);
       default:
-        return pw.Text('Tipo de reporte no implementado');
+        return pw.Text(
+          'Tipo de reporte no implementado',
+          style: pw.TextStyle(font: regularFont),
+        );
     }
   }
 
-  pw.Widget _buildInventoryPDFContent(Map<String, dynamic> data, bool includeStatistics) {
+  pw.Widget _buildInventoryPDFContent(Map<String, dynamic> data, bool includeStatistics, pw.Font? boldFont, pw.Font? regularFont) {
     List<InventoryItemModel> items = data['items'] ?? [];
     Map<String, dynamic> summary = data['summary'] ?? {};
 
@@ -364,32 +590,94 @@ class ReportService {
       crossAxisAlignment: pw.CrossAxisAlignment.start,
       children: [
         if (includeStatistics) ...[
-          pw.Text('Resumen del Inventario', style: pw.TextStyle(fontSize: 14, fontWeight: pw.FontWeight.bold)),
+          pw.Text(
+            'Resumen del Inventario', 
+            style: pw.TextStyle(
+              fontSize: 14, 
+              fontWeight: pw.FontWeight.bold,
+              font: boldFont,
+            ),
+          ),
           pw.SizedBox(height: 10),
           pw.Table(
             border: pw.TableBorder.all(),
             children: [
               pw.TableRow(children: [
-                pw.Padding(padding: const pw.EdgeInsets.all(5), child: pw.Text('Total de Items')),
-                pw.Padding(padding: const pw.EdgeInsets.all(5), child: pw.Text('${summary['total_items'] ?? 0}')),
+                pw.Padding(
+                  padding: const pw.EdgeInsets.all(5), 
+                  child: pw.Text(
+                    'Total de Items',
+                    style: pw.TextStyle(font: regularFont),
+                  ),
+                ),
+                pw.Padding(
+                  padding: const pw.EdgeInsets.all(5), 
+                  child: pw.Text(
+                    '${summary['total_items'] ?? 0}',
+                    style: pw.TextStyle(font: regularFont),
+                  ),
+                ),
               ]),
               pw.TableRow(children: [
-                pw.Padding(padding: const pw.EdgeInsets.all(5), child: pw.Text('Items Disponibles')),
-                pw.Padding(padding: const pw.EdgeInsets.all(5), child: pw.Text('${summary['available_items'] ?? 0}')),
+                pw.Padding(
+                  padding: const pw.EdgeInsets.all(5), 
+                  child: pw.Text(
+                    'Items Disponibles',
+                    style: pw.TextStyle(font: regularFont),
+                  ),
+                ),
+                pw.Padding(
+                  padding: const pw.EdgeInsets.all(5), 
+                  child: pw.Text(
+                    '${summary['available_items'] ?? 0}',
+                    style: pw.TextStyle(font: regularFont),
+                  ),
+                ),
               ]),
               pw.TableRow(children: [
-                pw.Padding(padding: const pw.EdgeInsets.all(5), child: pw.Text('Items Dañados')),
-                pw.Padding(padding: const pw.EdgeInsets.all(5), child: pw.Text('${summary['damaged_items'] ?? 0}')),
+                pw.Padding(
+                  padding: const pw.EdgeInsets.all(5), 
+                  child: pw.Text(
+                    'Items Dañados',
+                    style: pw.TextStyle(font: regularFont),
+                  ),
+                ),
+                pw.Padding(
+                  padding: const pw.EdgeInsets.all(5), 
+                  child: pw.Text(
+                    '${summary['damaged_items'] ?? 0}',
+                    style: pw.TextStyle(font: regularFont),
+                  ),
+                ),
               ]),
               pw.TableRow(children: [
-                pw.Padding(padding: const pw.EdgeInsets.all(5), child: pw.Text('Items Faltantes')),
-                pw.Padding(padding: const pw.EdgeInsets.all(5), child: pw.Text('${summary['missing_items'] ?? 0}')),
+                pw.Padding(
+                  padding: const pw.EdgeInsets.all(5), 
+                  child: pw.Text(
+                    'Items Faltantes',
+                    style: pw.TextStyle(font: regularFont),
+                  ),
+                ),
+                pw.Padding(
+                  padding: const pw.EdgeInsets.all(5), 
+                  child: pw.Text(
+                    '${summary['missing_items'] ?? 0}',
+                    style: pw.TextStyle(font: regularFont),
+                  ),
+                ),
               ]),
             ],
           ),
           pw.SizedBox(height: 20),
         ],
-        pw.Text('Detalle de Items', style: pw.TextStyle(fontSize: 14, fontWeight: pw.FontWeight.bold)),
+        pw.Text(
+          'Detalle de Items', 
+          style: pw.TextStyle(
+            fontSize: 14, 
+            fontWeight: pw.FontWeight.bold,
+            font: boldFont,
+          ),
+        ),
         pw.SizedBox(height: 10),
         pw.Table(
           border: pw.TableBorder.all(),
@@ -403,17 +691,77 @@ class ReportService {
             pw.TableRow(
               decoration: const pw.BoxDecoration(color: PdfColors.grey300),
               children: [
-                pw.Padding(padding: const pw.EdgeInsets.all(5), child: pw.Text('Nombre', style: pw.TextStyle(fontWeight: pw.FontWeight.bold))),
-                pw.Padding(padding: const pw.EdgeInsets.all(5), child: pw.Text('Categoría', style: pw.TextStyle(fontWeight: pw.FontWeight.bold))),
-                pw.Padding(padding: const pw.EdgeInsets.all(5), child: pw.Text('Estado', style: pw.TextStyle(fontWeight: pw.FontWeight.bold))),
-                pw.Padding(padding: const pw.EdgeInsets.all(5), child: pw.Text('Cantidad', style: pw.TextStyle(fontWeight: pw.FontWeight.bold))),
+                pw.Padding(
+                  padding: const pw.EdgeInsets.all(5), 
+                  child: pw.Text(
+                    'Nombre', 
+                    style: pw.TextStyle(
+                      fontWeight: pw.FontWeight.bold,
+                      font: boldFont,
+                    ),
+                  ),
+                ),
+                pw.Padding(
+                  padding: const pw.EdgeInsets.all(5), 
+                  child: pw.Text(
+                    'Categoría', 
+                    style: pw.TextStyle(
+                      fontWeight: pw.FontWeight.bold,
+                      font: boldFont,
+                    ),
+                  ),
+                ),
+                pw.Padding(
+                  padding: const pw.EdgeInsets.all(5), 
+                  child: pw.Text(
+                    'Estado', 
+                    style: pw.TextStyle(
+                      fontWeight: pw.FontWeight.bold,
+                      font: boldFont,
+                    ),
+                  ),
+                ),
+                pw.Padding(
+                  padding: const pw.EdgeInsets.all(5), 
+                  child: pw.Text(
+                    'Cantidad', 
+                    style: pw.TextStyle(
+                      fontWeight: pw.FontWeight.bold,
+                      font: boldFont,
+                    ),
+                  ),
+                ),
               ],
             ),
             ...items.map((item) => pw.TableRow(children: [
-              pw.Padding(padding: const pw.EdgeInsets.all(5), child: pw.Text(item.name)),
-              pw.Padding(padding: const pw.EdgeInsets.all(5), child: pw.Text(item.categoryDisplayName)),
-              pw.Padding(padding: const pw.EdgeInsets.all(5), child: pw.Text(item.statusDisplayName)),
-              pw.Padding(padding: const pw.EdgeInsets.all(5), child: pw.Text('${item.quantity}')),
+              pw.Padding(
+                padding: const pw.EdgeInsets.all(5), 
+                child: pw.Text(
+                  item.name,
+                  style: pw.TextStyle(font: regularFont),
+                ),
+              ),
+              pw.Padding(
+                padding: const pw.EdgeInsets.all(5), 
+                child: pw.Text(
+                  item.categoryDisplayName,
+                  style: pw.TextStyle(font: regularFont),
+                ),
+              ),
+              pw.Padding(
+                padding: const pw.EdgeInsets.all(5), 
+                child: pw.Text(
+                  item.statusDisplayName,
+                  style: pw.TextStyle(font: regularFont),
+                ),
+              ),
+              pw.Padding(
+                padding: const pw.EdgeInsets.all(5), 
+                child: pw.Text(
+                  '${item.quantity}',
+                  style: pw.TextStyle(font: regularFont),
+                ),
+              ),
             ])),
           ],
         ),
@@ -421,7 +769,7 @@ class ReportService {
     );
   }
 
-  pw.Widget _buildLoansPDFContent(Map<String, dynamic> data, bool includeStatistics) {
+  pw.Widget _buildLoansPDFContent(Map<String, dynamic> data, bool includeStatistics, pw.Font? boldFont, pw.Font? regularFont) {
     List<LoanModel> loans = data['loans'] ?? [];
     Map<String, dynamic> summary = data['summary'] ?? {};
 
@@ -429,28 +777,78 @@ class ReportService {
       crossAxisAlignment: pw.CrossAxisAlignment.start,
       children: [
         if (includeStatistics) ...[
-          pw.Text('Resumen de Préstamos', style: pw.TextStyle(fontSize: 14, fontWeight: pw.FontWeight.bold)),
+          pw.Text(
+            'Resumen de Préstamos', 
+            style: pw.TextStyle(
+              fontSize: 14, 
+              fontWeight: pw.FontWeight.bold,
+              font: boldFont,
+            ),
+          ),
           pw.SizedBox(height: 10),
           pw.Table(
             border: pw.TableBorder.all(),
             children: [
               pw.TableRow(children: [
-                pw.Padding(padding: const pw.EdgeInsets.all(5), child: pw.Text('Total de Préstamos')),
-                pw.Padding(padding: const pw.EdgeInsets.all(5), child: pw.Text('${summary['total_loans'] ?? 0}')),
+                pw.Padding(
+                  padding: const pw.EdgeInsets.all(5), 
+                  child: pw.Text(
+                    'Total de Préstamos',
+                    style: pw.TextStyle(font: regularFont),
+                  ),
+                ),
+                pw.Padding(
+                  padding: const pw.EdgeInsets.all(5), 
+                  child: pw.Text(
+                    '${summary['total_loans'] ?? 0}',
+                    style: pw.TextStyle(font: regularFont),
+                  ),
+                ),
               ]),
               pw.TableRow(children: [
-                pw.Padding(padding: const pw.EdgeInsets.all(5), child: pw.Text('Préstamos Activos')),
-                pw.Padding(padding: const pw.EdgeInsets.all(5), child: pw.Text('${summary['active_loans'] ?? 0}')),
+                pw.Padding(
+                  padding: const pw.EdgeInsets.all(5), 
+                  child: pw.Text(
+                    'Préstamos Activos',
+                    style: pw.TextStyle(font: regularFont),
+                  ),
+                ),
+                pw.Padding(
+                  padding: const pw.EdgeInsets.all(5), 
+                  child: pw.Text(
+                    '${summary['active_loans'] ?? 0}',
+                    style: pw.TextStyle(font: regularFont),
+                  ),
+                ),
               ]),
               pw.TableRow(children: [
-                pw.Padding(padding: const pw.EdgeInsets.all(5), child: pw.Text('Préstamos Vencidos')),
-                pw.Padding(padding: const pw.EdgeInsets.all(5), child: pw.Text('${summary['overdue_loans'] ?? 0}')),
+                pw.Padding(
+                  padding: const pw.EdgeInsets.all(5), 
+                  child: pw.Text(
+                    'Préstamos Vencidos',
+                    style: pw.TextStyle(font: regularFont),
+                  ),
+                ),
+                pw.Padding(
+                  padding: const pw.EdgeInsets.all(5), 
+                  child: pw.Text(
+                    '${summary['overdue_loans'] ?? 0}',
+                    style: pw.TextStyle(font: regularFont),
+                  ),
+                ),
               ]),
             ],
           ),
           pw.SizedBox(height: 20),
         ],
-        pw.Text('Detalle de Préstamos', style: pw.TextStyle(fontSize: 14, fontWeight: pw.FontWeight.bold)),
+        pw.Text(
+          'Detalle de Préstamos', 
+          style: pw.TextStyle(
+            fontSize: 14, 
+            fontWeight: pw.FontWeight.bold,
+            font: boldFont,
+          ),
+        ),
         pw.SizedBox(height: 10),
         pw.Table(
           border: pw.TableBorder.all(),
@@ -464,17 +862,77 @@ class ReportService {
             pw.TableRow(
               decoration: const pw.BoxDecoration(color: PdfColors.grey300),
               children: [
-                pw.Padding(padding: const pw.EdgeInsets.all(5), child: pw.Text('Programa', style: pw.TextStyle(fontWeight: pw.FontWeight.bold))),
-                pw.Padding(padding: const pw.EdgeInsets.all(5), child: pw.Text('Fecha Inicio', style: pw.TextStyle(fontWeight: pw.FontWeight.bold))),
-                pw.Padding(padding: const pw.EdgeInsets.all(5), child: pw.Text('Fecha Fin', style: pw.TextStyle(fontWeight: pw.FontWeight.bold))),
-                pw.Padding(padding: const pw.EdgeInsets.all(5), child: pw.Text('Estado', style: pw.TextStyle(fontWeight: pw.FontWeight.bold))),
+                pw.Padding(
+                  padding: const pw.EdgeInsets.all(5), 
+                  child: pw.Text(
+                    'Programa', 
+                    style: pw.TextStyle(
+                      fontWeight: pw.FontWeight.bold,
+                      font: boldFont,
+                    ),
+                  ),
+                ),
+                pw.Padding(
+                  padding: const pw.EdgeInsets.all(5), 
+                  child: pw.Text(
+                    'Fecha Inicio', 
+                    style: pw.TextStyle(
+                      fontWeight: pw.FontWeight.bold,
+                      font: boldFont,
+                    ),
+                  ),
+                ),
+                pw.Padding(
+                  padding: const pw.EdgeInsets.all(5), 
+                  child: pw.Text(
+                    'Fecha Fin', 
+                    style: pw.TextStyle(
+                      fontWeight: pw.FontWeight.bold,
+                      font: boldFont,
+                    ),
+                  ),
+                ),
+                pw.Padding(
+                  padding: const pw.EdgeInsets.all(5), 
+                  child: pw.Text(
+                    'Estado', 
+                    style: pw.TextStyle(
+                      fontWeight: pw.FontWeight.bold,
+                      font: boldFont,
+                    ),
+                  ),
+                ),
               ],
             ),
             ...loans.map((loan) => pw.TableRow(children: [
-              pw.Padding(padding: const pw.EdgeInsets.all(5), child: pw.Text(loan.program)),
-              pw.Padding(padding: const pw.EdgeInsets.all(5), child: pw.Text(loan.startDate.toString().split(' ')[0])),
-              pw.Padding(padding: const pw.EdgeInsets.all(5), child: pw.Text(loan.endDate.toString().split(' ')[0])),
-              pw.Padding(padding: const pw.EdgeInsets.all(5), child: pw.Text(loan.statusDisplayName)),
+              pw.Padding(
+                padding: const pw.EdgeInsets.all(5), 
+                child: pw.Text(
+                  loan.program,
+                  style: pw.TextStyle(font: regularFont),
+                ),
+              ),
+              pw.Padding(
+                padding: const pw.EdgeInsets.all(5), 
+                child: pw.Text(
+                  loan.startDate.toString().split(' ')[0],
+                  style: pw.TextStyle(font: regularFont),
+                ),
+              ),
+              pw.Padding(
+                padding: const pw.EdgeInsets.all(5), 
+                child: pw.Text(
+                  loan.endDate.toString().split(' ')[0],
+                  style: pw.TextStyle(font: regularFont),
+                ),
+              ),
+              pw.Padding(
+                padding: const pw.EdgeInsets.all(5), 
+                child: pw.Text(
+                  loan.statusDisplayName,
+                  style: pw.TextStyle(font: regularFont),
+                ),
+              ),
             ])),
           ],
         ),
@@ -482,7 +940,7 @@ class ReportService {
     );
   }
 
-  pw.Widget _buildMaintenancePDFContent(Map<String, dynamic> data, bool includeStatistics) {
+  pw.Widget _buildMaintenancePDFContent(Map<String, dynamic> data, bool includeStatistics, pw.Font? boldFont, pw.Font? regularFont) {
     List<MaintenanceRequestModel> requests = data['requests'] ?? [];
     Map<String, dynamic> summary = data['summary'] ?? {};
 
@@ -490,32 +948,94 @@ class ReportService {
       crossAxisAlignment: pw.CrossAxisAlignment.start,
       children: [
         if (includeStatistics) ...[
-          pw.Text('Resumen de Mantenimiento', style: pw.TextStyle(fontSize: 14, fontWeight: pw.FontWeight.bold)),
+          pw.Text(
+            'Resumen de Mantenimiento', 
+            style: pw.TextStyle(
+              fontSize: 14, 
+              fontWeight: pw.FontWeight.bold,
+              font: boldFont,
+            ),
+          ),
           pw.SizedBox(height: 10),
           pw.Table(
             border: pw.TableBorder.all(),
             children: [
               pw.TableRow(children: [
-                pw.Padding(padding: const pw.EdgeInsets.all(5), child: pw.Text('Total de Solicitudes')),
-                pw.Padding(padding: const pw.EdgeInsets.all(5), child: pw.Text('${summary['total_requests'] ?? 0}')),
+                pw.Padding(
+                  padding: const pw.EdgeInsets.all(5), 
+                  child: pw.Text(
+                    'Total de Solicitudes',
+                    style: pw.TextStyle(font: regularFont),
+                  ),
+                ),
+                pw.Padding(
+                  padding: const pw.EdgeInsets.all(5), 
+                  child: pw.Text(
+                    '${summary['total_requests'] ?? 0}',
+                    style: pw.TextStyle(font: regularFont),
+                  ),
+                ),
               ]),
               pw.TableRow(children: [
-                pw.Padding(padding: const pw.EdgeInsets.all(5), child: pw.Text('Solicitudes Pendientes')),
-                pw.Padding(padding: const pw.EdgeInsets.all(5), child: pw.Text('${summary['pending_requests'] ?? 0}')),
+                pw.Padding(
+                  padding: const pw.EdgeInsets.all(5), 
+                  child: pw.Text(
+                    'Solicitudes Pendientes',
+                    style: pw.TextStyle(font: regularFont),
+                  ),
+                ),
+                pw.Padding(
+                  padding: const pw.EdgeInsets.all(5), 
+                  child: pw.Text(
+                    '${summary['pending_requests'] ?? 0}',
+                    style: pw.TextStyle(font: regularFont),
+                  ),
+                ),
               ]),
               pw.TableRow(children: [
-                pw.Padding(padding: const pw.EdgeInsets.all(5), child: pw.Text('Solicitudes Completadas')),
-                pw.Padding(padding: const pw.EdgeInsets.all(5), child: pw.Text('${summary['completed_requests'] ?? 0}')),
+                pw.Padding(
+                  padding: const pw.EdgeInsets.all(5), 
+                  child: pw.Text(
+                    'Solicitudes Completadas',
+                    style: pw.TextStyle(font: regularFont),
+                  ),
+                ),
+                pw.Padding(
+                  padding: const pw.EdgeInsets.all(5), 
+                  child: pw.Text(
+                    '${summary['completed_requests'] ?? 0}',
+                    style: pw.TextStyle(font: regularFont),
+                  ),
+                ),
               ]),
               pw.TableRow(children: [
-                pw.Padding(padding: const pw.EdgeInsets.all(5), child: pw.Text('Costo Total')),
-                pw.Padding(padding: const pw.EdgeInsets.all(5), child: pw.Text('\$${summary['total_cost']?.toStringAsFixed(2) ?? '0.00'}')),
+                pw.Padding(
+                  padding: const pw.EdgeInsets.all(5), 
+                  child: pw.Text(
+                    'Costo Total',
+                    style: pw.TextStyle(font: regularFont),
+                  ),
+                ),
+                pw.Padding(
+                  padding: const pw.EdgeInsets.all(5), 
+                  child: pw.Text(
+                    '\$${summary['total_cost']?.toStringAsFixed(2) ?? '0.00'}',
+                    style: pw.TextStyle(font: regularFont),
+                  ),
+                ),
               ]),
             ],
           ),
           pw.SizedBox(height: 20),
         ],
-        pw.Text('Detalle de Solicitudes', style: pw.TextStyle(fontSize: 14, fontWeight: pw.FontWeight.bold)),
+        pw.Text(
+          'Detalle de Solicitudes', 
+          style: pw.TextStyle(
+            fontSize: 14, 
+            fontWeight: pw.FontWeight.bold,
+            font: boldFont,
+          ),
+        ),
         pw.SizedBox(height: 10),
         pw.Table(
           border: pw.TableBorder.all(),
@@ -529,17 +1049,77 @@ class ReportService {
             pw.TableRow(
               decoration: const pw.BoxDecoration(color: PdfColors.grey300),
               children: [
-                pw.Padding(padding: const pw.EdgeInsets.all(5), child: pw.Text('Título', style: pw.TextStyle(fontWeight: pw.FontWeight.bold))),
-                pw.Padding(padding: const pw.EdgeInsets.all(5), child: pw.Text('Prioridad', style: pw.TextStyle(fontWeight: pw.FontWeight.bold))),
-                pw.Padding(padding: const pw.EdgeInsets.all(5), child: pw.Text('Estado', style: pw.TextStyle(fontWeight: pw.FontWeight.bold))),
-                pw.Padding(padding: const pw.EdgeInsets.all(5), child: pw.Text('Costo', style: pw.TextStyle(fontWeight: pw.FontWeight.bold))),
+                pw.Padding(
+                  padding: const pw.EdgeInsets.all(5), 
+                  child: pw.Text(
+                    'Título', 
+                    style: pw.TextStyle(
+                      fontWeight: pw.FontWeight.bold,
+                      font: boldFont,
+                    ),
+                  ),
+                ),
+                pw.Padding(
+                  padding: const pw.EdgeInsets.all(5), 
+                  child: pw.Text(
+                    'Prioridad', 
+                    style: pw.TextStyle(
+                      fontWeight: pw.FontWeight.bold,
+                      font: boldFont,
+                    ),
+                  ),
+                ),
+                pw.Padding(
+                  padding: const pw.EdgeInsets.all(5), 
+                  child: pw.Text(
+                    'Estado', 
+                    style: pw.TextStyle(
+                      fontWeight: pw.FontWeight.bold,
+                      font: boldFont,
+                    ),
+                  ),
+                ),
+                pw.Padding(
+                  padding: const pw.EdgeInsets.all(5), 
+                  child: pw.Text(
+                    'Costo', 
+                    style: pw.TextStyle(
+                      fontWeight: pw.FontWeight.bold,
+                      font: boldFont,
+                    ),
+                  ),
+                ),
               ],
             ),
             ...requests.map((request) => pw.TableRow(children: [
-              pw.Padding(padding: const pw.EdgeInsets.all(5), child: pw.Text(request.title)),
-              pw.Padding(padding: const pw.EdgeInsets.all(5), child: pw.Text(request.priorityDisplayName)),
-              pw.Padding(padding: const pw.EdgeInsets.all(5), child: pw.Text(request.statusDisplayName)),
-              pw.Padding(padding: const pw.EdgeInsets.all(5), child: pw.Text(request.cost != null ? '\$${request.cost!.toStringAsFixed(2)}' : 'N/A')),
+              pw.Padding(
+                padding: const pw.EdgeInsets.all(5), 
+                child: pw.Text(
+                  request.title,
+                  style: pw.TextStyle(font: regularFont),
+                ),
+              ),
+              pw.Padding(
+                padding: const pw.EdgeInsets.all(5), 
+                child: pw.Text(
+                  request.priorityDisplayName,
+                  style: pw.TextStyle(font: regularFont),
+                ),
+              ),
+              pw.Padding(
+                padding: const pw.EdgeInsets.all(5), 
+                child: pw.Text(
+                  request.statusDisplayName,
+                  style: pw.TextStyle(font: regularFont),
+                ),
+              ),
+              pw.Padding(
+                padding: const pw.EdgeInsets.all(5), 
+                child: pw.Text(
+                  request.cost != null ? '\$${request.cost!.toStringAsFixed(2)}' : 'N/A',
+                  style: pw.TextStyle(font: regularFont),
+                ),
+              ),
             ])),
           ],
         ),
@@ -547,7 +1127,7 @@ class ReportService {
     );
   }
 
-  pw.Widget _buildAuditPDFContent(Map<String, dynamic> data, bool includeStatistics) {
+  pw.Widget _buildAuditPDFContent(Map<String, dynamic> data, bool includeStatistics, pw.Font? boldFont, pw.Font? regularFont) {
     List<InventoryCheckModel> checks = data['checks'] ?? [];
     Map<String, dynamic> summary = data['summary'] ?? {};
 
@@ -555,28 +1135,78 @@ class ReportService {
       crossAxisAlignment: pw.CrossAxisAlignment.start,
       children: [
         if (includeStatistics) ...[
-          pw.Text('Resumen de Auditoría', style: pw.TextStyle(fontSize: 14, fontWeight: pw.FontWeight.bold)),
+          pw.Text(
+            'Resumen de Auditoría', 
+            style: pw.TextStyle(
+              fontSize: 14, 
+              fontWeight: pw.FontWeight.bold,
+              font: boldFont,
+            ),
+          ),
           pw.SizedBox(height: 10),
           pw.Table(
             border: pw.TableBorder.all(),
             children: [
               pw.TableRow(children: [
-                pw.Padding(padding: const pw.EdgeInsets.all(5), child: pw.Text('Total de Verificaciones')),
-                pw.Padding(padding: const pw.EdgeInsets.all(5), child: pw.Text('${summary['total_checks'] ?? 0}')),
+                pw.Padding(
+                  padding: const pw.EdgeInsets.all(5), 
+                  child: pw.Text(
+                    'Total de Verificaciones',
+                    style: pw.TextStyle(font: regularFont),
+                  ),
+                ),
+                pw.Padding(
+                  padding: const pw.EdgeInsets.all(5), 
+                  child: pw.Text(
+                    '${summary['total_checks'] ?? 0}',
+                    style: pw.TextStyle(font: regularFont),
+                  ),
+                ),
               ]),
               pw.TableRow(children: [
-                pw.Padding(padding: const pw.EdgeInsets.all(5), child: pw.Text('Verificaciones Completadas')),
-                pw.Padding(padding: const pw.EdgeInsets.all(5), child: pw.Text('${summary['completed_checks'] ?? 0}')),
+                pw.Padding(
+                  padding: const pw.EdgeInsets.all(5), 
+                  child: pw.Text(
+                    'Verificaciones Completadas',
+                    style: pw.TextStyle(font: regularFont),
+                  ),
+                ),
+                pw.Padding(
+                  padding: const pw.EdgeInsets.all(5), 
+                  child: pw.Text(
+                    '${summary['completed_checks'] ?? 0}',
+                    style: pw.TextStyle(font: regularFont),
+                  ),
+                ),
               ]),
               pw.TableRow(children: [
-                pw.Padding(padding: const pw.EdgeInsets.all(5), child: pw.Text('Tasa de Cumplimiento')),
-                pw.Padding(padding: const pw.EdgeInsets.all(5), child: pw.Text('${summary['compliance_rate'] ?? 0}%')),
+                pw.Padding(
+                  padding: const pw.EdgeInsets.all(5), 
+                  child: pw.Text(
+                    'Tasa de Cumplimiento',
+                    style: pw.TextStyle(font: regularFont),
+                  ),
+                ),
+                pw.Padding(
+                  padding: const pw.EdgeInsets.all(5), 
+                  child: pw.Text(
+                    '${summary['compliance_rate'] ?? 0}%',
+                    style: pw.TextStyle(font: regularFont),
+                  ),
+                ),
               ]),
             ],
           ),
           pw.SizedBox(height: 20),
         ],
-        pw.Text('Detalle de Verificaciones', style: pw.TextStyle(fontSize: 14, fontWeight: pw.FontWeight.bold)),
+        pw.Text(
+          'Detalle de Verificaciones', 
+          style: pw.TextStyle(
+            fontSize: 14, 
+            fontWeight: pw.FontWeight.bold,
+            font: boldFont,
+          ),
+        ),
         pw.SizedBox(height: 10),
         pw.Table(
           border: pw.TableBorder.all(),
@@ -590,17 +1220,77 @@ class ReportService {
             pw.TableRow(
               decoration: const pw.BoxDecoration(color: PdfColors.grey300),
               children: [
-                pw.Padding(padding: const pw.EdgeInsets.all(5), child: pw.Text('Fecha', style: pw.TextStyle(fontWeight: pw.FontWeight.bold))),
-                pw.Padding(padding: const pw.EdgeInsets.all(5), child: pw.Text('Estado', style: pw.TextStyle(fontWeight: pw.FontWeight.bold))),
-                pw.Padding(padding: const pw.EdgeInsets.all(5), child: pw.Text('Items Totales', style: pw.TextStyle(fontWeight: pw.FontWeight.bold))),
-                pw.Padding(padding: const pw.EdgeInsets.all(5), child: pw.Text('Items Buenos', style: pw.TextStyle(fontWeight: pw.FontWeight.bold))),
+                pw.Padding(
+                  padding: const pw.EdgeInsets.all(5), 
+                  child: pw.Text(
+                    'Fecha', 
+                    style: pw.TextStyle(
+                      fontWeight: pw.FontWeight.bold,
+                      font: boldFont,
+                    ),
+                  ),
+                ),
+                pw.Padding(
+                  padding: const pw.EdgeInsets.all(5), 
+                  child: pw.Text(
+                    'Estado', 
+                    style: pw.TextStyle(
+                      fontWeight: pw.FontWeight.bold,
+                      font: boldFont,
+                    ),
+                  ),
+                ),
+                pw.Padding(
+                  padding: const pw.EdgeInsets.all(5), 
+                  child: pw.Text(
+                    'Items Totales', 
+                    style: pw.TextStyle(
+                      fontWeight: pw.FontWeight.bold,
+                      font: boldFont,
+                    ),
+                  ),
+                ),
+                pw.Padding(
+                  padding: const pw.EdgeInsets.all(5), 
+                  child: pw.Text(
+                    'Items Buenos', 
+                    style: pw.TextStyle(
+                      fontWeight: pw.FontWeight.bold,
+                      font: boldFont,
+                    ),
+                  ),
+                ),
               ],
             ),
             ...checks.map((check) => pw.TableRow(children: [
-              pw.Padding(padding: const pw.EdgeInsets.all(5), child: pw.Text(check.checkDate.toString().split(' ')[0])),
-              pw.Padding(padding: const pw.EdgeInsets.all(5), child: pw.Text(check.statusDisplayName)),
-              pw.Padding(padding: const pw.EdgeInsets.all(5), child: pw.Text('${check.totalItems ?? 0}')),
-              pw.Padding(padding: const pw.EdgeInsets.all(5), child: pw.Text('${check.itemsGood ?? 0}')),
+              pw.Padding(
+                padding: const pw.EdgeInsets.all(5), 
+                child: pw.Text(
+                  check.checkDate.toString().split(' ')[0],
+                  style: pw.TextStyle(font: regularFont),
+                ),
+              ),
+              pw.Padding(
+                padding: const pw.EdgeInsets.all(5), 
+                child: pw.Text(
+                  check.statusDisplayName,
+                  style: pw.TextStyle(font: regularFont),
+                ),
+              ),
+              pw.Padding(
+                padding: const pw.EdgeInsets.all(5), 
+                child: pw.Text(
+                  '${check.totalItems ?? 0}',
+                  style: pw.TextStyle(font: regularFont),
+                ),
+              ),
+              pw.Padding(
+                padding: const pw.EdgeInsets.all(5), 
+                child: pw.Text(
+                  '${check.itemsGood ?? 0}',
+                  style: pw.TextStyle(font: regularFont),
+                ),
+              ),
             ])),
           ],
         ),
@@ -608,41 +1298,1089 @@ class ReportService {
     );
   }
 
-  pw.Widget _buildStatisticsPDFContent(Map<String, dynamic> data) {
+  pw.Widget _buildInventoryChecksPDFContent(Map<String, dynamic> data, pw.Font? boldFont, pw.Font? regularFont) {
+    final checks = data['checks'] ?? [];
+    final total = data['total'] ?? 0;
+    final completed = data['completed'] ?? 0;
+    final pending = data['pending'] ?? 0;
+
     return pw.Column(
       crossAxisAlignment: pw.CrossAxisAlignment.start,
       children: [
-        pw.Text('Reporte Estadístico Completo', style: pw.TextStyle(fontSize: 16, fontWeight: pw.FontWeight.bold)),
+        pw.Text(
+          'Resumen de Verificaciones', 
+          style: pw.TextStyle(
+            fontSize: 14, 
+            fontWeight: pw.FontWeight.bold,
+            font: boldFont,
+          ),
+        ),
+        pw.SizedBox(height: 10),
+        pw.Table(
+          border: pw.TableBorder.all(),
+          children: [
+            pw.TableRow(children: [
+              pw.Padding(
+                padding: const pw.EdgeInsets.all(5), 
+                child: pw.Text(
+                  'Total de Verificaciones',
+                  style: pw.TextStyle(font: regularFont),
+                ),
+              ),
+              pw.Padding(
+                padding: const pw.EdgeInsets.all(5), 
+                child: pw.Text(
+                  '$total',
+                  style: pw.TextStyle(font: regularFont),
+                ),
+              ),
+            ]),
+            pw.TableRow(children: [
+              pw.Padding(
+                padding: const pw.EdgeInsets.all(5), 
+                child: pw.Text(
+                  'Verificaciones Completadas',
+                  style: pw.TextStyle(font: regularFont),
+                ),
+              ),
+              pw.Padding(
+                padding: const pw.EdgeInsets.all(5), 
+                child: pw.Text(
+                  '$completed',
+                  style: pw.TextStyle(font: regularFont),
+                ),
+              ),
+            ]),
+            pw.TableRow(children: [
+              pw.Padding(
+                padding: const pw.EdgeInsets.all(5), 
+                child: pw.Text(
+                  'Verificaciones Pendientes',
+                  style: pw.TextStyle(font: regularFont),
+                ),
+              ),
+              pw.Padding(
+                padding: const pw.EdgeInsets.all(5), 
+                child: pw.Text(
+                  '$pending',
+                  style: pw.TextStyle(font: regularFont),
+                ),
+              ),
+            ]),
+          ],
+        ),
+        pw.SizedBox(height: 20),
+        pw.Text(
+          'Detalle de Verificaciones', 
+          style: pw.TextStyle(
+            fontSize: 14, 
+            fontWeight: pw.FontWeight.bold,
+            font: boldFont,
+          ),
+        ),
+        pw.SizedBox(height: 10),
+        pw.Table(
+          border: pw.TableBorder.all(),
+          columnWidths: {
+            0: const pw.FlexColumnWidth(1),
+            1: const pw.FlexColumnWidth(1),
+            2: const pw.FlexColumnWidth(1),
+            3: const pw.FlexColumnWidth(1),
+            4: const pw.FlexColumnWidth(1),
+            5: const pw.FlexColumnWidth(1),
+          },
+          children: [
+            pw.TableRow(
+              decoration: const pw.BoxDecoration(color: PdfColors.grey300),
+              children: [
+                pw.Padding(
+                  padding: const pw.EdgeInsets.all(5), 
+                  child: pw.Text(
+                    'ID', 
+                    style: pw.TextStyle(
+                      fontWeight: pw.FontWeight.bold,
+                      font: boldFont,
+                    ),
+                  ),
+                ),
+                pw.Padding(
+                  padding: const pw.EdgeInsets.all(5), 
+                  child: pw.Text(
+                    'Fecha', 
+                    style: pw.TextStyle(
+                      fontWeight: pw.FontWeight.bold,
+                      font: boldFont,
+                    ),
+                  ),
+                ),
+                pw.Padding(
+                  padding: const pw.EdgeInsets.all(5), 
+                  child: pw.Text(
+                    'Estado', 
+                    style: pw.TextStyle(
+                      fontWeight: pw.FontWeight.bold,
+                      font: boldFont,
+                    ),
+                  ),
+                ),
+                pw.Padding(
+                  padding: const pw.EdgeInsets.all(5), 
+                  child: pw.Text(
+                    'Items Totales', 
+                    style: pw.TextStyle(
+                      fontWeight: pw.FontWeight.bold,
+                      font: boldFont,
+                    ),
+                  ),
+                ),
+                pw.Padding(
+                  padding: const pw.EdgeInsets.all(5), 
+                  child: pw.Text(
+                    'Items Buenos', 
+                    style: pw.TextStyle(
+                      fontWeight: pw.FontWeight.bold,
+                      font: boldFont,
+                    ),
+                  ),
+                ),
+                pw.Padding(
+                  padding: const pw.EdgeInsets.all(5), 
+                  child: pw.Text(
+                    'Items Dañados', 
+                    style: pw.TextStyle(
+                      fontWeight: pw.FontWeight.bold,
+                      font: boldFont,
+                    ),
+                  ),
+                ),
+                pw.Padding(
+                  padding: const pw.EdgeInsets.all(5), 
+                  child: pw.Text(
+                    'Items Faltantes', 
+                    style: pw.TextStyle(
+                      fontWeight: pw.FontWeight.bold,
+                      font: boldFont,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            ...checks.map((check) => pw.TableRow(children: [
+              pw.Padding(
+                padding: const pw.EdgeInsets.all(5), 
+                child: pw.Text(
+                  '${check['id'] ?? 'N/A'}',
+                  style: pw.TextStyle(font: regularFont),
+                ),
+              ),
+              pw.Padding(
+                padding: const pw.EdgeInsets.all(5), 
+                child: pw.Text(
+                  check['check_date']?.toString().split(' ')[0] ?? 'N/A',
+                  style: pw.TextStyle(font: regularFont),
+                ),
+              ),
+              pw.Padding(
+                padding: const pw.EdgeInsets.all(5), 
+                child: pw.Text(
+                  check['status'] ?? 'N/A',
+                  style: pw.TextStyle(font: regularFont),
+                ),
+              ),
+              pw.Padding(
+                padding: const pw.EdgeInsets.all(5), 
+                child: pw.Text(
+                  '${check['total_items'] ?? 0}',
+                  style: pw.TextStyle(font: regularFont),
+                ),
+              ),
+              pw.Padding(
+                padding: const pw.EdgeInsets.all(5), 
+                child: pw.Text(
+                  '${check['items_good'] ?? 0}',
+                  style: pw.TextStyle(font: regularFont),
+                ),
+              ),
+              pw.Padding(
+                padding: const pw.EdgeInsets.all(5), 
+                child: pw.Text(
+                  '${check['items_damaged'] ?? 0}',
+                  style: pw.TextStyle(font: regularFont),
+                ),
+              ),
+              pw.Padding(
+                padding: const pw.EdgeInsets.all(5), 
+                child: pw.Text(
+                  '${check['items_missing'] ?? 0}',
+                  style: pw.TextStyle(font: regularFont),
+                ),
+              ),
+            ])),
+          ],
+        ),
+      ],
+    );
+  }
+
+  pw.Widget _buildEnvironmentStatusPDFContent(Map<String, dynamic> data, pw.Font? boldFont, pw.Font? regularFont) {
+    final environments = data['environments'] ?? [];
+    final total = data['total'] ?? 0;
+    final active = data['active'] ?? 0;
+    final warehouses = data['warehouses'] ?? 0;
+
+    return pw.Column(
+      crossAxisAlignment: pw.CrossAxisAlignment.start,
+      children: [
+        pw.Text(
+          'Resumen de Estado de Ambientes', 
+          style: pw.TextStyle(
+            fontSize: 14, 
+            fontWeight: pw.FontWeight.bold,
+            font: boldFont,
+          ),
+        ),
+        pw.SizedBox(height: 10),
+        pw.Table(
+          border: pw.TableBorder.all(),
+          children: [
+            pw.TableRow(children: [
+              pw.Padding(
+                padding: const pw.EdgeInsets.all(5), 
+                child: pw.Text(
+                  'Total de Ambientes',
+                  style: pw.TextStyle(font: regularFont),
+                ),
+              ),
+              pw.Padding(
+                padding: const pw.EdgeInsets.all(5), 
+                child: pw.Text(
+                  '$total',
+                  style: pw.TextStyle(font: regularFont),
+                ),
+              ),
+            ]),
+            pw.TableRow(children: [
+              pw.Padding(
+                padding: const pw.EdgeInsets.all(5), 
+                child: pw.Text(
+                  'Ambientes Activos',
+                  style: pw.TextStyle(font: regularFont),
+                ),
+              ),
+              pw.Padding(
+                padding: const pw.EdgeInsets.all(5), 
+                child: pw.Text(
+                  '$active',
+                  style: pw.TextStyle(font: regularFont),
+                ),
+              ),
+            ]),
+            pw.TableRow(children: [
+              pw.Padding(
+                padding: const pw.EdgeInsets.all(5), 
+                child: pw.Text(
+                  'Almacenes',
+                  style: pw.TextStyle(font: regularFont),
+                ),
+              ),
+              pw.Padding(
+                padding: const pw.EdgeInsets.all(5), 
+                child: pw.Text(
+                  '$warehouses',
+                  style: pw.TextStyle(font: regularFont),
+                ),
+              ),
+            ]),
+          ],
+        ),
+        pw.SizedBox(height: 20),
+        pw.Text(
+          'Detalle de Ambientes', 
+          style: pw.TextStyle(
+            fontSize: 14, 
+            fontWeight: pw.FontWeight.bold,
+            font: boldFont,
+          ),
+        ),
+        pw.SizedBox(height: 10),
+        pw.Table(
+          border: pw.TableBorder.all(),
+          columnWidths: {
+            0: const pw.FlexColumnWidth(1),
+            1: const pw.FlexColumnWidth(2),
+            2: const pw.FlexColumnWidth(1),
+            3: const pw.FlexColumnWidth(1),
+          },
+          children: [
+            pw.TableRow(
+              decoration: const pw.BoxDecoration(color: PdfColors.grey300),
+              children: [
+                pw.Padding(
+                  padding: const pw.EdgeInsets.all(5), 
+                  child: pw.Text(
+                    'ID', 
+                    style: pw.TextStyle(
+                      fontWeight: pw.FontWeight.bold,
+                      font: boldFont,
+                    ),
+                  ),
+                ),
+                pw.Padding(
+                  padding: const pw.EdgeInsets.all(5), 
+                  child: pw.Text(
+                    'Nombre', 
+                    style: pw.TextStyle(
+                      fontWeight: pw.FontWeight.bold,
+                      font: boldFont,
+                    ),
+                  ),
+                ),
+                pw.Padding(
+                  padding: const pw.EdgeInsets.all(5), 
+                  child: pw.Text(
+                    'Activo', 
+                    style: pw.TextStyle(
+                      fontWeight: pw.FontWeight.bold,
+                      font: boldFont,
+                    ),
+                  ),
+                ),
+                pw.Padding(
+                  padding: const pw.EdgeInsets.all(5), 
+                  child: pw.Text(
+                    'Almacén', 
+                    style: pw.TextStyle(
+                      fontWeight: pw.FontWeight.bold,
+                      font: boldFont,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            ...environments.map((env) => pw.TableRow(children: [
+              pw.Padding(
+                padding: const pw.EdgeInsets.all(5), 
+                child: pw.Text(
+                  '${env['id'] ?? 'N/A'}',
+                  style: pw.TextStyle(font: regularFont),
+                ),
+              ),
+              pw.Padding(
+                padding: const pw.EdgeInsets.all(5), 
+                child: pw.Text(
+                  env['name'] ?? 'N/A',
+                  style: pw.TextStyle(font: regularFont),
+                ),
+              ),
+              pw.Padding(
+                padding: const pw.EdgeInsets.all(5), 
+                child: pw.Text(
+                  env['is_active'] == true ? 'Sí' : 'No',
+                  style: pw.TextStyle(font: regularFont),
+                ),
+              ),
+              pw.Padding(
+                padding: const pw.EdgeInsets.all(5), 
+                child: pw.Text(
+                  env['is_warehouse'] == true ? 'Sí' : 'No',
+                  style: pw.TextStyle(font: regularFont),
+                ),
+              ),
+            ])),
+          ],
+        ),
+      ],
+    );
+  }
+
+  pw.Widget _buildAlertsPDFContent(Map<String, dynamic> data, pw.Font? boldFont, pw.Font? regularFont) {
+    final alerts = data['alerts'] ?? [];
+    final total = data['total'] ?? 0;
+    final active = data['active'] ?? 0;
+    final critical = data['critical'] ?? 0;
+
+    return pw.Column(
+      crossAxisAlignment: pw.CrossAxisAlignment.start,
+      children: [
+        pw.Text(
+          'Resumen de Alertas', 
+          style: pw.TextStyle(
+            fontSize: 14, 
+            fontWeight: pw.FontWeight.bold,
+            font: boldFont,
+          ),
+        ),
+        pw.SizedBox(height: 10),
+        pw.Table(
+          border: pw.TableBorder.all(),
+          children: [
+            pw.TableRow(children: [
+              pw.Padding(
+                padding: const pw.EdgeInsets.all(5), 
+                child: pw.Text(
+                  'Total de Alertas',
+                  style: pw.TextStyle(font: regularFont),
+                ),
+              ),
+              pw.Padding(
+                padding: const pw.EdgeInsets.all(5), 
+                child: pw.Text(
+                  '$total',
+                  style: pw.TextStyle(font: regularFont),
+                ),
+              ),
+            ]),
+            pw.TableRow(children: [
+              pw.Padding(
+                padding: const pw.EdgeInsets.all(5), 
+                child: pw.Text(
+                  'Alertas Activas',
+                  style: pw.TextStyle(font: regularFont),
+                ),
+              ),
+              pw.Padding(
+                padding: const pw.EdgeInsets.all(5), 
+                child: pw.Text(
+                  '$active',
+                  style: pw.TextStyle(font: regularFont),
+                ),
+              ),
+            ]),
+            pw.TableRow(children: [
+              pw.Padding(
+                padding: const pw.EdgeInsets.all(5), 
+                child: pw.Text(
+                  'Alertas Críticas',
+                  style: pw.TextStyle(font: regularFont),
+                ),
+              ),
+              pw.Padding(
+                padding: const pw.EdgeInsets.all(5), 
+                child: pw.Text(
+                  '$critical',
+                  style: pw.TextStyle(font: regularFont),
+                ),
+              ),
+            ]),
+          ],
+        ),
+        pw.SizedBox(height: 20),
+        pw.Text(
+          'Detalle de Alertas', 
+          style: pw.TextStyle(
+            fontSize: 14, 
+            fontWeight: pw.FontWeight.bold,
+            font: boldFont,
+          ),
+        ),
+        pw.SizedBox(height: 10),
+        pw.Table(
+          border: pw.TableBorder.all(),
+          columnWidths: {
+            0: const pw.FlexColumnWidth(1),
+            1: const pw.FlexColumnWidth(2),
+            2: const pw.FlexColumnWidth(1),
+            3: const pw.FlexColumnWidth(1),
+            4: const pw.FlexColumnWidth(1),
+          },
+          children: [
+            pw.TableRow(
+              decoration: const pw.BoxDecoration(color: PdfColors.grey300),
+              children: [
+                pw.Padding(
+                  padding: const pw.EdgeInsets.all(5), 
+                  child: pw.Text(
+                    'ID', 
+                    style: pw.TextStyle(
+                      fontWeight: pw.FontWeight.bold,
+                      font: boldFont,
+                    ),
+                  ),
+                ),
+                pw.Padding(
+                  padding: const pw.EdgeInsets.all(5), 
+                  child: pw.Text(
+                    'Mensaje', 
+                    style: pw.TextStyle(
+                      fontWeight: pw.FontWeight.bold,
+                      font: boldFont,
+                    ),
+                  ),
+                ),
+                pw.Padding(
+                  padding: const pw.EdgeInsets.all(5), 
+                  child: pw.Text(
+                    'Prioridad', 
+                    style: pw.TextStyle(
+                      fontWeight: pw.FontWeight.bold,
+                      font: boldFont,
+                    ),
+                  ),
+                ),
+                pw.Padding(
+                  padding: const pw.EdgeInsets.all(5), 
+                  child: pw.Text(
+                    'Estado', 
+                    style: pw.TextStyle(
+                      fontWeight: pw.FontWeight.bold,
+                      font: boldFont,
+                    ),
+                  ),
+                ),
+                pw.Padding(
+                  padding: const pw.EdgeInsets.all(5), 
+                  child: pw.Text(
+                    'Fecha', 
+                    style: pw.TextStyle(
+                      fontWeight: pw.FontWeight.bold,
+                      font: boldFont,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            ...alerts.map((alert) => pw.TableRow(children: [
+              pw.Padding(
+                padding: const pw.EdgeInsets.all(5), 
+                child: pw.Text(
+                  '${alert['id'] ?? 'N/A'}',
+                  style: pw.TextStyle(font: regularFont),
+                ),
+              ),
+              pw.Padding(
+                padding: const pw.EdgeInsets.all(5), 
+                child: pw.Text(
+                  alert['message'] ?? 'N/A',
+                  style: pw.TextStyle(font: regularFont),
+                ),
+              ),
+              pw.Padding(
+                padding: const pw.EdgeInsets.all(5), 
+                child: pw.Text(
+                  alert['priority'] ?? 'N/A',
+                  style: pw.TextStyle(font: regularFont),
+                ),
+              ),
+              pw.Padding(
+                padding: const pw.EdgeInsets.all(5), 
+                child: pw.Text(
+                  alert['is_active'] == true ? 'Activa' : 'Inactiva',
+                  style: pw.TextStyle(font: regularFont),
+                ),
+              ),
+              pw.Padding(
+                padding: const pw.EdgeInsets.all(5), 
+                child: pw.Text(
+                  alert['created_at']?.toString().split(' ')[0] ?? 'N/A',
+                  style: pw.TextStyle(font: regularFont),
+                ),
+              ),
+            ])),
+          ],
+        ),
+      ],
+    );
+  }
+
+  pw.Widget _buildUsersPDFContent(Map<String, dynamic> data, pw.Font? boldFont, pw.Font? regularFont) {
+    final users = data['users'] ?? [];
+    final total = data['total'] ?? 0;
+    final active = data['active'] ?? 0;
+    final students = data['students'] ?? 0;
+    final instructors = data['instructors'] ?? 0;
+    final admins = data['admins'] ?? 0;
+
+    return pw.Column(
+      crossAxisAlignment: pw.CrossAxisAlignment.start,
+      children: [
+        pw.Text(
+          'Resumen de Usuarios', 
+          style: pw.TextStyle(
+            fontSize: 14, 
+            fontWeight: pw.FontWeight.bold,
+            font: boldFont,
+          ),
+        ),
+        pw.SizedBox(height: 10),
+        pw.Table(
+          border: pw.TableBorder.all(),
+          children: [
+            pw.TableRow(children: [
+              pw.Padding(
+                padding: const pw.EdgeInsets.all(5), 
+                child: pw.Text(
+                  'Total de Usuarios',
+                  style: pw.TextStyle(font: regularFont),
+                ),
+              ),
+              pw.Padding(
+                padding: const pw.EdgeInsets.all(5), 
+                child: pw.Text(
+                  '$total',
+                  style: pw.TextStyle(font: regularFont),
+                ),
+              ),
+            ]),
+            pw.TableRow(children: [
+              pw.Padding(
+                padding: const pw.EdgeInsets.all(5), 
+                child: pw.Text(
+                  'Usuarios Activos',
+                  style: pw.TextStyle(font: regularFont),
+                ),
+              ),
+              pw.Padding(
+                padding: const pw.EdgeInsets.all(5), 
+                child: pw.Text(
+                  '$active',
+                  style: pw.TextStyle(font: regularFont),
+                ),
+              ),
+            ]),
+            pw.TableRow(children: [
+              pw.Padding(
+                padding: const pw.EdgeInsets.all(5), 
+                child: pw.Text(
+                  'Estudiantes',
+                  style: pw.TextStyle(font: regularFont),
+                ),
+              ),
+              pw.Padding(
+                padding: const pw.EdgeInsets.all(5), 
+                child: pw.Text(
+                  '$students',
+                  style: pw.TextStyle(font: regularFont),
+                ),
+              ),
+            ]),
+            pw.TableRow(children: [
+              pw.Padding(
+                padding: const pw.EdgeInsets.all(5), 
+                child: pw.Text(
+                  'Instructores',
+                  style: pw.TextStyle(font: regularFont),
+                ),
+              ),
+              pw.Padding(
+                padding: const pw.EdgeInsets.all(5), 
+                child: pw.Text(
+                  '$instructors',
+                  style: pw.TextStyle(font: regularFont),
+                ),
+              ),
+            ]),
+            pw.TableRow(children: [
+              pw.Padding(
+                padding: const pw.EdgeInsets.all(5), 
+                child: pw.Text(
+                  'Administradores',
+                  style: pw.TextStyle(font: regularFont),
+                ),
+              ),
+              pw.Padding(
+                padding: const pw.EdgeInsets.all(5), 
+                child: pw.Text(
+                  '$admins',
+                  style: pw.TextStyle(font: regularFont),
+                ),
+              ),
+            ]),
+          ],
+        ),
+        pw.SizedBox(height: 20),
+        pw.Text(
+          'Detalle de Usuarios', 
+          style: pw.TextStyle(
+            fontSize: 14, 
+            fontWeight: pw.FontWeight.bold,
+            font: boldFont,
+          ),
+        ),
+        pw.SizedBox(height: 10),
+        pw.Table(
+          border: pw.TableBorder.all(),
+          columnWidths: {
+            0: const pw.FlexColumnWidth(1),
+            1: const pw.FlexColumnWidth(2),
+            2: const pw.FlexColumnWidth(1),
+            3: const pw.FlexColumnWidth(1),
+            4: const pw.FlexColumnWidth(1),
+          },
+          children: [
+            pw.TableRow(
+              decoration: const pw.BoxDecoration(color: PdfColors.grey300),
+              children: [
+                pw.Padding(
+                  padding: const pw.EdgeInsets.all(5), 
+                  child: pw.Text(
+                    'ID', 
+                    style: pw.TextStyle(
+                      fontWeight: pw.FontWeight.bold,
+                      font: boldFont,
+                    ),
+                  ),
+                ),
+                pw.Padding(
+                  padding: const pw.EdgeInsets.all(5), 
+                  child: pw.Text(
+                    'Nombre', 
+                    style: pw.TextStyle(
+                      fontWeight: pw.FontWeight.bold,
+                      font: boldFont,
+                    ),
+                  ),
+                ),
+                pw.Padding(
+                  padding: const pw.EdgeInsets.all(5), 
+                  child: pw.Text(
+                    'Rol', 
+                    style: pw.TextStyle(
+                      fontWeight: pw.FontWeight.bold,
+                      font: boldFont,
+                    ),
+                  ),
+                ),
+                pw.Padding(
+                  padding: const pw.EdgeInsets.all(5), 
+                  child: pw.Text(
+                    'Estado', 
+                    style: pw.TextStyle(
+                      fontWeight: pw.FontWeight.bold,
+                      font: boldFont,
+                    ),
+                  ),
+                ),
+                pw.Padding(
+                  padding: const pw.EdgeInsets.all(5), 
+                  child: pw.Text(
+                    'Fecha Registro', 
+                    style: pw.TextStyle(
+                      fontWeight: pw.FontWeight.bold,
+                      font: boldFont,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            ...users.map((user) => pw.TableRow(children: [
+              pw.Padding(
+                padding: const pw.EdgeInsets.all(5), 
+                child: pw.Text(
+                  '${user['id'] ?? 'N/A'}',
+                  style: pw.TextStyle(font: regularFont),
+                ),
+              ),
+              pw.Padding(
+                padding: const pw.EdgeInsets.all(5), 
+                child: pw.Text(
+                  user['name'] ?? 'N/A',
+                  style: pw.TextStyle(font: regularFont),
+                ),
+              ),
+              pw.Padding(
+                padding: const pw.EdgeInsets.all(5), 
+                child: pw.Text(
+                  user['role'] ?? 'N/A',
+                  style: pw.TextStyle(font: regularFont),
+                ),
+              ),
+              pw.Padding(
+                padding: const pw.EdgeInsets.all(5), 
+                child: pw.Text(
+                  user['is_active'] == true ? 'Activo' : 'Inactivo',
+                  style: pw.TextStyle(font: regularFont),
+                ),
+              ),
+              pw.Padding(
+                padding: const pw.EdgeInsets.all(5), 
+                child: pw.Text(
+                  user['created_at']?.toString().split(' ')[0] ?? 'N/A',
+                  style: pw.TextStyle(font: regularFont),
+                ),
+              ),
+            ])),
+          ],
+        ),
+      ],
+    );
+  }
+
+  pw.Widget _buildEnvironmentsPDFContent(Map<String, dynamic> data, pw.Font? boldFont, pw.Font? regularFont) {
+    final environments = data['environments'] ?? [];
+    final total = data['total'] ?? 0;
+    final active = data['active'] ?? 0;
+    final warehouses = data['warehouses'] ?? 0;
+    final classrooms = data['classrooms'] ?? 0;
+
+    return pw.Column(
+      crossAxisAlignment: pw.CrossAxisAlignment.start,
+      children: [
+        pw.Text(
+          'Resumen de Ambientes', 
+          style: pw.TextStyle(
+            fontSize: 14, 
+            fontWeight: pw.FontWeight.bold,
+            font: boldFont,
+          ),
+        ),
+        pw.SizedBox(height: 10),
+        pw.Table(
+          border: pw.TableBorder.all(),
+          children: [
+            pw.TableRow(children: [
+              pw.Padding(
+                padding: const pw.EdgeInsets.all(5), 
+                child: pw.Text(
+                  'Total de Ambientes',
+                  style: pw.TextStyle(font: regularFont),
+                ),
+              ),
+              pw.Padding(
+                padding: const pw.EdgeInsets.all(5), 
+                child: pw.Text(
+                  '$total',
+                  style: pw.TextStyle(font: regularFont),
+                ),
+              ),
+            ]),
+            pw.TableRow(children: [
+              pw.Padding(
+                padding: const pw.EdgeInsets.all(5), 
+                child: pw.Text(
+                  'Ambientes Activos',
+                  style: pw.TextStyle(font: regularFont),
+                ),
+              ),
+              pw.Padding(
+                padding: const pw.EdgeInsets.all(5), 
+                child: pw.Text(
+                  '$active',
+                  style: pw.TextStyle(font: regularFont),
+                ),
+              ),
+            ]),
+            pw.TableRow(children: [
+              pw.Padding(
+                padding: const pw.EdgeInsets.all(5), 
+                child: pw.Text(
+                  'Almacenes',
+                  style: pw.TextStyle(font: regularFont),
+                ),
+              ),
+              pw.Padding(
+                padding: const pw.EdgeInsets.all(5), 
+                child: pw.Text(
+                  '$warehouses',
+                  style: pw.TextStyle(font: regularFont),
+                ),
+              ),
+            ]),
+            pw.TableRow(children: [
+              pw.Padding(
+                padding: const pw.EdgeInsets.all(5), 
+                child: pw.Text(
+                  'Salones',
+                  style: pw.TextStyle(font: regularFont),
+                ),
+              ),
+              pw.Padding(
+                padding: const pw.EdgeInsets.all(5), 
+                child: pw.Text(
+                  '$classrooms',
+                  style: pw.TextStyle(font: regularFont),
+                ),
+              ),
+            ]),
+          ],
+        ),
+        pw.SizedBox(height: 20),
+        pw.Text(
+          'Detalle de Ambientes', 
+          style: pw.TextStyle(
+            fontSize: 14, 
+            fontWeight: pw.FontWeight.bold,
+            font: boldFont,
+          ),
+        ),
+        pw.SizedBox(height: 10),
+        pw.Table(
+          border: pw.TableBorder.all(),
+          columnWidths: {
+            0: const pw.FlexColumnWidth(1),
+            1: const pw.FlexColumnWidth(2),
+            2: const pw.FlexColumnWidth(1),
+            3: const pw.FlexColumnWidth(1),
+            4: const pw.FlexColumnWidth(1),
+          },
+          children: [
+            pw.TableRow(
+              decoration: const pw.BoxDecoration(color: PdfColors.grey300),
+              children: [
+                pw.Padding(
+                  padding: const pw.EdgeInsets.all(5), 
+                  child: pw.Text(
+                    'ID', 
+                    style: pw.TextStyle(
+                      fontWeight: pw.FontWeight.bold,
+                      font: boldFont,
+                    ),
+                  ),
+                ),
+                pw.Padding(
+                  padding: const pw.EdgeInsets.all(5), 
+                  child: pw.Text(
+                    'Nombre', 
+                    style: pw.TextStyle(
+                      fontWeight: pw.FontWeight.bold,
+                      font: boldFont,
+                    ),
+                  ),
+                ),
+                pw.Padding(
+                  padding: const pw.EdgeInsets.all(5), 
+                  child: pw.Text(
+                    'Tipo', 
+                    style: pw.TextStyle(
+                      fontWeight: pw.FontWeight.bold,
+                      font: boldFont,
+                    ),
+                  ),
+                ),
+                pw.Padding(
+                  padding: const pw.EdgeInsets.all(5), 
+                  child: pw.Text(
+                    'Activo', 
+                    style: pw.TextStyle(
+                      fontWeight: pw.FontWeight.bold,
+                      font: boldFont,
+                    ),
+                  ),
+                ),
+                pw.Padding(
+                  padding: const pw.EdgeInsets.all(5), 
+                  child: pw.Text(
+                    'Almacén', 
+                    style: pw.TextStyle(
+                      fontWeight: pw.FontWeight.bold,
+                      font: boldFont,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            ...environments.map((env) => pw.TableRow(children: [
+              pw.Padding(
+                padding: const pw.EdgeInsets.all(5), 
+                child: pw.Text(
+                  '${env['id'] ?? 'N/A'}',
+                  style: pw.TextStyle(font: regularFont),
+                ),
+              ),
+              pw.Padding(
+                padding: const pw.EdgeInsets.all(5), 
+                child: pw.Text(
+                  env['name'] ?? 'N/A',
+                  style: pw.TextStyle(font: regularFont),
+                ),
+              ),
+              pw.Padding(
+                padding: const pw.EdgeInsets.all(5), 
+                child: pw.Text(
+                  env['is_warehouse'] == true ? 'Almacén' : 'Salón',
+                  style: pw.TextStyle(font: regularFont),
+                ),
+              ),
+              pw.Padding(
+                padding: const pw.EdgeInsets.all(5), 
+                child: pw.Text(
+                  env['is_active'] == true ? 'Sí' : 'No',
+                  style: pw.TextStyle(font: regularFont),
+                ),
+              ),
+              pw.Padding(
+                padding: const pw.EdgeInsets.all(5), 
+                child: pw.Text(
+                  env['is_warehouse'] == true ? 'Sí' : 'No',
+                  style: pw.TextStyle(font: regularFont),
+                ),
+              ),
+            ])),
+          ],
+        ),
+      ],
+    );
+  }
+
+  pw.Widget _buildStatisticsPDFContent(Map<String, dynamic> data, pw.Font? boldFont, pw.Font? regularFont) {
+    return pw.Column(
+      crossAxisAlignment: pw.CrossAxisAlignment.start,
+      children: [
+        pw.Text(
+          'Reporte Estadístico Completo', 
+          style: pw.TextStyle(
+            fontSize: 16, 
+            fontWeight: pw.FontWeight.bold,
+            font: boldFont,
+          ),
+        ),
         pw.SizedBox(height: 20),
         
         // Resumen de inventario
         if (data['inventory'] != null) ...[
-          pw.Text('Inventario', style: pw.TextStyle(fontSize: 14, fontWeight: pw.FontWeight.bold)),
+          pw.Text(
+            'Inventario', 
+            style: pw.TextStyle(
+              fontSize: 14, 
+              fontWeight: pw.FontWeight.bold,
+              font: boldFont,
+            ),
+          ),
           pw.SizedBox(height: 10),
-          _buildInventoryPDFContent(data['inventory'], true),
+          _buildInventoryPDFContent(data['inventory'], true, boldFont, regularFont),
           pw.SizedBox(height: 20),
         ],
         
         // Resumen de préstamos
         if (data['loans'] != null) ...[
-          pw.Text('Préstamos', style: pw.TextStyle(fontSize: 14, fontWeight: pw.FontWeight.bold)),
+          pw.Text(
+            'Préstamos', 
+            style: pw.TextStyle(
+              fontSize: 14, 
+              fontWeight: pw.FontWeight.bold,
+              font: boldFont,
+            ),
+          ),
           pw.SizedBox(height: 10),
-          _buildLoansPDFContent(data['loans'], true),
+          _buildLoansPDFContent(data['loans'], true, boldFont, regularFont),
           pw.SizedBox(height: 20),
         ],
         
         // Resumen de mantenimiento
         if (data['maintenance'] != null) ...[
-          pw.Text('Mantenimiento', style: pw.TextStyle(fontSize: 14, fontWeight: pw.FontWeight.bold)),
+          pw.Text(
+            'Mantenimiento', 
+            style: pw.TextStyle(
+              fontSize: 14, 
+              fontWeight: pw.FontWeight.bold,
+              font: boldFont,
+            ),
+          ),
           pw.SizedBox(height: 10),
-          _buildMaintenancePDFContent(data['maintenance'], true),
+          _buildMaintenancePDFContent(data['maintenance'], true, boldFont, regularFont),
         ],
         
         // Resumen de auditoría
         if (data['audit'] != null) ...[
-          pw.Text('Auditoría', style: pw.TextStyle(fontSize: 14, fontWeight: pw.FontWeight.bold)),
+          pw.Text(
+            'Auditoría', 
+            style: pw.TextStyle(
+              fontSize: 14, 
+              fontWeight: pw.FontWeight.bold,
+              font: boldFont,
+            ),
+          ),
           pw.SizedBox(height: 10),
-          _buildAuditPDFContent(data['audit'], true),
+          _buildAuditPDFContent(data['audit'], true, boldFont, regularFont),
         ],
       ],
     );
@@ -674,6 +2412,22 @@ class ReportService {
         break;
       case 'statistics':
         currentRow = _addStatisticsDataToExcel(sheet, data, currentRow);
+        break;
+      // Added Excel data methods for new report types
+      case 'inventory_checks':
+        currentRow = _addInventoryChecksDataToExcel(sheet, data, currentRow);
+        break;
+      case 'environment_status':
+        currentRow = _addEnvironmentStatusDataToExcel(sheet, data, currentRow);
+        break;
+      case 'alerts':
+        currentRow = _addAlertsDataToExcel(sheet, data, currentRow);
+        break;
+      case 'users':
+        currentRow = _addUsersDataToExcel(sheet, data, currentRow);
+        break;
+      case 'environments':
+        currentRow = _addEnvironmentsDataToExcel(sheet, data, currentRow);
         break;
     }
 
@@ -853,6 +2607,258 @@ class ReportService {
     return currentRow;
   }
 
+  // Added Excel data methods for new report types
+  int _addInventoryChecksDataToExcel(Sheet sheet, Map<String, dynamic> data, int startRow) {
+    final checks = data['checks'] ?? [];
+    final total = data['total'] ?? 0;
+    final completed = data['completed'] ?? 0;
+    final pending = data['pending'] ?? 0;
+    
+    int currentRow = startRow;
+
+    // Agregar resumen
+    sheet.cell(CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: currentRow)).value = TextCellValue('RESUMEN DE VERIFICACIONES');
+    currentRow += 2;
+
+    sheet.cell(CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: currentRow)).value = TextCellValue('Total de Verificaciones');
+    sheet.cell(CellIndex.indexByColumnRow(columnIndex: 1, rowIndex: currentRow)).value = IntCellValue(total);
+    currentRow++;
+
+    sheet.cell(CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: currentRow)).value = TextCellValue('Verificaciones Completadas');
+    sheet.cell(CellIndex.indexByColumnRow(columnIndex: 1, rowIndex: currentRow)).value = IntCellValue(completed);
+    currentRow++;
+
+    sheet.cell(CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: currentRow)).value = TextCellValue('Verificaciones Pendientes');
+    sheet.cell(CellIndex.indexByColumnRow(columnIndex: 1, rowIndex: currentRow)).value = IntCellValue(pending);
+    currentRow += 3;
+
+    // Agregar encabezados de detalle
+    sheet.cell(CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: currentRow)).value = TextCellValue('DETALLE DE VERIFICACIONES');
+    currentRow += 2;
+
+    List<String> headers = ['ID', 'Fecha', 'Estado', 'Items Totales', 'Items Buenos', 'Items Dañados', 'Items Faltantes'];
+    for (int i = 0; i < headers.length; i++) {
+      sheet.cell(CellIndex.indexByColumnRow(columnIndex: i, rowIndex: currentRow)).value = TextCellValue(headers[i]);
+    }
+    currentRow++;
+
+    // Agregar datos de verificaciones
+    for (var check in checks) {
+      sheet.cell(CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: currentRow)).value = TextCellValue('${check['id'] ?? 'N/A'}');
+      sheet.cell(CellIndex.indexByColumnRow(columnIndex: 1, rowIndex: currentRow)).value = TextCellValue(check['check_date']?.toString().split(' ')[0] ?? 'N/A');
+      sheet.cell(CellIndex.indexByColumnRow(columnIndex: 2, rowIndex: currentRow)).value = TextCellValue(check['status'] ?? 'N/A');
+      sheet.cell(CellIndex.indexByColumnRow(columnIndex: 3, rowIndex: currentRow)).value = IntCellValue(check['total_items'] ?? 0);
+      sheet.cell(CellIndex.indexByColumnRow(columnIndex: 4, rowIndex: currentRow)).value = IntCellValue(check['items_good'] ?? 0);
+      sheet.cell(CellIndex.indexByColumnRow(columnIndex: 5, rowIndex: currentRow)).value = IntCellValue(check['items_damaged'] ?? 0);
+      sheet.cell(CellIndex.indexByColumnRow(columnIndex: 6, rowIndex: currentRow)).value = IntCellValue(check['items_missing'] ?? 0);
+      currentRow++;
+    }
+
+    return currentRow;
+  }
+
+  int _addEnvironmentStatusDataToExcel(Sheet sheet, Map<String, dynamic> data, int startRow) {
+    final environments = data['environments'] ?? [];
+    final total = data['total'] ?? 0;
+    final active = data['active'] ?? 0;
+    final warehouses = data['warehouses'] ?? 0;
+    
+    int currentRow = startRow;
+
+    // Agregar resumen
+    sheet.cell(CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: currentRow)).value = TextCellValue('RESUMEN DE ESTADO DE AMBIENTES');
+    currentRow += 2;
+
+    sheet.cell(CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: currentRow)).value = TextCellValue('Total de Ambientes');
+    sheet.cell(CellIndex.indexByColumnRow(columnIndex: 1, rowIndex: currentRow)).value = IntCellValue(total);
+    currentRow++;
+
+    sheet.cell(CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: currentRow)).value = TextCellValue('Ambientes Activos');
+    sheet.cell(CellIndex.indexByColumnRow(columnIndex: 1, rowIndex: currentRow)).value = IntCellValue(active);
+    currentRow++;
+
+    sheet.cell(CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: currentRow)).value = TextCellValue('Almacenes');
+    sheet.cell(CellIndex.indexByColumnRow(columnIndex: 1, rowIndex: currentRow)).value = IntCellValue(warehouses);
+    currentRow += 3;
+
+    // Agregar encabezados de detalle
+    sheet.cell(CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: currentRow)).value = TextCellValue('DETALLE DE AMBIENTES');
+    currentRow += 2;
+
+    List<String> headers = ['ID', 'Nombre', 'Activo', 'Almacén'];
+    for (int i = 0; i < headers.length; i++) {
+      sheet.cell(CellIndex.indexByColumnRow(columnIndex: i, rowIndex: currentRow)).value = TextCellValue(headers[i]);
+    }
+    currentRow++;
+
+    // Agregar datos de ambientes
+    for (var env in environments) {
+      sheet.cell(CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: currentRow)).value = TextCellValue('${env['id'] ?? 'N/A'}');
+      sheet.cell(CellIndex.indexByColumnRow(columnIndex: 1, rowIndex: currentRow)).value = TextCellValue(env['name'] ?? 'N/A');
+      sheet.cell(CellIndex.indexByColumnRow(columnIndex: 2, rowIndex: currentRow)).value = TextCellValue(env['is_active'] == true ? 'Sí' : 'No');
+      sheet.cell(CellIndex.indexByColumnRow(columnIndex: 3, rowIndex: currentRow)).value = TextCellValue(env['is_warehouse'] == true ? 'Sí' : 'No');
+      currentRow++;
+    }
+
+    return currentRow;
+  }
+
+  int _addAlertsDataToExcel(Sheet sheet, Map<String, dynamic> data, int startRow) {
+    final alerts = data['alerts'] ?? [];
+    final total = data['total'] ?? 0;
+    final active = data['active'] ?? 0;
+    final critical = data['critical'] ?? 0;
+    
+    int currentRow = startRow;
+
+    // Agregar resumen
+    sheet.cell(CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: currentRow)).value = TextCellValue('RESUMEN DE ALERTAS');
+    currentRow += 2;
+
+    sheet.cell(CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: currentRow)).value = TextCellValue('Total de Alertas');
+    sheet.cell(CellIndex.indexByColumnRow(columnIndex: 1, rowIndex: currentRow)).value = IntCellValue(total);
+    currentRow++;
+
+    sheet.cell(CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: currentRow)).value = TextCellValue('Alertas Activas');
+    sheet.cell(CellIndex.indexByColumnRow(columnIndex: 1, rowIndex: currentRow)).value = IntCellValue(active);
+    currentRow++;
+
+    sheet.cell(CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: currentRow)).value = TextCellValue('Alertas Críticas');
+    sheet.cell(CellIndex.indexByColumnRow(columnIndex: 1, rowIndex: currentRow)).value = IntCellValue(critical);
+    currentRow += 3;
+
+    // Agregar encabezados de detalle
+    sheet.cell(CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: currentRow)).value = TextCellValue('DETALLE DE ALERTAS');
+    currentRow += 2;
+
+    List<String> headers = ['ID', 'Mensaje', 'Prioridad', 'Estado', 'Fecha'];
+    for (int i = 0; i < headers.length; i++) {
+      sheet.cell(CellIndex.indexByColumnRow(columnIndex: i, rowIndex: currentRow)).value = TextCellValue(headers[i]);
+    }
+    currentRow++;
+
+    // Agregar datos de alertas
+    for (var alert in alerts) {
+      sheet.cell(CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: currentRow)).value = TextCellValue('${alert['id'] ?? 'N/A'}');
+      sheet.cell(CellIndex.indexByColumnRow(columnIndex: 1, rowIndex: currentRow)).value = TextCellValue(alert['message'] ?? 'N/A');
+      sheet.cell(CellIndex.indexByColumnRow(columnIndex: 2, rowIndex: currentRow)).value = TextCellValue(alert['priority'] ?? 'N/A');
+      sheet.cell(CellIndex.indexByColumnRow(columnIndex: 3, rowIndex: currentRow)).value = TextCellValue(alert['is_active'] == true ? 'Activa' : 'Inactiva');
+      sheet.cell(CellIndex.indexByColumnRow(columnIndex: 4, rowIndex: currentRow)).value = TextCellValue(alert['created_at']?.toString().split(' ')[0] ?? 'N/A');
+      currentRow++;
+    }
+
+    return currentRow;
+  }
+
+  int _addUsersDataToExcel(Sheet sheet, Map<String, dynamic> data, int startRow) {
+    final users = data['users'] ?? [];
+    final total = data['total'] ?? 0;
+    final active = data['active'] ?? 0;
+    final students = data['students'] ?? 0;
+    final instructors = data['instructors'] ?? 0;
+    final admins = data['admins'] ?? 0;
+    
+    int currentRow = startRow;
+
+    // Agregar resumen
+    sheet.cell(CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: currentRow)).value = TextCellValue('RESUMEN DE USUARIOS');
+    currentRow += 2;
+
+    sheet.cell(CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: currentRow)).value = TextCellValue('Total de Usuarios');
+    sheet.cell(CellIndex.indexByColumnRow(columnIndex: 1, rowIndex: currentRow)).value = IntCellValue(total);
+    currentRow++;
+
+    sheet.cell(CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: currentRow)).value = TextCellValue('Usuarios Activos');
+    sheet.cell(CellIndex.indexByColumnRow(columnIndex: 1, rowIndex: currentRow)).value = IntCellValue(active);
+    currentRow++;
+
+    sheet.cell(CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: currentRow)).value = TextCellValue('Estudiantes');
+    sheet.cell(CellIndex.indexByColumnRow(columnIndex: 1, rowIndex: currentRow)).value = IntCellValue(students);
+    currentRow++;
+
+    sheet.cell(CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: currentRow)).value = TextCellValue('Instructores');
+    sheet.cell(CellIndex.indexByColumnRow(columnIndex: 1, rowIndex: currentRow)).value = IntCellValue(instructors);
+    currentRow++;
+
+    sheet.cell(CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: currentRow)).value = TextCellValue('Administradores');
+    sheet.cell(CellIndex.indexByColumnRow(columnIndex: 1, rowIndex: currentRow)).value = IntCellValue(admins);
+    currentRow += 3;
+
+    // Agregar encabezados de detalle
+    sheet.cell(CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: currentRow)).value = TextCellValue('DETALLE DE USUARIOS');
+    currentRow += 2;
+
+    List<String> headers = ['ID', 'Nombre', 'Rol', 'Estado', 'Fecha Registro'];
+    for (int i = 0; i < headers.length; i++) {
+      sheet.cell(CellIndex.indexByColumnRow(columnIndex: i, rowIndex: currentRow)).value = TextCellValue(headers[i]);
+    }
+    currentRow++;
+
+    // Agregar datos de usuarios
+    for (var user in users) {
+      sheet.cell(CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: currentRow)).value = TextCellValue('${user['id'] ?? 'N/A'}');
+      sheet.cell(CellIndex.indexByColumnRow(columnIndex: 1, rowIndex: currentRow)).value = TextCellValue(user['name'] ?? 'N/A');
+      sheet.cell(CellIndex.indexByColumnRow(columnIndex: 2, rowIndex: currentRow)).value = TextCellValue(user['role'] ?? 'N/A');
+      sheet.cell(CellIndex.indexByColumnRow(columnIndex: 3, rowIndex: currentRow)).value = TextCellValue(user['is_active'] == true ? 'Activo' : 'Inactivo');
+      sheet.cell(CellIndex.indexByColumnRow(columnIndex: 4, rowIndex: currentRow)).value = TextCellValue(user['created_at']?.toString().split(' ')[0] ?? 'N/A');
+      currentRow++;
+    }
+
+    return currentRow;
+  }
+
+  int _addEnvironmentsDataToExcel(Sheet sheet, Map<String, dynamic> data, int startRow) {
+    final environments = data['environments'] ?? [];
+    final total = data['total'] ?? 0;
+    final active = data['active'] ?? 0;
+    final warehouses = data['warehouses'] ?? 0;
+    final classrooms = data['classrooms'] ?? 0;
+    
+    int currentRow = startRow;
+
+    // Agregar resumen
+    sheet.cell(CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: currentRow)).value = TextCellValue('RESUMEN DE AMBIENTES');
+    currentRow += 2;
+
+    sheet.cell(CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: currentRow)).value = TextCellValue('Total de Ambientes');
+    sheet.cell(CellIndex.indexByColumnRow(columnIndex: 1, rowIndex: currentRow)).value = IntCellValue(total);
+    currentRow++;
+
+    sheet.cell(CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: currentRow)).value = TextCellValue('Ambientes Activos');
+    sheet.cell(CellIndex.indexByColumnRow(columnIndex: 1, rowIndex: currentRow)).value = IntCellValue(active);
+    currentRow++;
+
+    sheet.cell(CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: currentRow)).value = TextCellValue('Almacenes');
+    sheet.cell(CellIndex.indexByColumnRow(columnIndex: 1, rowIndex: currentRow)).value = IntCellValue(warehouses);
+    currentRow++;
+
+    sheet.cell(CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: currentRow)).value = TextCellValue('Salones');
+    sheet.cell(CellIndex.indexByColumnRow(columnIndex: 1, rowIndex: currentRow)).value = IntCellValue(classrooms);
+    currentRow += 3;
+
+    // Agregar encabezados de detalle
+    sheet.cell(CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: currentRow)).value = TextCellValue('DETALLE DE AMBIENTES');
+    currentRow += 2;
+
+    List<String> headers = ['ID', 'Nombre', 'Tipo', 'Activo', 'Almacén'];
+    for (int i = 0; i < headers.length; i++) {
+      sheet.cell(CellIndex.indexByColumnRow(columnIndex: i, rowIndex: currentRow)).value = TextCellValue(headers[i]);
+    }
+    currentRow++;
+
+    // Agregar datos de ambientes
+    for (var env in environments) {
+      sheet.cell(CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: currentRow)).value = TextCellValue('${env['id'] ?? 'N/A'}');
+      sheet.cell(CellIndex.indexByColumnRow(columnIndex: 1, rowIndex: currentRow)).value = TextCellValue(env['name'] ?? 'N/A');
+      sheet.cell(CellIndex.indexByColumnRow(columnIndex: 2, rowIndex: currentRow)).value = TextCellValue(env['is_warehouse'] == true ? 'Almacén' : 'Salón');
+      sheet.cell(CellIndex.indexByColumnRow(columnIndex: 3, rowIndex: currentRow)).value = TextCellValue(env['is_active'] == true ? 'Sí' : 'No');
+      sheet.cell(CellIndex.indexByColumnRow(columnIndex: 4, rowIndex: currentRow)).value = TextCellValue(env['is_warehouse'] == true ? 'Sí' : 'No');
+      currentRow++;
+    }
+
+    return currentRow;
+  }
+
   int _addStatisticsDataToExcel(Sheet sheet, Map<String, dynamic> data, int startRow) {
     int currentRow = startRow;
 
@@ -1010,6 +3016,16 @@ class ReportService {
         return 'Reporte_Auditoria';
       case 'statistics':
         return 'Reporte_Estadistico';
+      case 'inventory_checks':
+        return 'Reporte_Verificaciones';
+      case 'environment_status':
+        return 'Reporte_Estado_Ambientes';
+      case 'alerts':
+        return 'Reporte_Alertas';
+      case 'users':
+        return 'Reporte_Usuarios';
+      case 'environments':
+        return 'Reporte_Ambientes';
       default:
         return 'Reporte';
     }
@@ -1104,6 +3120,7 @@ class ReportService {
 
       final response = await _apiService.post('${reportsEndpoint}generate', requestBody);
       
+      // ignore: unnecessary_null_comparison
       if (response != null && response['id'] != null) {
         return response['id'].toString();
       } else {
