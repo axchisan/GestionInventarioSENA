@@ -76,8 +76,12 @@ class AuditMiddleware(BaseHTTPMiddleware):
         print(f"[AUDIT CHECK] Path: {path}, Method: {method}")
         
         # Excluir endpoints específicos
+        if path == "/":  # Exact match for root
+            print(f"[AUDIT CHECK] Excluded root path")
+            return False
+            
         for exclude_path in self.EXCLUDE_ENDPOINTS:
-            if path.startswith(exclude_path):
+            if exclude_path != "/" and path.startswith(exclude_path):
                 print(f"[AUDIT CHECK] Excluded by path: {exclude_path}")
                 return False
         
