@@ -58,8 +58,8 @@ class _AuditLogScreenState extends State<AuditLogScreen> {
         _auditService.getAuditLogs(page: 1, perPage: _perPage),
       ]);
 
-      final statsData = results[0] as Map<String, dynamic>;
-      final logsData = results[1] as Map<String, dynamic>;
+      final statsData = results[0];
+      final logsData = results[1];
 
       setState(() {
         _stats = AuditStats.fromJson(statsData);
@@ -258,7 +258,7 @@ class _AuditLogScreenState extends State<AuditLogScreen> {
                       child: ClipRRect(
                         borderRadius: BorderRadius.circular(8),
                         child: Image.asset(
-                          'assets/images/sena-logo.png',
+                          'assets/images/sena_logo.png',
                           fit: BoxFit.contain,
                         ),
                       ),
