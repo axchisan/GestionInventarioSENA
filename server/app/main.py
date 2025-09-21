@@ -6,8 +6,6 @@ from .config import settings
 
 app = FastAPI(title="Sistema de Gestión de Inventarios SENA")
 
-app.add_middleware(AuditMiddleware)
-
 # Configuración de CORS
 app.add_middleware(
     CORSMiddleware,
@@ -16,6 +14,8 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+app.add_middleware(AuditMiddleware)
 
 # Incluir routers
 app.include_router(auth.router, prefix="/api/auth", tags=["auth"])
