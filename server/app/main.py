@@ -1,9 +1,12 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from .routers import auth, environments, inventory, qr, schedules, users, inventory_checks, supervisor_reviews, inventory_check_items, system_alerts, notifications, maintenance_requests, maintenance_history, stats, loans, alert_settings, reports
+from .routers import auth, environments, inventory, qr, schedules, users, inventory_checks, supervisor_reviews, inventory_check_items, system_alerts, notifications, maintenance_requests, maintenance_history, stats, loans, alert_settings, reports, audit_logs
+from .middleware.audit_middleware import AuditMiddleware
 from .config import settings
 
 app = FastAPI(title="Sistema de Gestión de Inventarios SENA")
+
+app.add_middleware(AuditMiddleware)
 
 # Configuración de CORS
 app.add_middleware(
@@ -32,6 +35,7 @@ app.include_router(stats.router, prefix="/api/stats", tags=["stats"])
 app.include_router(loans.router, prefix="/api/loans", tags=["loans"])
 app.include_router(alert_settings.router, prefix="/api/alert-settings", tags=["alert-settings"])
 app.include_router(reports.router, prefix="/api/reports", tags=["reports"])
+app.include_router(audit_logs.router, prefix="/api/audit-logs", tags=["audit-logs"])
 
 @app.get("/")
 async def root():

@@ -1,6 +1,7 @@
 from sqlalchemy import Column, String, Text, TIMESTAMP, ForeignKey
 from sqlalchemy.dialects.postgresql import UUID, INET, JSONB
 from sqlalchemy.sql import func
+from sqlalchemy.orm import relationship
 import uuid
 
 from ..database import Base
@@ -19,3 +20,5 @@ class AuditLog(Base):
     user_agent = Column(Text)
     session_id = Column(String(100))
     created_at = Column(TIMESTAMP, server_default=func.current_timestamp())
+
+    user = relationship("User", back_populates="audit_logs")

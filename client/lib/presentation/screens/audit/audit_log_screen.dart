@@ -2,6 +2,9 @@ import 'package:flutter/material.dart';
 import '../../widgets/common/sena_app_bar.dart';
 import '../../widgets/common/sena_card.dart';
 import '../../widgets/common/status_badge.dart';
+import '../../providers/auth_provider.dart';
+import '../../../core/services/audit_service.dart';
+import 'package:provider/provider.dart';
 
 class AuditLogScreen extends StatefulWidget {
   const AuditLogScreen({Key? key}) : super(key: key);
@@ -11,124 +14,142 @@ class AuditLogScreen extends StatefulWidget {
 }
 
 class _AuditLogScreenState extends State<AuditLogScreen> {
+  late AuditService _auditService;
   String selectedFilter = 'Todas';
   String selectedUser = 'Todos';
   DateTime? selectedDate;
   
+  bool _isLoading = true;
+  bool _isLoadingMore = false;
+  String? _error;
+  List<AuditLog> _auditLogs = [];
+  AuditStats? _stats;
+  int _currentPage = 1;
+  int _totalPages = 1;
+  final int _perPage = 20;
+  
   final List<String> actionFilters = [
-    'Todas', 'Préstamo', 'Devolución', 'Mantenimiento', 
-    'Creación', 'Modificación', 'Eliminación', 'Login'
+    'Todas', 'LOGIN', 'LOGOUT', 'INVENTORY_CREATE', 'INVENTORY_UPDATE', 
+    'INVENTORY_DELETE', 'LOAN_CREATE', 'LOAN_UPDATE', 'MAINTENANCE_CREATE'
   ];
   
-  final List<String> users = [
-    'Todos', 'Ana García', 'Carlos Rodríguez', 'Luis Martínez', 
-    'María López', 'Pedro Sánchez', 'Sistema'
-  ];
+  final List<String> users = ['Todos']; // Will be populated from API
 
-  final List<Map<String, dynamic>> auditLogs = [
-    {
-      'id': 'AUD001',
-      'timestamp': '2024-01-15 14:30:25',
-      'user': 'Ana García',
-      'action': 'Préstamo',
-      'description': 'Préstamo de Computador Dell OptiPlex (PC001) a Juan Pérez',
-      'ipAddress': '192.168.1.100',
-      'userAgent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)',
-      'severity': 'info',
-      'module': 'Préstamos',
-      'affectedResource': 'PC001',
-    },
-    {
-      'id': 'AUD002',
-      'timestamp': '2024-01-15 14:25:10',
-      'user': 'Carlos Rodríguez',
-      'action': 'Modificación',
-      'description': 'Actualización de estado de Proyector Epson (PRJ001) a "Mantenimiento"',
-      'ipAddress': '192.168.1.101',
-      'userAgent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)',
-      'severity': 'warning',
-      'module': 'Inventario',
-      'affectedResource': 'PRJ001',
-    },
-    {
-      'id': 'AUD003',
-      'timestamp': '2024-01-15 13:45:33',
-      'user': 'Luis Martínez',
-      'action': 'Devolución',
-      'description': 'Devolución de Tablet Samsung (TAB001) por María López',
-      'ipAddress': '192.168.1.102',
-      'userAgent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)',
-      'severity': 'info',
-      'module': 'Préstamos',
-      'affectedResource': 'TAB001',
-    },
-    {
-      'id': 'AUD004',
-      'timestamp': '2024-01-15 12:20:15',
-      'user': 'Sistema',
-      'action': 'Eliminación',
-      'description': 'Eliminación automática de registros de auditoría antiguos (>90 días)',
-      'ipAddress': 'localhost',
-      'userAgent': 'Sistema Automatizado',
-      'severity': 'warning',
-      'module': 'Sistema',
-      'affectedResource': 'audit_logs',
-    },
-    {
-      'id': 'AUD005',
-      'timestamp': '2024-01-15 11:15:42',
-      'user': 'María López',
-      'action': 'Login',
-      'description': 'Inicio de sesión exitoso en el sistema',
-      'ipAddress': '192.168.1.103',
-      'userAgent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)',
-      'severity': 'info',
-      'module': 'Autenticación',
-      'affectedResource': 'user_session',
-    },
-    {
-      'id': 'AUD006',
-      'timestamp': '2024-01-15 10:30:18',
-      'user': 'Pedro Sánchez',
-      'action': 'Creación',
-      'description': 'Creación de nuevo equipo: Monitor LG 27" (MON002)',
-      'ipAddress': '192.168.1.104',
-      'userAgent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)',
-      'severity': 'info',
-      'module': 'Inventario',
-      'affectedResource': 'MON002',
-    },
-    {
-      'id': 'AUD007',
-      'timestamp': '2024-01-15 09:45:55',
-      'user': 'Ana García',
-      'action': 'Mantenimiento',
-      'description': 'Registro de mantenimiento preventivo para Computador HP (PC002)',
-      'ipAddress': '192.168.1.100',
-      'userAgent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)',
-      'severity': 'info',
-      'module': 'Mantenimiento',
-      'affectedResource': 'PC002',
-    },
-  ];
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final authProvider = Provider.of<AuthProvider>(context, listen: false);
+      _auditService = AuditService(authProvider: authProvider);
+      _loadInitialData();
+    });
+  }
 
-  List<Map<String, dynamic>> get filteredLogs {
-    List<Map<String, dynamic>> filtered = auditLogs;
-    
-    if (selectedFilter != 'Todas') {
-      filtered = filtered.where((log) => log['action'] == selectedFilter).toList();
+  Future<void> _loadInitialData() async {
+    try {
+      setState(() {
+        _isLoading = true;
+        _error = null;
+      });
+
+      // Load stats and initial logs concurrently
+      final results = await Future.wait([
+        _auditService.getAuditStats(days: 30),
+        _auditService.getAuditLogs(page: 1, perPage: _perPage),
+      ]);
+
+      final statsData = results[0] as Map<String, dynamic>;
+      final logsData = results[1] as Map<String, dynamic>;
+
+      setState(() {
+        _stats = AuditStats.fromJson(statsData);
+        _auditLogs = (logsData['logs'] as List<dynamic>)
+            .map((log) => AuditLog.fromJson(log))
+            .toList();
+        _currentPage = logsData['page'] ?? 1;
+        _totalPages = logsData['total_pages'] ?? 1;
+        _isLoading = false;
+      });
+    } catch (e) {
+      setState(() {
+        _error = 'Error cargando datos de auditoría: ${e.toString()}';
+        _isLoading = false;
+      });
     }
-    
-    if (selectedUser != 'Todos') {
-      filtered = filtered.where((log) => log['user'] == selectedUser).toList();
+  }
+
+  Future<void> _applyFilters() async {
+    try {
+      setState(() {
+        _isLoading = true;
+        _error = null;
+      });
+
+      String? actionFilter = selectedFilter != 'Todas' ? selectedFilter : null;
+      String? startDate = selectedDate?.toIso8601String().split('T')[0];
+      String? endDate = selectedDate?.toIso8601String().split('T')[0];
+
+      final logsData = await _auditService.getAuditLogs(
+        page: 1,
+        perPage: _perPage,
+        actionFilter: actionFilter,
+        startDate: startDate,
+        endDate: endDate,
+      );
+
+      setState(() {
+        _auditLogs = (logsData['logs'] as List<dynamic>)
+            .map((log) => AuditLog.fromJson(log))
+            .toList();
+        _currentPage = logsData['page'] ?? 1;
+        _totalPages = logsData['total_pages'] ?? 1;
+        _isLoading = false;
+      });
+    } catch (e) {
+      setState(() {
+        _error = 'Error aplicando filtros: ${e.toString()}';
+        _isLoading = false;
+      });
     }
-    
-    if (selectedDate != null) {
-      final dateStr = '${selectedDate!.year}-${selectedDate!.month.toString().padLeft(2, '0')}-${selectedDate!.day.toString().padLeft(2, '0')}';
-      filtered = filtered.where((log) => log['timestamp'].startsWith(dateStr)).toList();
+  }
+
+  Future<void> _loadMoreData() async {
+    if (_isLoadingMore || _currentPage >= _totalPages) return;
+
+    try {
+      setState(() {
+        _isLoadingMore = true;
+      });
+
+      String? actionFilter = selectedFilter != 'Todas' ? selectedFilter : null;
+      String? startDate = selectedDate?.toIso8601String().split('T')[0];
+      String? endDate = selectedDate?.toIso8601String().split('T')[0];
+
+      final logsData = await _auditService.getAuditLogs(
+        page: _currentPage + 1,
+        perPage: _perPage,
+        actionFilter: actionFilter,
+        startDate: startDate,
+        endDate: endDate,
+      );
+
+      final newLogs = (logsData['logs'] as List<dynamic>)
+          .map((log) => AuditLog.fromJson(log))
+          .toList();
+
+      setState(() {
+        _auditLogs.addAll(newLogs);
+        _currentPage = logsData['page'] ?? _currentPage;
+        _isLoadingMore = false;
+      });
+    } catch (e) {
+      setState(() {
+        _isLoadingMore = false;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error cargando más datos: ${e.toString()}')),
+      );
     }
-    
-    return filtered;
   }
 
   Color getSeverityColor(String severity) {
@@ -148,20 +169,28 @@ class _AuditLogScreenState extends State<AuditLogScreen> {
 
   IconData getActionIcon(String action) {
     switch (action.toLowerCase()) {
+      case 'loan_create':
       case 'préstamo':
         return Icons.assignment_turned_in_outlined;
+      case 'loan_update':
       case 'devolución':
         return Icons.assignment_return_outlined;
+      case 'maintenance_create':
       case 'mantenimiento':
         return Icons.build_outlined;
+      case 'inventory_create':
       case 'creación':
         return Icons.add_circle_outline;
+      case 'inventory_update':
       case 'modificación':
         return Icons.edit_outlined;
+      case 'inventory_delete':
       case 'eliminación':
         return Icons.delete_outline;
       case 'login':
         return Icons.login_outlined;
+      case 'logout':
+        return Icons.logout_outlined;
       default:
         return Icons.info_outlined;
     }
@@ -180,6 +209,16 @@ class _AuditLogScreenState extends State<AuditLogScreen> {
       default:
         return StatusType.info;
     }
+  }
+
+  String _getSeverityFromAction(String action) {
+    final auditService = AuditService(authProvider: Provider.of<AuthProvider>(context, listen: false));
+    return auditService.getActionSeverity(action);
+  }
+
+  String _formatActionForDisplay(String action) {
+    final auditService = AuditService(authProvider: Provider.of<AuthProvider>(context, listen: false));
+    return auditService.formatActionForDisplay(action);
   }
 
   @override
@@ -240,11 +279,11 @@ class _AuditLogScreenState extends State<AuditLogScreen> {
                 const SizedBox(height: 16),
                 Row(
                   children: [
-                    Expanded(child: _buildStatChip('Total', auditLogs.length.toString(), Colors.blue)),
+                    Expanded(child: _buildStatChip('Total', _stats?.totalLogs.toString() ?? '0', Colors.blue)),
                     const SizedBox(width: 8),
-                    Expanded(child: _buildStatChip('Hoy', '${auditLogs.where((log) => log['timestamp'].startsWith('2024-01-15')).length}', Colors.green)),
+                    Expanded(child: _buildStatChip('Hoy', _stats?.todayLogs.toString() ?? '0', Colors.green)),
                     const SizedBox(width: 8),
-                    Expanded(child: _buildStatChip('Alertas', '${auditLogs.where((log) => log['severity'] == 'warning').length}', Colors.orange)),
+                    Expanded(child: _buildStatChip('Alertas', _stats?.warningLogs.toString() ?? '0', Colors.orange)),
                   ],
                 ),
               ],
@@ -270,13 +309,14 @@ class _AuditLogScreenState extends State<AuditLogScreen> {
                         items: actionFilters.map((filter) {
                           return DropdownMenuItem(
                             value: filter,
-                            child: Text(filter),
+                            child: Text(_formatActionForDisplay(filter)),
                           );
                         }).toList(),
                         onChanged: (value) {
                           setState(() {
                             selectedFilter = value!;
                           });
+                          _applyFilters();
                         },
                       ),
                     ),
@@ -299,6 +339,7 @@ class _AuditLogScreenState extends State<AuditLogScreen> {
                           setState(() {
                             selectedUser = value!;
                           });
+                          _applyFilters();
                         },
                       ),
                     ),
@@ -322,6 +363,7 @@ class _AuditLogScreenState extends State<AuditLogScreen> {
                             setState(() {
                               selectedDate = date;
                             });
+                            _applyFilters();
                           }
                         },
                         child: Container(
@@ -354,6 +396,7 @@ class _AuditLogScreenState extends State<AuditLogScreen> {
                           setState(() {
                             selectedDate = null;
                           });
+                          _applyFilters();
                         },
                         icon: const Icon(Icons.clear),
                       ),
@@ -364,161 +407,218 @@ class _AuditLogScreenState extends State<AuditLogScreen> {
             ),
           ),
 
+          if (_error != null)
+            Container(
+              margin: const EdgeInsets.all(16),
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Colors.red.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.red.withOpacity(0.3)),
+              ),
+              child: Row(
+                children: [
+                  Icon(Icons.error_outline, color: Colors.red),
+                  const SizedBox(width: 8),
+                  Expanded(child: Text(_error!, style: TextStyle(color: Colors.red))),
+                  TextButton(
+                    onPressed: _loadInitialData,
+                    child: Text('Reintentar'),
+                  ),
+                ],
+              ),
+            ),
+
           // Lista de logs
           Expanded(
-            child: ListView.builder(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              itemCount: filteredLogs.length,
-              itemBuilder: (context, index) {
-                final log = filteredLogs[index];
-                return Padding(
-                  padding: const EdgeInsets.only(bottom: 12),
-                  child: SenaCard(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          children: [
-                            Container(
-                              width: 40,
-                              height: 40,
-                              decoration: BoxDecoration(
-                                color: getSeverityColor(log['severity']).withOpacity(0.1),
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                              child: Icon(
-                                getActionIcon(log['action']),
-                                color: getSeverityColor(log['severity']),
-                                size: 20,
-                              ),
+            child: _isLoading
+                ? const Center(child: CircularProgressIndicator())
+                : NotificationListener<ScrollNotification>(
+                    onNotification: (ScrollNotification scrollInfo) {
+                      if (!_isLoadingMore &&
+                          scrollInfo.metrics.pixels == scrollInfo.metrics.maxScrollExtent &&
+                          _currentPage < _totalPages) {
+                        _loadMoreData();
+                      }
+                      return false;
+                    },
+                    child: ListView.builder(
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      itemCount: _auditLogs.length + (_isLoadingMore ? 1 : 0),
+                      itemBuilder: (context, index) {
+                        if (index == _auditLogs.length) {
+                          return const Center(
+                            child: Padding(
+                              padding: EdgeInsets.all(16),
+                              child: CircularProgressIndicator(),
                             ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Row(
-                                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                    children: [
-                                      Text(
-                                        log['action'],
-                                        style: const TextStyle(
-                                          fontWeight: FontWeight.bold,
-                                          fontSize: 16,
-                                        ),
+                          );
+                        }
+
+                        final log = _auditLogs[index];
+                        final severity = _getSeverityFromAction(log.action);
+                        
+                        return Padding(
+                          padding: const EdgeInsets.only(bottom: 12),
+                          child: SenaCard(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Row(
+                                  children: [
+                                    Container(
+                                      width: 40,
+                                      height: 40,
+                                      decoration: BoxDecoration(
+                                        color: getSeverityColor(severity).withOpacity(0.1),
+                                        borderRadius: BorderRadius.circular(8),
                                       ),
-                                      StatusBadge(
-                                        text: log['severity'].toUpperCase(),
-                                        type: _getSeverityType(log['severity']),
+                                      child: Icon(
+                                        getActionIcon(log.action),
+                                        color: getSeverityColor(severity),
+                                        size: 20,
                                       ),
-                                    ],
-                                  ),
-                                  Text(
-                                    log['timestamp'],
-                                    style: TextStyle(
-                                      color: Colors.grey[600],
-                                      fontSize: 12,
                                     ),
+                                    const SizedBox(width: 12),
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: [
+                                          Row(
+                                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                            children: [
+                                              Expanded(
+                                                child: Text(
+                                                  _formatActionForDisplay(log.action),
+                                                  style: const TextStyle(
+                                                    fontWeight: FontWeight.bold,
+                                                    fontSize: 16,
+                                                  ),
+                                                ),
+                                              ),
+                                              StatusBadge(
+                                                text: severity.toUpperCase(),
+                                                type: _getSeverityType(severity),
+                                              ),
+                                            ],
+                                          ),
+                                          Text(
+                                            '${log.createdAt.day}/${log.createdAt.month}/${log.createdAt.year} ${log.createdAt.hour}:${log.createdAt.minute.toString().padLeft(2, '0')}',
+                                            style: TextStyle(
+                                              color: Colors.grey[600],
+                                              fontSize: 12,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 12),
+                                
+                                Text(
+                                  log.newValues?['description'] ?? 
+                                  '${_formatActionForDisplay(log.action)} en ${log.entityType}${log.entityId != null ? ' (${log.entityId})' : ''}',
+                                  style: const TextStyle(
+                                    fontSize: 14,
+                                    height: 1.4,
                                   ),
-                                ],
-                              ),
+                                ),
+                                
+                                const SizedBox(height: 12),
+                                const Divider(height: 1),
+                                const SizedBox(height: 12),
+                                
+                                Row(
+                                  children: [
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: [
+                                          Row(
+                                            children: [
+                                              Icon(Icons.person_outline, size: 16, color: Colors.grey[600]),
+                                              const SizedBox(width: 4),
+                                              Expanded(
+                                                child: Text(
+                                                  log.userName ?? log.userEmail ?? 'Usuario desconocido',
+                                                  style: TextStyle(
+                                                    color: Colors.grey[700],
+                                                    fontSize: 12,
+                                                    fontWeight: FontWeight.w500,
+                                                  ),
+                                                  overflow: TextOverflow.ellipsis,
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                          const SizedBox(height: 4),
+                                          Row(
+                                            children: [
+                                              Icon(Icons.computer_outlined, size: 16, color: Colors.grey[600]),
+                                              const SizedBox(width: 4),
+                                              Text(
+                                                log.ipAddress ?? 'IP desconocida',
+                                                style: TextStyle(
+                                                  color: Colors.grey[600],
+                                                  fontSize: 12,
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: [
+                                          Row(
+                                            children: [
+                                              Icon(Icons.folder_outlined, size: 16, color: Colors.grey[600]),
+                                              const SizedBox(width: 4),
+                                              Expanded(
+                                                child: Text(
+                                                  log.entityType,
+                                                  style: TextStyle(
+                                                    color: Colors.grey[700],
+                                                    fontSize: 12,
+                                                    fontWeight: FontWeight.w500,
+                                                  ),
+                                                  overflow: TextOverflow.ellipsis,
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                          const SizedBox(height: 4),
+                                          Row(
+                                            children: [
+                                              Icon(Icons.storage_outlined, size: 16, color: Colors.grey[600]),
+                                              const SizedBox(width: 4),
+                                              Expanded(
+                                                child: Text(
+                                                  log.entityId ?? 'N/A',
+                                                  style: TextStyle(
+                                                    color: Colors.grey[600],
+                                                    fontSize: 12,
+                                                  ),
+                                                  overflow: TextOverflow.ellipsis,
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ],
                             ),
-                          ],
-                        ),
-                        const SizedBox(height: 12),
-                        
-                        Text(
-                          log['description'],
-                          style: const TextStyle(
-                            fontSize: 14,
-                            height: 1.4,
                           ),
-                        ),
-                        
-                        const SizedBox(height: 12),
-                        const Divider(height: 1),
-                        const SizedBox(height: 12),
-                        
-                        Row(
-                          children: [
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Row(
-                                    children: [
-                                      Icon(Icons.person_outline, size: 16, color: Colors.grey[600]),
-                                      const SizedBox(width: 4),
-                                      Text(
-                                        log['user'],
-                                        style: TextStyle(
-                                          color: Colors.grey[700],
-                                          fontSize: 12,
-                                          fontWeight: FontWeight.w500,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                  const SizedBox(height: 4),
-                                  Row(
-                                    children: [
-                                      Icon(Icons.computer_outlined, size: 16, color: Colors.grey[600]),
-                                      const SizedBox(width: 4),
-                                      Text(
-                                        log['ipAddress'],
-                                        style: TextStyle(
-                                          color: Colors.grey[600],
-                                          fontSize: 12,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ],
-                              ),
-                            ),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Row(
-                                    children: [
-                                      Icon(Icons.folder_outlined, size: 16, color: Colors.grey[600]),
-                                      const SizedBox(width: 4),
-                                      Text(
-                                        log['module'],
-                                        style: TextStyle(
-                                          color: Colors.grey[700],
-                                          fontSize: 12,
-                                          fontWeight: FontWeight.w500,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                  const SizedBox(height: 4),
-                                  Row(
-                                    children: [
-                                      Icon(Icons.storage_outlined, size: 16, color: Colors.grey[600]),
-                                      const SizedBox(width: 4),
-                                      Text(
-                                        log['affectedResource'],
-                                        style: TextStyle(
-                                          color: Colors.grey[600],
-                                          fontSize: 12,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ],
-                        ),
-                      ],
+                        );
+                      },
                     ),
                   ),
-                );
-              },
-            ),
           ),
         ],
       ),
@@ -553,5 +653,11 @@ class _AuditLogScreenState extends State<AuditLogScreen> {
         ],
       ),
     );
+  }
+
+  @override
+  void dispose() {
+    _auditService.dispose();
+    super.dispose();
   }
 }

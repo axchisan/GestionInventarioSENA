@@ -27,6 +27,7 @@ class User(Base):
 
     inventory_checks_student = relationship("InventoryCheck", foreign_keys="InventoryCheck.student_id", back_populates="student")
     inventory_checks_instructor = relationship("InventoryCheck", foreign_keys="InventoryCheck.instructor_id", back_populates="instructor")
+    audit_logs = relationship("AuditLog", back_populates="user")
 
     __table_args__ = (
         CheckConstraint("role IN ('student', 'instructor', 'supervisor', 'admin', 'admin_general')", name="check_role"),

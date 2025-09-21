@@ -1,8 +1,8 @@
-"""modificaciones para el soporte de prestamos del instructor
+"""modificaciones para el soporte de auditorias
 
-Revision ID: d1478abee08d
+Revision ID: 83f489bcecf3
 Revises: 
-Create Date: 2025-09-15 08:05:20.282251
+Create Date: 2025-09-21 11:08:41.784251
 
 """
 from typing import Sequence, Union
@@ -12,7 +12,7 @@ import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql
 
 # revision identifiers, used by Alembic.
-revision: str = 'd1478abee08d'
+revision: str = '83f489bcecf3'
 down_revision: Union[str, Sequence[str], None] = None
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
