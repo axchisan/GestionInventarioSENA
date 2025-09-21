@@ -2,6 +2,7 @@ from passlib.context import CryptContext
 from jose import JWTError, jwt # type: ignore
 from datetime import datetime, timedelta
 from fastapi import HTTPException, status
+from typing import Optional, Dict, Any
 from ..config import settings
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
@@ -29,3 +30,14 @@ def decode_access_token(token: str) -> dict:
         detail="Could not validate credentials",
         headers={"WWW-Authenticate": "Bearer"},
     )
+
+def decode_token(token: str) -> Optional[Dict[str, Any]]:
+    """
+    Decode JWT token without raising exceptions - for audit middleware use
+    Returns None if token is invalid or expired
+    """
+    try:
+        payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
+        return payload
+    except JWTError:
+        return None
