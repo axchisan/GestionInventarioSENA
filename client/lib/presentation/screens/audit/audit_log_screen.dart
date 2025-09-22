@@ -258,7 +258,7 @@ class _AuditLogScreenState extends State<AuditLogScreen> {
                       child: ClipRRect(
                         borderRadius: BorderRadius.circular(8),
                         child: Image.asset(
-                          'assets/images/sena-logo.png',
+                          'assets/images/sena_logo.png',
                           fit: BoxFit.contain,
                         ),
                       ),
