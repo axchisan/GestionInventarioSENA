@@ -28,8 +28,34 @@ class AuditMiddleware(BaseHTTPMiddleware):
         "/docs",
         "/openapi.json",
         "/favicon.ico",
-        "/",
         "/api/stats"  # Evitar spam de logs por estadísticas
+    }
+
+    ACTION_MESSAGES = {
+        "LOGIN": "Inicio de sesión",
+        "LOGOUT": "Cierre de sesión", 
+        "REGISTER": "Registro de usuario",
+        "CREATE_INVENTORY_ITEM": "Se creó un item en el inventario",
+        "UPDATE_INVENTORY_ITEM": "Se actualizó un item del inventario",
+        "DELETE_INVENTORY_ITEM": "Se eliminó un item del inventario",
+        "CREATE_LOAN": "Se creó un préstamo",
+        "UPDATE_LOAN": "Se actualizó un préstamo",
+        "DELETE_LOAN": "Se eliminó un préstamo",
+        "CREATE_MAINTENANCE_REQUEST": "Se creó una solicitud de mantenimiento",
+        "UPDATE_MAINTENANCE_REQUEST": "Se actualizó una solicitud de mantenimiento",
+        "DELETE_MAINTENANCE_REQUEST": "Se eliminó una solicitud de mantenimiento",
+        "CREATE_USER": "Se creó un usuario",
+        "UPDATE_USER": "Se actualizó un usuario",
+        "DELETE_USER": "Se eliminó un usuario",
+        "CREATE_ENVIRONMENT": "Se creó un ambiente",
+        "UPDATE_ENVIRONMENT": "Se actualizó un ambiente",
+        "DELETE_ENVIRONMENT": "Se eliminó un ambiente",
+        "CREATE_NOTIFICATION": "Se creó una notificación",
+        "UPDATE_NOTIFICATION": "Se actualizó una notificación",
+        "DELETE_NOTIFICATION": "Se eliminó una notificación",
+        "CREATE_INVENTORY_CHECK": "Se realizó una verificación de inventario",
+        "UPDATE_INVENTORY_CHECK": "Se actualizó una verificación de inventario",
+        "DELETE_INVENTORY_CHECK": "Se eliminó una verificación de inventario"
     }
 
     async def dispatch(self, request: Request, call_next: Callable) -> Response:
@@ -154,9 +180,8 @@ class AuditMiddleware(BaseHTTPMiddleware):
             db = next(db_gen)
             
             try:
-                # Obtener información del usuario autenticado
                 user_id = None
-                user_info = await self._get_user_from_request(request)
+                user_info = await self._get_user_from_request(request, db)
                 if user_info:
                     user_id = user_info.get("user_id")
                     print(f"[AUDIT DB] Found user_id: {user_id}")
@@ -175,6 +200,8 @@ class AuditMiddleware(BaseHTTPMiddleware):
                 entity_id = self._extract_entity_id(request.url.path)
                 print(f"[AUDIT DB] Entity ID: {entity_id}")
                 
+                friendly_description = self._get_friendly_description(action, entity_type, request_data)
+                
                 audit_log = AuditLog(
                     user_id=user_id,
                     action=action,
@@ -182,6 +209,7 @@ class AuditMiddleware(BaseHTTPMiddleware):
                     entity_id=entity_id,
                     old_values=None,
                     new_values={
+                        "description": friendly_description,
                         "request": request_data,
                         "response": {
                             "status_code": response.status_code,
@@ -209,7 +237,7 @@ class AuditMiddleware(BaseHTTPMiddleware):
         except Exception as e:
             print(f"[AUDIT ERROR] Failed to create audit log: {str(e)}")
 
-    async def _get_user_from_request(self, request: Request) -> Optional[Dict[str, Any]]:
+    async def _get_user_from_request(self, request: Request, db: Session) -> Optional[Dict[str, Any]]:
         """Extrae información del usuario de la request"""
         try:
             # Buscar token en headers
@@ -217,11 +245,37 @@ class AuditMiddleware(BaseHTTPMiddleware):
             if auth_header and auth_header.startswith("Bearer "):
                 token = auth_header.split(" ")[1]
                 user_data = decode_token(token)
+                if user_data and user_data.get("user_id"):
+                    # Verificar que el usuario existe en la base de datos
+                    user = db.query(User).filter(User.id == user_data["user_id"]).first()
+                    if user:
+                        return {
+                            "user_id": str(user.id),
+                            "email": user.email,
+                            "name": f"{user.first_name} {user.last_name}".strip()
+                        }
                 return user_data
         except Exception as e:
             print(f"[AUDIT] Could not decode user token: {str(e)}")
         
         return None
+
+    def _get_friendly_description(self, action: str, entity_type: str, request_data: Dict[str, Any]) -> str:
+        """Genera una descripción amigable para el log de auditoría"""
+        base_message = self.ACTION_MESSAGES.get(action, f"Acción {action} en {entity_type}")
+        
+        # Agregar detalles específicos según el tipo de acción
+        if request_data.get("body"):
+            body = request_data["body"]
+            if isinstance(body, dict):
+                if "name" in body:
+                    base_message += f": {body['name']}"
+                elif "title" in body:
+                    base_message += f": {body['title']}"
+                elif "email" in body:
+                    base_message += f": {body['email']}"
+        
+        return base_message
 
     def _determine_action(self, path: str, method: str) -> str:
         """Determina la acción basada en el path y método HTTP"""

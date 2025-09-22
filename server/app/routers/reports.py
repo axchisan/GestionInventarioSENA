@@ -384,6 +384,8 @@ async def _get_report_data(report_type: str, parameters: dict, db: Session):
     from ..models.maintenance_requests import MaintenanceRequest
     from ..models.inventory_checks import InventoryCheck
     from ..models.environments import Environment
+    from ..models.audit_logs import AuditLog
+    from ..models.users import User
     
     # Parse date filters if provided
     start_date = parameters.get('start_date')
@@ -458,26 +460,35 @@ async def _get_report_data(report_type: str, parameters: dict, db: Session):
         ]
     
     elif report_type == "audit":
-        query = db.query(InventoryCheck)
+        query = db.query(AuditLog).join(User, AuditLog.user_id == User.id, isouter=True)
         
         if start_date:
-            query = query.filter(InventoryCheck.check_date >= start_date)
+            query = query.filter(AuditLog.created_at >= start_date)
         if end_date:
-            query = query.filter(InventoryCheck.check_date <= end_date)
-        if environment_id:
-            query = query.filter(InventoryCheck.environment_id == environment_id)
+            end_datetime = datetime.combine(end_date, datetime.max.time())
+            query = query.filter(AuditLog.created_at <= end_datetime)
         
-        checks = query.all()
+        # Filtrar por ambiente si se especifica (usando new_values para buscar environment_id)
+        if environment_id and environment_id != 'all':
+            query = query.filter(
+                AuditLog.new_values.op('->>')('request').op('->>')('body').op('->>')('environment_id') == environment_id
+            )
+        
+        audit_logs = query.order_by(AuditLog.created_at.desc()).all()
+        
         return [
             {
-                "Fecha": check.check_date.strftime('%Y-%m-%d'),
-                "Estado": check.status,
-                "Items Totales": check.total_items or 0,
-                "Items Buenos": check.items_good or 0,
-                "Items Dañados": check.items_damaged or 0,
-                "Items Faltantes": check.items_missing or 0
+                "Fecha y Hora": log.created_at.strftime('%Y-%m-%d %H:%M:%S'),
+                "Usuario": f"{log.user.first_name} {log.user.last_name}" if log.user else "Usuario desconocido",
+                "Email": log.user.email if log.user else "N/A",
+                "Acción": log.new_values.get('description', log.action) if log.new_values else log.action,
+                "Entidad": log.entity_type,
+                "ID Entidad": log.entity_id or "N/A",
+                "Dirección IP": log.ip_address or "N/A",
+                "Estado": "Exitoso" if log.new_values and log.new_values.get('response', {}).get('status_code', 0) < 400 else "Error",
+                "Duración (seg)": log.new_values.get('duration_seconds', 0) if log.new_values else 0
             }
-            for check in checks
+            for log in audit_logs
         ]
     
     return []
