@@ -258,7 +258,7 @@ class _AuditLogScreenState extends State<AuditLogScreen> {
                       child: ClipRRect(
                         borderRadius: BorderRadius.circular(8),
                         child: Image.asset(
-                          'assets/images/sena_logo.png',
+                          'assets/images/sena-logo.png',
                           fit: BoxFit.contain,
                         ),
                       ),
@@ -489,7 +489,7 @@ class _AuditLogScreenState extends State<AuditLogScreen> {
                                             children: [
                                               Expanded(
                                                 child: Text(
-                                                  _formatActionForDisplay(log.action),
+                                                  _auditService.getLogDescription(log),
                                                   style: const TextStyle(
                                                     fontWeight: FontWeight.bold,
                                                     fontSize: 16,
@@ -518,7 +518,7 @@ class _AuditLogScreenState extends State<AuditLogScreen> {
                                 
                                 Text(
                                   log.newValues?['description'] ?? 
-                                  '${_formatActionForDisplay(log.action)} en ${log.entityType}${log.entityId != null ? ' (${log.entityId})' : ''}',
+                                  _auditService.getLogDescription(log),
                                   style: const TextStyle(
                                     fontSize: 14,
                                     height: 1.4,
@@ -541,7 +541,11 @@ class _AuditLogScreenState extends State<AuditLogScreen> {
                                               const SizedBox(width: 4),
                                               Expanded(
                                                 child: Text(
-                                                  log.userName ?? log.userEmail ?? 'Usuario desconocido',
+                                                  log.userName?.isNotEmpty == true 
+                                                    ? log.userName! 
+                                                    : (log.userEmail?.isNotEmpty == true 
+                                                        ? log.userEmail! 
+                                                        : 'Sistema'),
                                                   style: TextStyle(
                                                     color: Colors.grey[700],
                                                     fontSize: 12,
@@ -579,7 +583,7 @@ class _AuditLogScreenState extends State<AuditLogScreen> {
                                               const SizedBox(width: 4),
                                               Expanded(
                                                 child: Text(
-                                                  log.entityType,
+                                                  _auditService.formatEntityTypeForDisplay(log.entityType),
                                                   style: TextStyle(
                                                     color: Colors.grey[700],
                                                     fontSize: 12,

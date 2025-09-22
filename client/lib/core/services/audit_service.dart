@@ -9,6 +9,39 @@ class AuditService {
   AuditService({required AuthProvider authProvider}) 
       : _apiService = ApiService(authProvider: authProvider);
 
+  static const Map<String, String> _actionMessages = {
+    'LOGIN': 'Inicio de sesión',
+    'LOGOUT': 'Cierre de sesión',
+    'REGISTER': 'Registro de usuario',
+    'CREATE_INVENTORY_ITEM': 'Se creó un item en el inventario',
+    'UPDATE_INVENTORY_ITEM': 'Se actualizó un item del inventario',
+    'DELETE_INVENTORY_ITEM': 'Se eliminó un item del inventario',
+    'VIEW_INVENTORY_ITEM': 'Se consultó un item del inventario',
+    'CREATE_LOAN': 'Se creó un préstamo',
+    'UPDATE_LOAN': 'Se actualizó un préstamo',
+    'DELETE_LOAN': 'Se eliminó un préstamo',
+    'VIEW_LOAN': 'Se consultó un préstamo',
+    'CREATE_USER': 'Se creó un usuario',
+    'UPDATE_USER': 'Se actualizó un usuario',
+    'DELETE_USER': 'Se eliminó un usuario',
+    'VIEW_USER': 'Se consultó un usuario',
+    'CREATE_MAINTENANCE_REQUEST': 'Se creó una solicitud de mantenimiento',
+    'UPDATE_MAINTENANCE_REQUEST': 'Se actualizó una solicitud de mantenimiento',
+    'DELETE_MAINTENANCE_REQUEST': 'Se eliminó una solicitud de mantenimiento',
+    'VIEW_MAINTENANCE_REQUEST': 'Se consultó una solicitud de mantenimiento',
+    'CREATE_ENVIRONMENT': 'Se creó un ambiente',
+    'UPDATE_ENVIRONMENT': 'Se actualizó un ambiente',
+    'DELETE_ENVIRONMENT': 'Se eliminó un ambiente',
+    'VIEW_ENVIRONMENT': 'Se consultó un ambiente',
+    'CREATE_INVENTORY_CHECK': 'Se realizó una verificación de inventario',
+    'UPDATE_INVENTORY_CHECK': 'Se actualizó una verificación de inventario',
+    'DELETE_INVENTORY_CHECK': 'Se eliminó una verificación de inventario',
+    'VIEW_INVENTORY_CHECK': 'Se consultó una verificación de inventario',
+    'CREATE_NOTIFICATION': 'Se creó una notificación',
+    'UPDATE_NOTIFICATION': 'Se actualizó una notificación',
+    'DELETE_NOTIFICATION': 'Se eliminó una notificación',
+  };
+
   /// Get audit logs with pagination and filters
   Future<Map<String, dynamic>> getAuditLogs({
     int page = 1,
@@ -100,6 +133,7 @@ class AuditService {
 
   /// Cleanup old logs (admin only)
   Future<Map<String, dynamic>> cleanupOldLogs({int daysToKeep = 90}) async {
+    // ignore: unused_local_variable
     Map<String, String> queryParams = {
       'days_to_keep': daysToKeep.toString(),
     };
@@ -187,14 +221,22 @@ class AuditService {
     }
   }
 
-  /// Format action for display
+  /// Format action for display with friendly Spanish messages
   String formatActionForDisplay(String action) {
-    return action
-        .replaceAll('_', ' ')
-        .toLowerCase()
-        .split(' ')
-        .map((word) => word.isNotEmpty ? word[0].toUpperCase() + word.substring(1) : '')
-        .join(' ');
+    // Primero intentar obtener el mensaje amigable
+    String friendlyMessage = _actionMessages[action] ?? action;
+    
+    // Si no hay mensaje amigable, formatear el action original
+    if (friendlyMessage == action) {
+      friendlyMessage = action
+          .replaceAll('_', ' ')
+          .toLowerCase()
+          .split(' ')
+          .map((word) => word.isNotEmpty ? word[0].toUpperCase() + word.substring(1) : '')
+          .join(' ');
+    }
+    
+    return friendlyMessage;
   }
 
   /// Format entity type for display
@@ -210,6 +252,26 @@ class AuditService {
     };
 
     return displayNames[entityType] ?? entityType;
+  }
+
+  /// Get complete description for audit log
+  String getLogDescription(AuditLog log) {
+    String baseDescription = formatActionForDisplay(log.action);
+    
+    // Intentar obtener descripción del new_values si existe
+    if (log.newValues != null && log.newValues!['description'] != null) {
+      return log.newValues!['description'];
+    }
+    
+    // Agregar contexto adicional
+    String entityDisplay = formatEntityTypeForDisplay(log.entityType);
+    if (log.entityId != null) {
+      baseDescription += ' en $entityDisplay (${log.entityId})';
+    } else {
+      baseDescription += ' en $entityDisplay';
+    }
+    
+    return baseDescription;
   }
 
   void dispose() {
