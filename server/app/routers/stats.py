@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from sqlalchemy import func, and_
 from uuid import UUID
@@ -11,6 +11,7 @@ from ..models.inventory_items import InventoryItem
 from ..models.maintenance_requests import MaintenanceRequest
 from ..models.environments import Environment
 from ..models.users import User
+from ..models.loans import Loan
 from ..routers.auth import get_current_user
 
 router = APIRouter(tags=["stats"])
@@ -238,4 +239,56 @@ def get_trends_stats(
         "daily_verifications": daily_stats,
         "weekly_average": round(weekly_avg, 2),
         "total_period_verifications": sum(stat["verifications"] for stat in daily_stats)
+    }
+
+@router.get("/admin-dashboard")
+def get_admin_dashboard_stats(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Get comprehensive dashboard statistics for admin_general"""
+    if current_user.role != "admin_general":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Solo el administrador general puede acceder a estas estadísticas"
+        )
+    
+    # User statistics
+    total_users = db.query(User).count()
+    active_users = db.query(User).filter(User.is_active == True).count()
+    
+    # Equipment statistics (total inventory items across all environments)
+    total_equipment = db.query(func.sum(InventoryItem.quantity)).scalar() or 0
+    
+    # Environment statistics
+    total_environments = db.query(Environment).filter(Environment.is_active == True).count()
+    
+    # Active loans statistics
+    active_loans = db.query(Loan).filter(Loan.status.in_(['pending', 'approved', 'active'])).count()
+    
+    # Recent activity (last 24 hours)
+    yesterday = datetime.utcnow() - timedelta(days=1)
+    recent_users = db.query(User).filter(User.created_at >= yesterday).count()
+    recent_maintenance = db.query(MaintenanceRequest).filter(MaintenanceRequest.created_at >= yesterday).count()
+    
+    # System health indicators
+    pending_maintenance = db.query(MaintenanceRequest).filter(MaintenanceRequest.status == 'pending').count()
+    
+    return {
+        "global_metrics": {
+            "total_users": total_users,
+            "active_users": active_users,
+            "total_equipment": total_equipment,
+            "total_environments": total_environments,
+            "active_loans": active_loans,
+            "pending_maintenance": pending_maintenance
+        },
+        "recent_activity": {
+            "new_users_24h": recent_users,
+            "maintenance_requests_24h": recent_maintenance
+        },
+        "system_health": {
+            "user_activity_rate": round((active_users / total_users * 100) if total_users > 0 else 0, 2),
+            "maintenance_backlog": pending_maintenance
+        }
     }
