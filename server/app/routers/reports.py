@@ -9,7 +9,7 @@ import os
 import json
 from pathlib import Path
 
-from server.app.models.audit_logs import AuditLog
+from ..models.audit_logs import AuditLog
 
 from ..database import get_db
 from ..models.generated_reports import GeneratedReport
