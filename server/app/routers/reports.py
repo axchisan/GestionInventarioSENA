@@ -9,6 +9,8 @@ import os
 import json
 from pathlib import Path
 
+from server.app.models.audit_logs import AuditLog
+
 from ..database import get_db
 from ..models.generated_reports import GeneratedReport
 from ..models.users import User
@@ -388,8 +390,13 @@ async def _get_report_data(report_type: str, parameters: dict, db: Session):
     from ..models.users import User
     
     # Parse date filters if provided
-    start_date = parameters.get('start_date')
-    end_date = parameters.get('end_date')
+    start_date = None
+    end_date = None
+    if parameters.get('start_date'):
+        start_date = datetime.fromisoformat(parameters['start_date'])
+    if parameters.get('end_date'):
+        end_date = datetime.fromisoformat(parameters['end_date'])
+    
     environment_id = parameters.get('environment_id')
     
     if report_type == "inventory":
@@ -442,7 +449,8 @@ async def _get_report_data(report_type: str, parameters: dict, db: Session):
         if start_date:
             query = query.filter(MaintenanceRequest.created_at >= start_date)
         if end_date:
-            query = query.filter(MaintenanceRequest.created_at <= end_date)
+            end_datetime = datetime.combine(end_date.date() if hasattr(end_date, 'date') else end_date, datetime.max.time())
+            query = query.filter(MaintenanceRequest.created_at <= end_datetime)
         if environment_id:
             query = query.filter(MaintenanceRequest.environment_id == environment_id)
         
@@ -465,30 +473,99 @@ async def _get_report_data(report_type: str, parameters: dict, db: Session):
         if start_date:
             query = query.filter(AuditLog.created_at >= start_date)
         if end_date:
-            end_datetime = datetime.combine(end_date, datetime.max.time())
+            end_datetime = datetime.combine(end_date.date() if hasattr(end_date, 'date') else end_date, datetime.max.time())
             query = query.filter(AuditLog.created_at <= end_datetime)
         
-        # Filtrar por ambiente si se especifica (usando new_values para buscar environment_id)
+        # Filter by environment if specified
         if environment_id and environment_id != 'all':
             query = query.filter(
                 AuditLog.new_values.op('->>')('request').op('->>')('body').op('->>')('environment_id') == environment_id
             )
         
-        audit_logs = query.order_by(AuditLog.created_at.desc()).all()
+        audit_logs = query.order_by(AuditLog.created_at.desc()).limit(1000).all()
         
         return [
             {
-                "Fecha y Hora": log.created_at.strftime('%Y-%m-%d %H:%M:%S'),
+                "Fecha y Hora": log.created_at.strftime('%d/%m/%Y %H:%M:%S'),
                 "Usuario": f"{log.user.first_name} {log.user.last_name}" if log.user else "Usuario desconocido",
                 "Email": log.user.email if log.user else "N/A",
-                "Acción": log.new_values.get('description', log.action) if log.new_values else log.action,
-                "Entidad": log.entity_type,
-                "ID Entidad": log.entity_id or "N/A",
+                "Rol": log.user.role if log.user else "N/A",
+                "Acción": _get_friendly_action_description(log),
+                "Entidad": _get_friendly_entity_name(log.entity_type),
+                "ID Entidad": str(log.entity_id) if log.entity_id else "N/A",
                 "Dirección IP": log.ip_address or "N/A",
-                "Estado": "Exitoso" if log.new_values and log.new_values.get('response', {}).get('status_code', 0) < 400 else "Error",
-                "Duración (seg)": log.new_values.get('duration_seconds', 0) if log.new_values else 0
+                "Estado": _get_action_status(log),
+                "Duración": f"{log.new_values.get('duration_seconds', 0):.2f}s" if log.new_values else "0.00s",
+                "Detalles": _get_action_details(log)
             }
             for log in audit_logs
         ]
     
     return []
+
+def _get_friendly_action_description(log: AuditLog) -> str:
+    """Convert technical action to user-friendly description"""
+    if log.new_values and 'description' in log.new_values:
+        return log.new_values['description']
+    
+    # Fallback to technical action
+    action_map = {
+        'create': 'Crear',
+        'update': 'Actualizar', 
+        'delete': 'Eliminar',
+        'login': 'Iniciar sesión',
+        'logout': 'Cerrar sesión',
+        'view': 'Ver',
+        'export': 'Exportar',
+        'import': 'Importar'
+    }
+    
+    return action_map.get(log.action.lower(), log.action)
+
+def _get_friendly_entity_name(entity_type: str) -> str:
+    """Convert technical entity type to user-friendly name"""
+    entity_map = {
+        'inventory_item': 'Item de Inventario',
+        'loan': 'Préstamo',
+        'maintenance_request': 'Solicitud de Mantenimiento',
+        'user': 'Usuario',
+        'environment': 'Ambiente',
+        'notification': 'Notificación',
+        'inventory_check': 'Verificación de Inventario'
+    }
+    
+    return entity_map.get(entity_type.lower(), entity_type)
+
+def _get_action_status(log: AuditLog) -> str:
+    """Determine if action was successful or failed"""
+    if log.new_values and 'response' in log.new_values:
+        status_code = log.new_values['response'].get('status_code', 0)
+        if 200 <= status_code < 400:
+            return "Exitoso"
+        else:
+            return "Error"
+    return "Desconocido"
+
+def _get_action_details(log: AuditLog) -> str:
+    """Get additional details about the action"""
+    if not log.new_values:
+        return ""
+    
+    details = []
+    
+    # Add HTTP method and endpoint if available
+    if 'request' in log.new_values:
+        request = log.new_values['request']
+        method = request.get('method', '')
+        path = request.get('path', '')
+        if method and path:
+            details.append(f"{method} {path}")
+    
+    # Add response status if available
+    if 'response' in log.new_values:
+        response = log.new_values['response']
+        status_code = response.get('status_code')
+        if status_code:
+            details.append(f"HTTP {status_code}")
+    
+    return " | ".join(details)

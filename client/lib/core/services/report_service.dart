@@ -381,33 +381,66 @@ class ReportService {
 
   Future<Map<String, dynamic>> _getAuditReportData(Map<String, String> queryParams) async {
     try {
-      final checksData = await _apiService.get(inventoryChecksEndpoint, queryParams: queryParams);
+      final auditData = await _apiService.get('/audit-logs', queryParams: queryParams);
       
-      if (checksData == null) {
+      if (auditData == null) {
         throw Exception('No se pudieron obtener los datos de auditoría');
       }
       
-      List<InventoryCheckModel> checks = [];
-      if (checksData is List) {
-        for (var check in checksData) {
-          try {
-            checks.add(InventoryCheckModel.fromJson(check));
-          } catch (e) {
-            print('Error parsing inventory check: $e');
-            // Continue with other checks
+      List<Map<String, dynamic>> auditLogs = [];
+      if (auditData is List) {
+        auditLogs = List<Map<String, dynamic>>.from(auditData);
+      }
+
+      Map<String, int> actionCounts = {};
+      Map<String, int> userCounts = {};
+      Map<String, int> entityCounts = {};
+      int successfulActions = 0;
+      int failedActions = 0;
+
+      for (var log in auditLogs) {
+        // Count actions
+        String action = log['action'] ?? 'unknown';
+        actionCounts[action] = (actionCounts[action] ?? 0) + 1;
+
+        // Count users
+        String userEmail = log['user_email'] ?? 'unknown';
+        userCounts[userEmail] = (userCounts[userEmail] ?? 0) + 1;
+
+        // Count entities
+        String entityType = log['entity_type'] ?? 'unknown';
+        entityCounts[entityType] = (entityCounts[entityType] ?? 0) + 1;
+
+        // Count success/failure based on status code
+        Map<String, dynamic>? newValues = log['new_values'];
+        if (newValues != null) {
+          Map<String, dynamic>? response = newValues['response'];
+          if (response != null) {
+            int statusCode = response['status_code'] ?? 0;
+            if (statusCode >= 200 && statusCode < 400) {
+              successfulActions++;
+            } else {
+              failedActions++;
+            }
           }
         }
       }
 
       return {
-        'checks': checks,
+        'audit_logs': auditLogs,
         'summary': {
-          'total_checks': checks.length,
-          'completed_checks': checks.where((c) => c.isComplete).length,
-          'checks_with_issues': checks.where((c) => c.hasIssues).length,
-          'compliance_rate': checks.isNotEmpty 
-              ? (checks.where((c) => c.isComplete).length / checks.length * 100).round()
+          'total_actions': auditLogs.length,
+          'successful_actions': successfulActions,
+          'failed_actions': failedActions,
+          'success_rate': auditLogs.isNotEmpty 
+              ? (successfulActions / auditLogs.length * 100).round()
               : 0,
+          'unique_users': userCounts.length,
+          'most_active_user': userCounts.isNotEmpty 
+              ? userCounts.entries.reduce((a, b) => a.value > b.value ? a : b).key
+              : 'N/A',
+          'action_breakdown': actionCounts,
+          'entity_breakdown': entityCounts,
         }
       };
     } catch (e) {
@@ -446,7 +479,7 @@ class ReportService {
         result['audit'] = await _getAuditReportData(queryParams);
       } catch (e) {
         print('Error getting audit data for statistics: $e');
-        result['audit'] = {'checks': [], 'summary': {}};
+        result['audit'] = {'audit_logs': [], 'summary': {}};
       }
 
       return result;
@@ -1128,7 +1161,7 @@ class ReportService {
   }
 
   pw.Widget _buildAuditPDFContent(Map<String, dynamic> data, bool includeStatistics, pw.Font? boldFont, pw.Font? regularFont) {
-    List<InventoryCheckModel> checks = data['checks'] ?? [];
+    List<Map<String, dynamic>> auditLogs = data['audit_logs'] ?? [];
     Map<String, dynamic> summary = data['summary'] ?? {};
 
     return pw.Column(
@@ -1151,30 +1184,14 @@ class ReportService {
                 pw.Padding(
                   padding: const pw.EdgeInsets.all(5), 
                   child: pw.Text(
-                    'Total de Verificaciones',
+                    'Total de Acciones',
                     style: pw.TextStyle(font: regularFont),
                   ),
                 ),
                 pw.Padding(
                   padding: const pw.EdgeInsets.all(5), 
                   child: pw.Text(
-                    '${summary['total_checks'] ?? 0}',
-                    style: pw.TextStyle(font: regularFont),
-                  ),
-                ),
-              ]),
-              pw.TableRow(children: [
-                pw.Padding(
-                  padding: const pw.EdgeInsets.all(5), 
-                  child: pw.Text(
-                    'Verificaciones Completadas',
-                    style: pw.TextStyle(font: regularFont),
-                  ),
-                ),
-                pw.Padding(
-                  padding: const pw.EdgeInsets.all(5), 
-                  child: pw.Text(
-                    '${summary['completed_checks'] ?? 0}',
+                    '${summary['total_actions'] ?? 0}',
                     style: pw.TextStyle(font: regularFont),
                   ),
                 ),
@@ -1183,14 +1200,62 @@ class ReportService {
                 pw.Padding(
                   padding: const pw.EdgeInsets.all(5), 
                   child: pw.Text(
-                    'Tasa de Cumplimiento',
+                    'Acciones Exitosas',
                     style: pw.TextStyle(font: regularFont),
                   ),
                 ),
                 pw.Padding(
                   padding: const pw.EdgeInsets.all(5), 
                   child: pw.Text(
-                    '${summary['compliance_rate'] ?? 0}%',
+                    '${summary['successful_actions'] ?? 0}',
+                    style: pw.TextStyle(font: regularFont),
+                  ),
+                ),
+              ]),
+              pw.TableRow(children: [
+                pw.Padding(
+                  padding: const pw.EdgeInsets.all(5), 
+                  child: pw.Text(
+                    'Tasa de Éxito',
+                    style: pw.TextStyle(font: regularFont),
+                  ),
+                ),
+                pw.Padding(
+                  padding: const pw.EdgeInsets.all(5), 
+                  child: pw.Text(
+                    '${summary['success_rate'] ?? 0}%',
+                    style: pw.TextStyle(font: regularFont),
+                  ),
+                ),
+              ]),
+              pw.TableRow(children: [
+                pw.Padding(
+                  padding: const pw.EdgeInsets.all(5), 
+                  child: pw.Text(
+                    'Usuarios Únicos',
+                    style: pw.TextStyle(font: regularFont),
+                  ),
+                ),
+                pw.Padding(
+                  padding: const pw.EdgeInsets.all(5), 
+                  child: pw.Text(
+                    '${summary['unique_users'] ?? 0}',
+                    style: pw.TextStyle(font: regularFont),
+                  ),
+                ),
+              ]),
+              pw.TableRow(children: [
+                pw.Padding(
+                  padding: const pw.EdgeInsets.all(5), 
+                  child: pw.Text(
+                    'Usuario Más Activo',
+                    style: pw.TextStyle(font: regularFont),
+                  ),
+                ),
+                pw.Padding(
+                  padding: const pw.EdgeInsets.all(5), 
+                  child: pw.Text(
+                    '${summary['most_active_user'] ?? 'N/A'}',
                     style: pw.TextStyle(font: regularFont),
                   ),
                 ),
@@ -1200,7 +1265,7 @@ class ReportService {
           pw.SizedBox(height: 20),
         ],
         pw.Text(
-          'Detalle de Verificaciones', 
+          'Detalle de Registros de Auditoría', 
           style: pw.TextStyle(
             fontSize: 14, 
             fontWeight: pw.FontWeight.bold,
@@ -1215,6 +1280,8 @@ class ReportService {
             1: const pw.FlexColumnWidth(1),
             2: const pw.FlexColumnWidth(1),
             3: const pw.FlexColumnWidth(1),
+            4: const pw.FlexColumnWidth(1),
+            5: const pw.FlexColumnWidth(1),
           },
           children: [
             pw.TableRow(
@@ -1224,6 +1291,36 @@ class ReportService {
                   padding: const pw.EdgeInsets.all(5), 
                   child: pw.Text(
                     'Fecha', 
+                    style: pw.TextStyle(
+                      fontWeight: pw.FontWeight.bold,
+                      font: boldFont,
+                    ),
+                  ),
+                ),
+                pw.Padding(
+                  padding: const pw.EdgeInsets.all(5), 
+                  child: pw.Text(
+                    'Usuario', 
+                    style: pw.TextStyle(
+                      fontWeight: pw.FontWeight.bold,
+                      font: boldFont,
+                    ),
+                  ),
+                ),
+                pw.Padding(
+                  padding: const pw.EdgeInsets.all(5), 
+                  child: pw.Text(
+                    'Acción', 
+                    style: pw.TextStyle(
+                      fontWeight: pw.FontWeight.bold,
+                      font: boldFont,
+                    ),
+                  ),
+                ),
+                pw.Padding(
+                  padding: const pw.EdgeInsets.all(5), 
+                  child: pw.Text(
+                    'Entidad', 
                     style: pw.TextStyle(
                       fontWeight: pw.FontWeight.bold,
                       font: boldFont,
@@ -1243,17 +1340,7 @@ class ReportService {
                 pw.Padding(
                   padding: const pw.EdgeInsets.all(5), 
                   child: pw.Text(
-                    'Items Totales', 
-                    style: pw.TextStyle(
-                      fontWeight: pw.FontWeight.bold,
-                      font: boldFont,
-                    ),
-                  ),
-                ),
-                pw.Padding(
-                  padding: const pw.EdgeInsets.all(5), 
-                  child: pw.Text(
-                    'Items Buenos', 
+                    'Código Estado', 
                     style: pw.TextStyle(
                       fontWeight: pw.FontWeight.bold,
                       font: boldFont,
@@ -1262,32 +1349,48 @@ class ReportService {
                 ),
               ],
             ),
-            ...checks.map((check) => pw.TableRow(children: [
+            ...auditLogs.map((log) => pw.TableRow(children: [
               pw.Padding(
                 padding: const pw.EdgeInsets.all(5), 
                 child: pw.Text(
-                  check.checkDate.toString().split(' ')[0],
+                  log['timestamp']?.toString().split(' ')[0] ?? 'N/A',
                   style: pw.TextStyle(font: regularFont),
                 ),
               ),
               pw.Padding(
                 padding: const pw.EdgeInsets.all(5), 
                 child: pw.Text(
-                  check.statusDisplayName,
+                  log['user_email'] ?? 'N/A',
                   style: pw.TextStyle(font: regularFont),
                 ),
               ),
               pw.Padding(
                 padding: const pw.EdgeInsets.all(5), 
                 child: pw.Text(
-                  '${check.totalItems ?? 0}',
+                  log['action'] ?? 'N/A',
                   style: pw.TextStyle(font: regularFont),
                 ),
               ),
               pw.Padding(
                 padding: const pw.EdgeInsets.all(5), 
                 child: pw.Text(
-                  '${check.itemsGood ?? 0}',
+                  log['entity_type'] ?? 'N/A',
+                  style: pw.TextStyle(font: regularFont),
+                ),
+              ),
+              pw.Padding(
+                padding: const pw.EdgeInsets.all(5), 
+                child: pw.Text(
+                  log['new_values']?['response']?['status_code'] != null 
+                      ? (log['new_values']['response']['status_code'] >= 200 && log['new_values']['response']['status_code'] < 400 ? 'Éxito' : 'Fallo')
+                      : 'N/A',
+                  style: pw.TextStyle(font: regularFont),
+                ),
+              ),
+              pw.Padding(
+                padding: const pw.EdgeInsets.all(5), 
+                child: pw.Text(
+                  '${log['new_values']?['response']?['status_code'] ?? 'N/A'}',
                   style: pw.TextStyle(font: regularFont),
                 ),
               ),
@@ -2566,7 +2669,7 @@ class ReportService {
   }
 
   int _addAuditDataToExcel(Sheet sheet, Map<String, dynamic> data, int startRow) {
-    List<InventoryCheckModel> checks = data['checks'] ?? [];
+    List<Map<String, dynamic>> auditLogs = data['audit_logs'] ?? [];
     Map<String, dynamic> summary = data['summary'] ?? {};
     
     int currentRow = startRow;
@@ -2575,32 +2678,38 @@ class ReportService {
     sheet.cell(CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: currentRow)).value = TextCellValue('RESUMEN DE AUDITORÍA');
     currentRow += 2;
 
-    sheet.cell(CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: currentRow)).value = TextCellValue('Total de Verificaciones');
-    sheet.cell(CellIndex.indexByColumnRow(columnIndex: 1, rowIndex: currentRow)).value = IntCellValue(summary['total_checks'] ?? 0);
+    sheet.cell(CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: currentRow)).value = TextCellValue('Total de Acciones');
+    sheet.cell(CellIndex.indexByColumnRow(columnIndex: 1, rowIndex: currentRow)).value = IntCellValue(summary['total_actions'] ?? 0);
     currentRow++;
 
-    sheet.cell(CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: currentRow)).value = TextCellValue('Tasa de Cumplimiento');
-    sheet.cell(CellIndex.indexByColumnRow(columnIndex: 1, rowIndex: currentRow)).value = TextCellValue('${summary['compliance_rate'] ?? 0}%');
+    sheet.cell(CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: currentRow)).value = TextCellValue('Acciones Exitosas');
+    sheet.cell(CellIndex.indexByColumnRow(columnIndex: 1, rowIndex: currentRow)).value = IntCellValue(summary['successful_actions'] ?? 0);
+    currentRow++;
+
+    sheet.cell(CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: currentRow)).value = TextCellValue('Tasa de Éxito');
+    sheet.cell(CellIndex.indexByColumnRow(columnIndex: 1, rowIndex: currentRow)).value = TextCellValue('${summary['success_rate'] ?? 0}%');
     currentRow += 3;
 
     // Agregar encabezados de detalle
-    sheet.cell(CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: currentRow)).value = TextCellValue('DETALLE DE VERIFICACIONES');
+    sheet.cell(CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: currentRow)).value = TextCellValue('DETALLE DE REGISTROS DE AUDITORÍA');
     currentRow += 2;
 
-    List<String> headers = ['Fecha', 'Estado', 'Items Totales', 'Items Buenos', 'Items Dañados', 'Items Faltantes'];
+    List<String> headers = ['Fecha', 'Usuario', 'Acción', 'Entidad', 'Estado', 'Código Estado'];
     for (int i = 0; i < headers.length; i++) {
       sheet.cell(CellIndex.indexByColumnRow(columnIndex: i, rowIndex: currentRow)).value = TextCellValue(headers[i]);
     }
     currentRow++;
 
-    // Agregar datos de verificaciones
-    for (var check in checks) {
-      sheet.cell(CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: currentRow)).value = TextCellValue(check.checkDate.toString().split(' ')[0]);
-      sheet.cell(CellIndex.indexByColumnRow(columnIndex: 1, rowIndex: currentRow)).value = TextCellValue(check.statusDisplayName);
-      sheet.cell(CellIndex.indexByColumnRow(columnIndex: 2, rowIndex: currentRow)).value = IntCellValue(check.totalItems ?? 0);
-      sheet.cell(CellIndex.indexByColumnRow(columnIndex: 3, rowIndex: currentRow)).value = IntCellValue(check.itemsGood ?? 0);
-      sheet.cell(CellIndex.indexByColumnRow(columnIndex: 4, rowIndex: currentRow)).value = IntCellValue(check.itemsDamaged ?? 0);
-      sheet.cell(CellIndex.indexByColumnRow(columnIndex: 5, rowIndex: currentRow)).value = IntCellValue(check.itemsMissing ?? 0);
+    // Agregar datos de auditoría
+    for (var log in auditLogs) {
+      sheet.cell(CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: currentRow)).value = TextCellValue(log['timestamp']?.toString().split(' ')[0] ?? 'N/A');
+      sheet.cell(CellIndex.indexByColumnRow(columnIndex: 1, rowIndex: currentRow)).value = TextCellValue(log['user_email'] ?? 'N/A');
+      sheet.cell(CellIndex.indexByColumnRow(columnIndex: 2, rowIndex: currentRow)).value = TextCellValue(log['action'] ?? 'N/A');
+      sheet.cell(CellIndex.indexByColumnRow(columnIndex: 3, rowIndex: currentRow)).value = TextCellValue(log['entity_type'] ?? 'N/A');
+      sheet.cell(CellIndex.indexByColumnRow(columnIndex: 4, rowIndex: currentRow)).value = TextCellValue(log['new_values']?['response']?['status_code'] != null 
+          ? (log['new_values']['response']['status_code'] >= 200 && log['new_values']['response']['status_code'] < 400 ? 'Éxito' : 'Fallo')
+          : 'N/A');
+      sheet.cell(CellIndex.indexByColumnRow(columnIndex: 5, rowIndex: currentRow)).value = TextCellValue('${log['new_values']?['response']?['status_code'] ?? 'N/A'}');
       currentRow++;
     }
 
