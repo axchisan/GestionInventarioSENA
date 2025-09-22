@@ -2,11 +2,50 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import '../../../core/theme/app_colors.dart';
+import '../../../core/services/user_management_service.dart';
 import '../../providers/auth_provider.dart';
 import '../../widgets/common/sena_app_bar.dart';
 
-class GeneralAdminDashboardScreen extends StatelessWidget {
+class GeneralAdminDashboardScreen extends StatefulWidget {
   const GeneralAdminDashboardScreen({super.key});
+
+  @override
+  State<GeneralAdminDashboardScreen> createState() => _GeneralAdminDashboardScreenState();
+}
+
+class _GeneralAdminDashboardScreenState extends State<GeneralAdminDashboardScreen> {
+  final UserManagementService _userService = UserManagementService();
+  Map<String, dynamic>? _dashboardStats;
+  bool _isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadDashboardStats();
+  }
+
+  Future<void> _loadDashboardStats() async {
+    try {
+      final stats = await _userService.getAdminDashboardStats();
+      setState(() {
+        _dashboardStats = stats;
+        _isLoading = false;
+      });
+    } catch (e) {
+      setState(() {
+        _isLoading = false;
+      });
+      // Fallback to default values if API fails
+      _dashboardStats = {
+        'global_metrics': {
+          'total_users': 0,
+          'total_equipment': 0,
+          'total_environments': 0,
+          'active_loans': 0,
+        }
+      };
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -15,244 +54,265 @@ class GeneralAdminDashboardScreen extends StatelessWidget {
         title: 'Administrador General',
         showBackButton: false,
       ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Card(
-              child: Padding(
-                padding: const EdgeInsets.all(20.0),
-                child: Row(
-                  children: [
-                    Container(
-                      width: 66,
-                      height: 66,
-                      decoration: BoxDecoration(
-                        color: AppColors.primary.withOpacity(0.1),
-                        borderRadius: BorderRadius.circular(33),
-                      ),
-                      child: ClipRRect(
-                        borderRadius: BorderRadius.circular(33),
-                        child: Image.asset(
-                          'assets/images/sena_logo.png',
-                          width: 56,
-                          height: 56,
-                          fit: BoxFit.contain,
+      body: RefreshIndicator(
+        onRefresh: _loadDashboardStats,
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(16.0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Card(
+                child: Padding(
+                  padding: const EdgeInsets.all(20.0),
+                  child: Row(
+                    children: [
+                      Container(
+                        width: 66,
+                        height: 66,
+                        decoration: BoxDecoration(
+                          color: AppColors.primary.withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(33),
+                        ),
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(33),
+                          child: Image.asset(
+                            'assets/images/sena_logo.png',
+                            width: 56,
+                            height: 56,
+                            fit: BoxFit.contain,
+                          ),
                         ),
                       ),
-                    ),
-                    const SizedBox(width: 16),
-                    const Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'Panel Administrador General',
-                            style: TextStyle(
-                              fontSize: 20,
-                              fontWeight: FontWeight.bold,
-                              color: AppColors.primary,
+                      const SizedBox(width: 16),
+                      const Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Panel Administrador General',
+                              style: TextStyle(
+                                fontSize: 20,
+                                fontWeight: FontWeight.bold,
+                                color: AppColors.primary,
+                              ),
                             ),
-                          ),
-                          SizedBox(height: 6),
-                          Text(
-                            'Control absoluto del sistema, seguridad, integraciones, monitoreo y configuración global.',
-                            style: TextStyle(
-                              color: AppColors.grey600,
-                              fontSize: 14,
+                            SizedBox(height: 6),
+                            Text(
+                              'Control absoluto del sistema, seguridad, integraciones, monitoreo y configuración global.',
+                              style: TextStyle(
+                                color: AppColors.grey600,
+                                fontSize: 14,
+                              ),
                             ),
-                          ),
-                        ],
+                          ],
+                        ),
                       ),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(height: 20),
+
+              const Text(
+                'Métricas Globales',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 12),
+              
+              _isLoading
+                  ? const Center(child: CircularProgressIndicator())
+                  : Wrap(
+                      spacing: 12,
+                      runSpacing: 12,
+                      children: [
+                        _stat(
+                          'Usuarios Totales',
+                          '${_dashboardStats?['global_metrics']?['total_users'] ?? 0}',
+                          Icons.people,
+                          AppColors.primary,
+                        ),
+                        _stat(
+                          'Equipos Totales',
+                          '${_dashboardStats?['global_metrics']?['total_equipment'] ?? 0}',
+                          Icons.inventory_2,
+                          AppColors.secondary,
+                        ),
+                        _stat(
+                          'Ambientes',
+                          '${_dashboardStats?['global_metrics']?['total_environments'] ?? 0}',
+                          Icons.house,
+                          AppColors.accent,
+                        ),
+                        _stat(
+                          'Préstamos Activos',
+                          '${_dashboardStats?['global_metrics']?['active_loans'] ?? 0}',
+                          Icons.assignment,
+                          AppColors.warning,
+                        ),
+                        _stat(
+                          'Usuarios Activos',
+                          '${_dashboardStats?['global_metrics']?['active_users'] ?? 0}',
+                          Icons.cloud,
+                          AppColors.info,
+                        ),
+                        _stat(
+                          'Mantenimiento Pendiente',
+                          '${_dashboardStats?['global_metrics']?['pending_maintenance'] ?? 0}',
+                          Icons.error_outline,
+                          AppColors.error,
+                        ),
+                      ],
+                    ),
+              const SizedBox(height: 24),
+
+              const Text(
+                'Acciones Rápidas',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 12),
+              GridView.count(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                crossAxisCount: 2,
+                crossAxisSpacing: 12,
+                mainAxisSpacing: 12,
+                childAspectRatio: 1.05,
+                children: [
+                  _action(
+                    context,
+                    title: 'Gestión de Usuarios',
+                    subtitle: 'Roles y aprobaciones',
+                    icon: Icons.manage_accounts,
+                    color: AppColors.secondary,
+                    route: '/user-management',
+                  ),
+                  _action(
+                    context,
+                    title: 'Solicitudes de Préstamo',
+                    subtitle: 'Gestionar todos los préstamos',
+                    icon: Icons.assignment_turned_in,
+                    color: AppColors.accent,
+                    route: '/loan-history',
+                  ),
+                  _action(
+                    context,
+                    title: 'Ambientes',
+                    subtitle: 'Vista global de ambientes',
+                    icon: Icons.home_work,
+                    color: AppColors.accent,
+                    route: '/environment-overview',
+                  ),
+                  _action(
+                    context,
+                    title: 'Estadísticas',
+                    subtitle: 'Métricas avanzadas',
+                    icon: Icons.query_stats,
+                    color: AppColors.info,
+                    route: '/statistics-dashboard',
+                  ),
+                  _action(
+                    context,
+                    title: 'Alertas',
+                    subtitle: 'Alertas críticas del sistema',
+                    icon: Icons.warning_amber,
+                    color: AppColors.warning,
+                    route: '/inventory-alerts',
+                  ),
+                  _action(
+                    context,
+                    title: 'Auditoría',
+                    subtitle: 'Registro detallado',
+                    icon: Icons.fact_check,
+                    color: AppColors.error,
+                    route: '/audit-log',
+                  ),
+                  _action(
+                    context,
+                    title: 'Reportes',
+                    subtitle: 'PDF / Excel',
+                    icon: Icons.description,
+                    color: Colors.teal,
+                    route: '/report-generator',
+                  ),
+                  _action(
+                    context,
+                    title: 'Monitoreo del Sistema',
+                    subtitle: 'Salud y rendimiento',
+                    icon: Icons.monitor_heart,
+                    color: Colors.orange,
+                    route: '/monitoring',
+                  ),
+                  _action(
+                    context,
+                    title: 'Feedback',
+                    subtitle: 'Sugerencias internas',
+                    icon: Icons.feedback,
+                    color: Colors.orange,
+                    route: '/feedback-form',
+                  ),
+                  _action(
+                    context,
+                    title: 'Configuración',
+                    subtitle: 'Tema, idioma y más',
+                    icon: Icons.settings,
+                    color: AppColors.grey600,
+                    route: '/settings',
+                  ),
+                ],
+              ),
+              const SizedBox(height: 24),
+
+              const Text(
+                'Actividad Reciente',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 12),
+              Card(
+                child: ListView(
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  children: const [
+                    _ActivityTile(
+                      icon: Icons.check_circle,
+                      title: 'Backup completado',
+                      subtitle: 'Backup incremental realizado con éxito',
+                      time: 'hace 12 min',
+                      color: AppColors.success,
+                    ),
+                    _ActivityTile(
+                      icon: Icons.warning_amber,
+                      title: 'Alerta de almacenamiento',
+                      subtitle: 'Uso de disco al 92% en nodo DB-02',
+                      time: 'hace 27 min',
+                      color: AppColors.warning,
+                    ),
+                    _ActivityTile(
+                      icon: Icons.security,
+                      title: 'Política de contraseñas actualizada',
+                      subtitle: 'Requerido mínimo 12 caracteres',
+                      time: 'hace 1 h',
+                      color: AppColors.info,
+                    ),
+                    _ActivityTile(
+                      icon: Icons.extension,
+                      title: 'Webhook de reportes activado',
+                      subtitle: 'Integración con Google Drive',
+                      time: 'hace 2 h',
+                      color: AppColors.secondary,
                     ),
                   ],
                 ),
               ),
-            ),
-            const SizedBox(height: 20),
-
-            const Text(
-              'Métricas Globales',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 12),
-            Wrap(
-              spacing: 12,
-              runSpacing: 12,
-              children: [
-                _stat(
-                  'Usuarios Totales',
-                  '1,560',
-                  Icons.people,
-                  AppColors.primary,
-                ),
-                _stat(
-                  'Equipos Totales',
-                  '12,430',
-                  Icons.inventory_2,
-                  AppColors.secondary,
-                ),
-                _stat('Ambientes', '128', Icons.house, AppColors.accent),
-                _stat(
-                  'Préstamos Activos',
-                  '302',
-                  Icons.assignment,
-                  AppColors.warning,
-                ),
-                _stat('Sesiones Activas', '214', Icons.cloud, AppColors.info),
-                _stat('Errores 24h', '7', Icons.error_outline, AppColors.error),
-              ],
-            ),
-            const SizedBox(height: 24),
-
-            const Text(
-              'Acciones Rápidas',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 12),
-            GridView.count(
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              crossAxisCount: 2,
-              crossAxisSpacing: 12,
-              mainAxisSpacing: 12,
-              childAspectRatio: 1.05,
-              children: [
-                _action(
-                  context,
-                  title: 'Gestión de Usuarios',
-                  subtitle: 'Roles y aprobaciones',
-                  icon: Icons.manage_accounts,
-                  color: AppColors.secondary,
-                  route: '/user-management',
-                ),
-                _action(
-                  context,
-                  title: 'Solicitudes de Préstamo',
-                  subtitle: 'Gestionar todos los préstamos',
-                  icon: Icons.assignment_turned_in,
-                  color: AppColors.accent,
-                  route: '/loan-history',
-                ),
-                _action(
-                  context,
-                  title: 'Ambientes',
-                  subtitle: 'Vista global de ambientes',
-                  icon: Icons.home_work,
-                  color: AppColors.accent,
-                  route: '/environment-overview',
-                ),
-                _action(
-                  context,
-                  title: 'Estadísticas',
-                  subtitle: 'Métricas avanzadas',
-                  icon: Icons.query_stats,
-                  color: AppColors.info,
-                  route: '/statistics-dashboard',
-                ),
-                _action(
-                  context,
-                  title: 'Alertas',
-                  subtitle: 'Alertas críticas del sistema',
-                  icon: Icons.warning_amber,
-                  color: AppColors.warning,
-                  route: '/inventory-alerts',
-                ),
-                _action(
-                  context,
-                  title: 'Auditoría',
-                  subtitle: 'Registro detallado',
-                  icon: Icons.fact_check,
-                  color: AppColors.error,
-                  route: '/audit-log',
-                ),
-                _action(
-                  context,
-                  title: 'Reportes',
-                  subtitle: 'PDF / Excel',
-                  icon: Icons.description,
-                  color: Colors.teal,
-                  route: '/report-generator',
-                ),
-                _action(
-                  context,
-                  title: 'Monitoreo del Sistema',
-                  subtitle: 'Salud y rendimiento',
-                  icon: Icons.monitor_heart,
-                  color: Colors.orange,
-                  route: '/monitoring',
-                ),
-                _action(
-                  context,
-                  title: 'Feedback',
-                  subtitle: 'Sugerencias internas',
-                  icon: Icons.feedback,
-                  color: Colors.orange,
-                  route: '/feedback-form',
-                ),
-                _action(
-                  context,
-                  title: 'Configuración',
-                  subtitle: 'Tema, idioma y más',
-                  icon: Icons.settings,
-                  color: AppColors.grey600,
-                  route: '/settings',
-                ),
-              ],
-            ),
-            const SizedBox(height: 24),
-
-            const Text(
-              'Actividad Reciente',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 12),
-            Card(
-              child: ListView(
-                shrinkWrap: true,
-                physics: const NeverScrollableScrollPhysics(),
-                children: const [
-                  _ActivityTile(
-                    icon: Icons.check_circle,
-                    title: 'Backup completado',
-                    subtitle: 'Backup incremental realizado con éxito',
-                    time: 'hace 12 min',
-                    color: AppColors.success,
-                  ),
-                  _ActivityTile(
-                    icon: Icons.warning_amber,
-                    title: 'Alerta de almacenamiento',
-                    subtitle: 'Uso de disco al 92% en nodo DB-02',
-                    time: 'hace 27 min',
-                    color: AppColors.warning,
-                  ),
-                  _ActivityTile(
-                    icon: Icons.security,
-                    title: 'Política de contraseñas actualizada',
-                    subtitle: 'Requerido mínimo 12 caracteres',
-                    time: 'hace 1 h',
-                    color: AppColors.info,
-                  ),
-                  _ActivityTile(
-                    icon: Icons.extension,
-                    title: 'Webhook de reportes activado',
-                    subtitle: 'Integración con Google Drive',
-                    time: 'hace 2 h',
-                    color: AppColors.secondary,
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 24),
-          ],
+              const SizedBox(height: 24),
+            ],
+          ),
         ),
       ),
       drawer: _drawer(context),
     );
   }
 
-  static Widget _stat(String title, String value, IconData icon, Color color) {
+  Widget _stat(String title, String value, IconData icon, Color color) {
     return SizedBox(
       width: 180,
       child: Card(
@@ -283,7 +343,7 @@ class GeneralAdminDashboardScreen extends StatelessWidget {
     );
   }
 
-  static Widget _action(
+  Widget _action(
     BuildContext context, {
     required String title,
     required String subtitle,
@@ -323,7 +383,7 @@ class GeneralAdminDashboardScreen extends StatelessWidget {
     );
   }
 
-  static Widget _drawer(BuildContext context) {
+  Widget _drawer(BuildContext context) {
     return Drawer(
       child: ListView(
         padding: EdgeInsets.zero,
@@ -405,7 +465,7 @@ class GeneralAdminDashboardScreen extends StatelessWidget {
           ),
           ListTile(
             leading: const Icon(Icons.monitor_heart),
-            title: const Text('monitoreo del Sistema'),
+            title: const Text('Monitoreo del Sistema'),
             onTap: () => context.push('/system-monitoring'),
           ),
           ListTile(
