@@ -49,6 +49,7 @@ def authenticate_user(db: Session, login_request: LoginRequest) -> TokenResponse
             is_active=user.is_active,
             last_login=user.last_login,
             created_at=user.created_at,
-            updated_at=user.updated_at
+            updated_at=user.updated_at,
+            environment_id=user.environment_id
         )
     )
