@@ -489,6 +489,7 @@ class _AuditLogScreenState extends State<AuditLogScreen> {
                                             children: [
                                               Expanded(
                                                 child: Text(
+                                                  log.newValues?['description'] ?? 
                                                   _auditService.getLogDescription(log),
                                                   style: const TextStyle(
                                                     fontWeight: FontWeight.bold,
@@ -515,6 +516,26 @@ class _AuditLogScreenState extends State<AuditLogScreen> {
                                   ],
                                 ),
                                 const SizedBox(height: 12),
+                                
+                                if (log.newValues?['request']?['method'] != null && log.newValues?['request']?['path'] != null)
+                                  Container(
+                                    padding: const EdgeInsets.all(8),
+                                    decoration: BoxDecoration(
+                                      color: Colors.grey.withOpacity(0.1),
+                                      borderRadius: BorderRadius.circular(4),
+                                    ),
+                                    child: Text(
+                                      '${log.newValues!['request']['method']} ${log.newValues!['request']['path']}',
+                                      style: TextStyle(
+                                        fontSize: 12,
+                                        fontFamily: 'monospace',
+                                        color: Colors.grey[700],
+                                      ),
+                                    ),
+                                  ),
+                                
+                                if (log.newValues?['request']?['method'] != null)
+                                  const SizedBox(height: 8),
                                 
                                 Text(
                                   log.newValues?['description'] ?? 
@@ -597,14 +618,35 @@ class _AuditLogScreenState extends State<AuditLogScreen> {
                                           const SizedBox(height: 4),
                                           Row(
                                             children: [
-                                              Icon(Icons.storage_outlined, size: 16, color: Colors.grey[600]),
+                                              Icon(
+                                                log.newValues?['response']?['status_code'] != null 
+                                                  ? (log.newValues!['response']['status_code'] >= 200 && log.newValues!['response']['status_code'] < 400
+                                                      ? Icons.check_circle_outline 
+                                                      : Icons.error_outline)
+                                                  : Icons.storage_outlined, 
+                                                size: 16, 
+                                                color: log.newValues?['response']?['status_code'] != null 
+                                                  ? (log.newValues!['response']['status_code'] >= 200 && log.newValues!['response']['status_code'] < 400
+                                                      ? Colors.green 
+                                                      : Colors.red)
+                                                  : Colors.grey[600]
+                                              ),
                                               const SizedBox(width: 4),
                                               Expanded(
                                                 child: Text(
-                                                  log.entityId ?? 'N/A',
+                                                  log.newValues?['response']?['status_code'] != null 
+                                                    ? 'HTTP ${log.newValues!['response']['status_code']}'
+                                                    : (log.entityId ?? 'N/A'),
                                                   style: TextStyle(
-                                                    color: Colors.grey[600],
+                                                    color: log.newValues?['response']?['status_code'] != null 
+                                                      ? (log.newValues!['response']['status_code'] >= 200 && log.newValues!['response']['status_code'] < 400
+                                                          ? Colors.green 
+                                                          : Colors.red)
+                                                      : Colors.grey[600],
                                                     fontSize: 12,
+                                                    fontWeight: log.newValues?['response']?['status_code'] != null 
+                                                      ? FontWeight.w500 
+                                                      : FontWeight.normal,
                                                   ),
                                                   overflow: TextOverflow.ellipsis,
                                                 ),
@@ -616,6 +658,24 @@ class _AuditLogScreenState extends State<AuditLogScreen> {
                                     ),
                                   ],
                                 ),
+                                
+                                if (log.newValues?['duration_seconds'] != null)
+                                  Padding(
+                                    padding: const EdgeInsets.only(top: 8),
+                                    child: Row(
+                                      children: [
+                                        Icon(Icons.timer_outlined, size: 16, color: Colors.grey[600]),
+                                        const SizedBox(width: 4),
+                                        Text(
+                                          'Duración: ${(log.newValues!['duration_seconds'] as num).toStringAsFixed(2)}s',
+                                          style: TextStyle(
+                                            color: Colors.grey[600],
+                                            fontSize: 12,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
                               ],
                             ),
                           ),
