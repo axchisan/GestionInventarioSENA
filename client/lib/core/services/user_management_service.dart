@@ -1,12 +1,11 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import '../../data/models/user_model.dart';
-import '../../presentation/providers/auth_provider.dart';
 import '../constants/api_constants.dart' as ApiConfig;
+import '../services/session_service.dart';
 
 class UserManagementService {
-  static const String _baseUrl = '${ApiConfig.baseUrl}/users';
-  final AuthProvider _authProvider = AuthProvider();
+  static const String _baseUrl = '${ApiConfig.baseUrl}${ApiConfig.usersEndpoint}'; // Combine baseUrl with usersEndpoint
 
   Future<List<UserModel>> getUsers({
     int skip = 0,
@@ -16,7 +15,7 @@ class UserManagementService {
     String? search,
   }) async {
     try {
-      final token = _authProvider.token; // Changed from getAccessToken()
+      final token = await SessionService.getAccessToken();
       if (token == null) throw Exception('No hay token de autenticación');
 
       final queryParams = <String, String>{
@@ -51,7 +50,7 @@ class UserManagementService {
 
   Future<Map<String, dynamic>> getUserStats() async {
     try {
-      final token = _authProvider.token; // Changed from getAccessToken()
+      final token = await SessionService.getAccessToken();
       if (token == null) throw Exception('No hay token de autenticación');
 
       final response = await http.get(
@@ -74,11 +73,11 @@ class UserManagementService {
 
   Future<UserModel> createUser(Map<String, dynamic> userData) async {
     try {
-      final token = _authProvider.token; // Changed from getAccessToken()
+      final token = await SessionService.getAccessToken();
       if (token == null) throw Exception('No hay token de autenticación');
 
       final response = await http.post(
-        Uri.parse(_baseUrl),
+        Uri.parse(_baseUrl), // Full URL: https://senainventario.axchisan.com/api/users/
         headers: {
           'Authorization': 'Bearer $token',
           'Content-Type': 'application/json',
@@ -99,11 +98,11 @@ class UserManagementService {
 
   Future<UserModel> updateUser(String userId, Map<String, dynamic> userData) async {
     try {
-      final token = _authProvider.token; // Changed from getAccessToken()
+      final token = await SessionService.getAccessToken();
       if (token == null) throw Exception('No hay token de autenticación');
 
       final response = await http.put(
-        Uri.parse('$_baseUrl/$userId'),
+        Uri.parse('$_baseUrl$userId'), // Full URL: https://senainventario.axchisan.com/api/users/{userId}
         headers: {
           'Authorization': 'Bearer $token',
           'Content-Type': 'application/json',
@@ -124,11 +123,11 @@ class UserManagementService {
 
   Future<void> deleteUser(String userId) async {
     try {
-      final token = _authProvider.token; // Changed from getAccessToken()
+      final token = await SessionService.getAccessToken();
       if (token == null) throw Exception('No hay token de autenticación');
 
       final response = await http.delete(
-        Uri.parse('$_baseUrl/$userId'),
+        Uri.parse('$_baseUrl$userId'), // Full URL: https://senainventario.axchisan.com/api/users/{userId}
         headers: {
           'Authorization': 'Bearer $token',
           'Content-Type': 'application/json',
@@ -146,11 +145,11 @@ class UserManagementService {
 
   Future<void> activateUser(String userId) async {
     try {
-      final token = _authProvider.token; // Changed from getAccessToken()
+      final token = await SessionService.getAccessToken();
       if (token == null) throw Exception('No hay token de autenticación');
 
       final response = await http.post(
-        Uri.parse('$_baseUrl/$userId/activate'),
+        Uri.parse('$_baseUrl$userId/activate'), // Full URL: https://senainventario.axchisan.com/api/users/{userId}/activate
         headers: {
           'Authorization': 'Bearer $token',
           'Content-Type': 'application/json',
@@ -168,11 +167,11 @@ class UserManagementService {
 
   Future<Map<String, dynamic>> getAdminDashboardStats() async {
     try {
-      final token = _authProvider.token; // Changed from getAccessToken()
+      final token = await SessionService.getAccessToken();
       if (token == null) throw Exception('No hay token de autenticación');
 
       final response = await http.get(
-        Uri.parse('${ApiConfig.baseUrl}/stats/admin-dashboard'),
+        Uri.parse('${ApiConfig.baseUrl}/api/stats/admin-dashboard'), // Full URL: https://senainventario.axchisan.com/api/stats/admin-dashboard
         headers: {
           'Authorization': 'Bearer $token',
           'Content-Type': 'application/json',
