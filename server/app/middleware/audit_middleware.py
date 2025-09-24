@@ -58,12 +58,9 @@ class AuditMiddleware(BaseHTTPMiddleware):
         "DELETE_INVENTORY_CHECK": "Se eliminó una verificación de inventario"
     }
 
-    async def dispatch(self, request: Request, call_next: Callable) -> Response:
-        print(f"[AUDIT MIDDLEWARE] Processing request: {request.method} {request.url.path}")
-        
+    async def dispatch(self, request: Request, call_next: Callable) -> Response:        
         # Verificar si el endpoint requiere auditoría
         should_audit = self._should_audit(request)
-        print(f"[AUDIT MIDDLEWARE] Should audit: {should_audit}")
         
         if not should_audit:
             return await call_next(request)
@@ -82,15 +79,14 @@ class AuditMiddleware(BaseHTTPMiddleware):
         response = await call_next(request)
         
         try:
-            print(f"[AUDIT MIDDLEWARE] Creating audit log for {request.method} {request.url.path}")
             await self._create_audit_log_async(
                 request=request,
                 response=response,
                 request_data=request_data,
                 duration=time.time() - start_time
             )
-        except Exception as e:
-            print(f"[AUDIT ERROR] Failed to create audit log: {str(e)}")
+        except Exception:
+            pass
         
         return response
 
@@ -99,27 +95,20 @@ class AuditMiddleware(BaseHTTPMiddleware):
         path = request.url.path
         method = request.method
         
-        print(f"[AUDIT CHECK] Path: {path}, Method: {method}")
-        
         # Excluir endpoints específicos
         if path == "/":  # Exact match for root
-            print(f"[AUDIT CHECK] Excluded root path")
             return False
             
         for exclude_path in self.EXCLUDE_ENDPOINTS:
             if exclude_path != "/" and path.startswith(exclude_path):
-                print(f"[AUDIT CHECK] Excluded by path: {exclude_path}")
                 return False
         
         if path.startswith("/api/") and method in self.AUDIT_METHODS:
-            print(f"[AUDIT CHECK] Will audit API endpoint with method {method}")
             return True
         
         if "/api/auth/login" in path:
-            print(f"[AUDIT CHECK] Will audit login endpoint")
             return True
         
-        print(f"[AUDIT CHECK] Will not audit")
         return False
 
     async def _capture_request_data(self, request: Request) -> Dict[str, Any]:
@@ -175,7 +164,6 @@ class AuditMiddleware(BaseHTTPMiddleware):
     ):
         """Crea un registro de auditoría en la base de datos de forma asíncrona"""
         try:
-            print(f"[AUDIT DB] Starting database operation")
             db_gen = get_db()
             db = next(db_gen)
             
@@ -184,21 +172,15 @@ class AuditMiddleware(BaseHTTPMiddleware):
                 user_info = await self._get_user_from_request(request, db)
                 if user_info:
                     user_id = user_info.get("user_id")
-                    print(f"[AUDIT DB] Found user_id: {user_id}")
-                else:
-                    print(f"[AUDIT DB] No user found in request")
                 
                 # Determinar la acción basada en el endpoint y método
                 action = self._determine_action(request.url.path, request.method)
-                print(f"[AUDIT DB] Action: {action}")
                 
                 # Determinar el tipo de entidad
                 entity_type = self._determine_entity_type(request.url.path)
-                print(f"[AUDIT DB] Entity type: {entity_type}")
                 
                 # Extraer ID de entidad si está en la URL
                 entity_id = self._extract_entity_id(request.url.path)
-                print(f"[AUDIT DB] Entity ID: {entity_id}")
                 
                 friendly_description = self._get_friendly_description(action, entity_type, request_data)
                 
@@ -225,17 +207,15 @@ class AuditMiddleware(BaseHTTPMiddleware):
                 
                 db.add(audit_log)
                 db.commit()
-                print(f"[AUDIT SUCCESS] Created log for {action} on {entity_type}")
                 
-            except Exception as e:
+            except Exception:
                 db.rollback()
-                print(f"[AUDIT DB ERROR] Database error: {str(e)}")
                 raise
             finally:
                 db.close()
                 
-        except Exception as e:
-            print(f"[AUDIT ERROR] Failed to create audit log: {str(e)}")
+        except Exception:
+            pass
 
     async def _get_user_from_request(self, request: Request, db: Session) -> Optional[Dict[str, Any]]:
         """Extrae información del usuario de la request"""
@@ -255,8 +235,8 @@ class AuditMiddleware(BaseHTTPMiddleware):
                             "name": f"{user.first_name} {user.last_name}".strip()
                         }
                 return user_data
-        except Exception as e:
-            print(f"[AUDIT] Could not decode user token: {str(e)}")
+        except Exception:
+            pass
         
         return None
 
