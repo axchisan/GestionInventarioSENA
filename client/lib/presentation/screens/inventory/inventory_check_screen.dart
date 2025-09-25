@@ -1005,7 +1005,7 @@ class _InventoryCheckScreenState extends State<InventoryCheckScreen> {
               child: Column(
                 children: [
                   Container(
-                    padding: const EdgeInsets.all(16.0),
+                    padding: const EdgeInsets.all(8.0),
                     decoration: BoxDecoration(
                       color: AppColors.grey100,
                       boxShadow: [
@@ -1019,7 +1019,7 @@ class _InventoryCheckScreenState extends State<InventoryCheckScreen> {
                     child: Column(
                       children: [
                         Container(
-                          padding: const EdgeInsets.all(12),
+                          padding: const EdgeInsets.all(8),
                           decoration: BoxDecoration(
                             color: AppColors.primary.withOpacity(0.1),
                             borderRadius: BorderRadius.circular(12),
@@ -1045,140 +1045,154 @@ class _InventoryCheckScreenState extends State<InventoryCheckScreen> {
                             ],
                           ),
                         ),
-                        const SizedBox(height: 16),
-                        TextField(
-                          controller: _searchController,
-                          decoration: InputDecoration(
-                            hintText: 'Buscar por nombre o código...',
-                            prefixIcon: const Icon(Icons.search),
-                            border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                            filled: true,
-                            fillColor: Colors.white,
-                          ),
-                          onChanged: (value) => setState(() {}),
-                        ),
-                        const SizedBox(height: 16),
-                        Row(
+                        const SizedBox(height: 8),
+                        ExpansionTile(
+                          title: const Text('Búsqueda y Filtros'),
+                          initiallyExpanded: false,
+                          childrenPadding: const EdgeInsets.all(8),
                           children: [
-                            Expanded(
-                              child: DropdownButtonFormField<String>(
-                                value: _selectedCategory,
-                                decoration: InputDecoration(
-                                  labelText: 'Categoría',
-                                  border: OutlineInputBorder(
-                                    borderRadius: BorderRadius.circular(12),
-                                  ),
-                                  filled: true,
-                                  fillColor: Colors.white,
+                            TextField(
+                              controller: _searchController,
+                              decoration: InputDecoration(
+                                hintText: 'Buscar por nombre o código...',
+                                prefixIcon: const Icon(Icons.search),
+                                border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(12),
                                 ),
-                                items: [
-                                  'Todos',
-                                  ..._categoryTranslations.values.toList(),
-                                ].map((category) {
-                                  return DropdownMenuItem(
-                                    value: category,
-                                    child: Text(category),
-                                  );
-                                }).toList(),
-                                onChanged: (value) {
-                                  setState(() {
-                                    _selectedCategory = value!;
-                                  });
-                                },
+                                filled: true,
+                                fillColor: Colors.white,
                               ),
+                              onChanged: (value) => setState(() {}),
                             ),
-                            const SizedBox(width: 16),
-                            Expanded(
-                              child: DropdownButtonFormField<String>(
-                                value: _selectedStatus,
-                                decoration: InputDecoration(
-                                  labelText: 'Estado',
-                                  border: OutlineInputBorder(
-                                    borderRadius: BorderRadius.circular(12),
+                            const SizedBox(height: 8),
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: DropdownButtonFormField<String>(
+                                    value: _selectedCategory,
+                                    decoration: InputDecoration(
+                                      labelText: 'Categoría',
+                                      border: OutlineInputBorder(
+                                        borderRadius: BorderRadius.circular(12),
+                                      ),
+                                      filled: true,
+                                      fillColor: Colors.white,
+                                    ),
+                                    items: [
+                                      'Todos',
+                                      ..._categoryTranslations.values.toList(),
+                                    ].map((category) {
+                                      return DropdownMenuItem(
+                                        value: category,
+                                        child: Text(category),
+                                      );
+                                    }).toList(),
+                                    onChanged: (value) {
+                                      setState(() {
+                                        _selectedCategory = value!;
+                                      });
+                                    },
                                   ),
-                                  filled: true,
-                                  fillColor: Colors.white,
                                 ),
-                                items: [
-                                  'Todos',
-                                  ..._statusTranslations.values.toList(),
-                                ].map((status) {
-                                  return DropdownMenuItem(
-                                    value: status,
-                                    child: Text(status),
-                                  );
-                                }).toList(),
-                                onChanged: (value) {
-                                  setState(() {
-                                    _selectedStatus = value!;
-                                  });
-                                },
-                              ),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: DropdownButtonFormField<String>(
+                                    value: _selectedStatus,
+                                    decoration: InputDecoration(
+                                      labelText: 'Estado',
+                                      border: OutlineInputBorder(
+                                        borderRadius: BorderRadius.circular(12),
+                                      ),
+                                      filled: true,
+                                      fillColor: Colors.white,
+                                    ),
+                                    items: [
+                                      'Todos',
+                                      ..._statusTranslations.values.toList(),
+                                    ].map((status) {
+                                      return DropdownMenuItem(
+                                        value: status,
+                                        child: Text(status),
+                                      );
+                                    }).toList(),
+                                    onChanged: (value) {
+                                      setState(() {
+                                        _selectedStatus = value!;
+                                      });
+                                    },
+                                  ),
+                                ),
+                              ],
                             ),
                           ],
                         ),
                         if (role == 'student' || role == 'instructor' || role == 'supervisor') ...[
-                          const SizedBox(height: 16),
-                          Container(
-                            padding: const EdgeInsets.all(12),
-                            decoration: BoxDecoration(
-                              color: AppColors.primary.withOpacity(0.1),
-                              borderRadius: BorderRadius.circular(8),
-                              border: Border.all(color: AppColors.primary.withOpacity(0.3)),
-                            ),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  'Estadísticas del Ambiente',
-                                  style: TextStyle(
-                                    fontWeight: FontWeight.bold,
-                                    color: AppColors.primary,
-                                    fontSize: 14,
-                                  ),
+                          const SizedBox(height: 8),
+                          ExpansionTile(
+                            title: const Text('Estadísticas del Ambiente'),
+                            initiallyExpanded: false,
+                            childrenPadding: const EdgeInsets.all(8),
+                            children: [
+                              Container(
+                                padding: const EdgeInsets.all(8),
+                                decoration: BoxDecoration(
+                                  color: AppColors.primary.withOpacity(0.1),
+                                  borderRadius: BorderRadius.circular(8),
+                                  border: Border.all(color: AppColors.primary.withOpacity(0.3)),
                                 ),
-                                const SizedBox(height: 8),
-                                Row(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
-                                    Expanded(
-                                      child: _buildCompactStatChip(
-                                        'Total',
-                                        '${_calculateTotalEnvironmentItems()}',
-                                        AppColors.primary,
+                                    Text(
+                                      'Estadísticas del Ambiente',
+                                      style: TextStyle(
+                                        fontWeight: FontWeight.bold,
+                                        color: AppColors.primary,
+                                        fontSize: 14,
                                       ),
                                     ),
-                                    const SizedBox(width: 6),
-                                    Expanded(
-                                      child: _buildCompactStatChip(
-                                        'Disponibles',
-                                        '${_calculateAvailableEnvironmentItems()}',
-                                        AppColors.success,
-                                      ),
-                                    ),
-                                    const SizedBox(width: 6),
-                                    Expanded(
-                                      child: _buildCompactStatChip(
-                                        'Dañados',
-                                        '${_calculateDamagedEnvironmentItems()}',
-                                        AppColors.warning,
-                                      ),
-                                    ),
-                                    const SizedBox(width: 6),
-                                    Expanded(
-                                      child: _buildCompactStatChip(
-                                        'Faltantes',
-                                        '${_calculateMissingEnvironmentItems()}',
-                                        AppColors.error,
-                                      ),
+                                    const SizedBox(height: 8),
+                                    Row(
+                                      children: [
+                                        Expanded(
+                                          child: _buildCompactStatChip(
+                                            'Total',
+                                            '${_calculateTotalEnvironmentItems()}',
+                                            AppColors.primary,
+                                          ),
+                                        ),
+                                        const SizedBox(width: 6),
+                                        Expanded(
+                                          child: _buildCompactStatChip(
+                                            'Disponibles',
+                                            '${_calculateAvailableEnvironmentItems()}',
+                                            AppColors.success,
+                                          ),
+                                        ),
+                                        const SizedBox(width: 6),
+                                        Expanded(
+                                          child: _buildCompactStatChip(
+                                            'Dañados',
+                                            '${_calculateDamagedEnvironmentItems()}',
+                                            AppColors.warning,
+                                          ),
+                                        ),
+                                        const SizedBox(width: 6),
+                                        Expanded(
+                                          child: _buildCompactStatChip(
+                                            'Faltantes',
+                                            '${_calculateMissingEnvironmentItems()}',
+                                            AppColors.error,
+                                          ),
+                                        ),
+                                      ],
                                     ),
                                   ],
                                 ),
-                              ],
-                            ),
+                              ),
+                            ],
                           ),
-                          const SizedBox(height: 12),
+                          const SizedBox(height: 8),
                           Container(
                             decoration: BoxDecoration(
                               border: Border.all(color: AppColors.grey300),
@@ -1255,9 +1269,9 @@ class _InventoryCheckScreenState extends State<InventoryCheckScreen> {
                           ),
                         ],
                         if (_hasCheckedToday && _selectedScheduleId != null) ...[
-                          const SizedBox(height: 12),
+                          const SizedBox(height: 8),
                           Container(
-                            padding: const EdgeInsets.all(12),
+                            padding: const EdgeInsets.all(8),
                             decoration: BoxDecoration(
                               color: AppColors.success.withOpacity(0.1),
                               borderRadius: BorderRadius.circular(8),
