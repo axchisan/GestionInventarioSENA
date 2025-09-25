@@ -213,26 +213,37 @@ class _LoanRequestScreenState extends State<LoanRequestScreen> {
                             border: OutlineInputBorder(),
                             hintText: 'Selecciona el almacén donde solicitar',
                           ),
+                          itemHeight: 60.0,
+                          selectedItemBuilder: (context) => _availableWarehouses.map((warehouse) {
+                            return Text(
+                              warehouse['name'] ?? 'Sin nombre',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            );
+                          }).toList(),
                           items: _availableWarehouses.map<DropdownMenuItem<String>>((warehouse) {
                             return DropdownMenuItem<String>(
                               value: warehouse['id'].toString(),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Text(
-                                    warehouse['name'] ?? 'Sin nombre',
-                                    style: const TextStyle(fontWeight: FontWeight.w500),
-                                  ),
-                                  if (warehouse['location'] != null)
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(vertical: 4.0),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
                                     Text(
-                                      warehouse['location'],
-                                      style: const TextStyle(
-                                        fontSize: 12,
-                                        color: AppColors.grey600,
-                                      ),
+                                      warehouse['name'] ?? 'Sin nombre',
+                                      style: const TextStyle(fontWeight: FontWeight.w500),
                                     ),
-                                ],
+                                    if (warehouse['location'] != null)
+                                      Text(
+                                        warehouse['location'],
+                                        style: const TextStyle(
+                                          fontSize: 12,
+                                          color: AppColors.grey600,
+                                        ),
+                                      ),
+                                  ],
+                                ),
                               ),
                             );
                           }).toList(),

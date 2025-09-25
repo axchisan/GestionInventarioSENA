@@ -270,6 +270,9 @@ class _StudentDashboardState extends State<StudentDashboard> {
                           Icons.build_circle,
                           AppColors.warning,
                           '/maintenance-request',
+                          extra: {
+                            'environmentId': user?.environmentId ?? '',
+                          }, 
                         ),
                         _buildActionCard(
                           context,
@@ -655,7 +658,9 @@ class _StudentDashboardState extends State<StudentDashboard> {
           ListTile(
             leading: const Icon(Icons.build_circle),
             title: const Text('Solicitar Mantenimiento'),
-            onTap: () => context.push('/maintenance-request'),
+            onTap: () => context.push('/maintenance-request', extra: {
+              'environmentId': user?.environmentId ?? '',
+            }),
           ),
           ListTile(
             leading: const Icon(Icons.location_on),
