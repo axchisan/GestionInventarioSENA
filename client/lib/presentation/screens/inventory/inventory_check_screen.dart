@@ -39,7 +39,10 @@ class _InventoryCheckScreenState extends State<InventoryCheckScreen> {
   // ignore: unused_field
   List<dynamic> _notifications = [];
   bool _isLoading = true;
-  bool _hasCheckedToday = false;
+  // ignore: unused_field
+  bool _hasCheckRecordToday = false;
+  bool _isCheckingSchedule = false;
+  String? _currentStatus;
   final DateFormat _colombianTimeFormat = DateFormat('hh:mm a');
   final DateFormat _dateFormat = DateFormat('yyyy-MM-dd');
   final DateFormat _dateTimeFormat = DateFormat('dd/MM/yyyy hh:mm a');
@@ -124,9 +127,9 @@ class _InventoryCheckScreenState extends State<InventoryCheckScreen> {
       final pendingChecks = filteredChecks.where((check) =>
         ['pending', 'instructor_review', 'supervisor_review'].contains(check['status'])).toList();
      
-      bool hasCheckedScheduleToday = false;
+      bool hasCheckRecordToday = false;
       if (_selectedScheduleId != null) {
-        hasCheckedScheduleToday = filteredChecks.any((check) =>
+        hasCheckRecordToday = filteredChecks.any((check) =>
           check['check_date'] == _dateFormat.format(_selectedDate) &&
           check['schedule_id'] == _selectedScheduleId);
       }
@@ -140,7 +143,7 @@ class _InventoryCheckScreenState extends State<InventoryCheckScreen> {
         _checks = filteredChecks;
         _pendingChecks = pendingChecks;
         _notifications = notifications;
-        _hasCheckedToday = hasCheckedScheduleToday;
+        _hasCheckRecordToday = hasCheckRecordToday;
         _isLoading = false;
       });
     } catch (e) {
@@ -193,6 +196,7 @@ class _InventoryCheckScreenState extends State<InventoryCheckScreen> {
      
       setState(() {
         _currentScheduleCheck = checkData.isNotEmpty ? checkData.first : null;
+        _currentStatus = _currentScheduleCheck?['status'];
       });
     } catch (e) {
       print('Error al cargar verificación del horario: $e');
@@ -936,6 +940,20 @@ class _InventoryCheckScreenState extends State<InventoryCheckScreen> {
     final authProvider = Provider.of<AuthProvider>(context);
     final role = authProvider.currentUser?.role ?? '';
     final environmentId = authProvider.currentUser?.environmentId ?? '';
+
+    bool canVerify = false;
+    if (_selectedScheduleId != null) {
+      if (role == 'student') {
+        canVerify = _currentScheduleCheck == null;
+      } else if (role == 'instructor') {
+        canVerify = _currentScheduleCheck == null || _currentStatus == 'instructor_review';
+      } else if (role == 'supervisor') {
+        canVerify = _currentScheduleCheck == null || _currentStatus != 'complete';
+      }
+    }
+
+    bool isVerificationComplete = _currentScheduleCheck != null && _currentStatus == 'complete';
+
     return Scaffold(
       appBar: SenaAppBar(
         title: 'Verificación de Inventario',
@@ -1229,10 +1247,16 @@ class _InventoryCheckScreenState extends State<InventoryCheckScreen> {
                                         (s) => s['id'].toString() == value,
                                         orElse: () => null,
                                       );
+                                      if (value != null) {
+                                        _isCheckingSchedule = true;
+                                      }
                                     });
                                     if (value != null) {
-                                      _fetchScheduleCheck();
-                                      _fetchData();
+                                      Future.wait([_fetchScheduleCheck(), _fetchData()]).whenComplete(() {
+                                        setState(() {
+                                          _isCheckingSchedule = false;
+                                        });
+                                      });
                                     }
                                   },
                                 ),
@@ -1268,7 +1292,7 @@ class _InventoryCheckScreenState extends State<InventoryCheckScreen> {
                             ),
                           ),
                         ],
-                        if (_hasCheckedToday && _selectedScheduleId != null) ...[
+                        if (isVerificationComplete && _selectedScheduleId != null) ...[
                           const SizedBox(height: 8),
                           Container(
                             padding: const EdgeInsets.all(8),
@@ -1327,7 +1351,7 @@ class _InventoryCheckScreenState extends State<InventoryCheckScreen> {
             const SizedBox(height: 16),
           ],
           if ((role == 'student' || role == 'instructor' || role == 'supervisor') &&
-              !_hasCheckedToday && _selectedScheduleId != null) ...[
+              canVerify && !_isCheckingSchedule && _selectedScheduleId != null) ...[
             FloatingActionButton(
               heroTag: 'check',
               onPressed: _showCheckDialog,
@@ -1783,7 +1807,7 @@ class _InventoryCheckScreenState extends State<InventoryCheckScreen> {
     if (picked != null && picked != _selectedDate) {
       setState(() {
         _selectedDate = picked;
-        _hasCheckedToday = false;
+        _hasCheckRecordToday = false;
         _currentScheduleCheck = null;
       });
       _fetchData();
@@ -2506,14 +2530,15 @@ class _InventoryCheckScreenState extends State<InventoryCheckScreen> {
     } else if (role == 'instructor') {
       _showInstructorCheckDialog();
     } else if (role == 'supervisor') {
-      _showSupervisorCheckDialog();
+      if (_currentStatus == 'supervisor_review') {
+        _reviewSupervisorCheck(_currentScheduleCheck!);
+      } else {
+        _showSupervisorCheckDialog();
+      }
     }
   }
 
   void _showStudentCheckDialog() {
-    bool isClean = false;
-    bool isOrganized = false;
-    String comments = '';
     // ignore: unused_local_variable
     String cleaningNotes = '';
 
@@ -2526,26 +2551,6 @@ class _InventoryCheckScreenState extends State<InventoryCheckScreen> {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                CheckboxListTile(
-                  title: const Text('Aula aseada'),
-                  subtitle: const Text('El ambiente se encuentra limpio'),
-                  value: isClean,
-                  onChanged: (value) {
-                    setDialogState(() {
-                      isClean = value ?? false;
-                    });
-                  },
-                ),
-                CheckboxListTile(
-                  title: const Text('Aula organizada'),
-                  subtitle: const Text('Los elementos están en su lugar'),
-                  value: isOrganized,
-                  onChanged: (value) {
-                    setDialogState(() {
-                      isOrganized = value ?? false;
-                    });
-                  },
-                ),
                 TextFormField(
                   controller: _cleaningNotesController,
                   decoration: const InputDecoration(
@@ -2554,15 +2559,6 @@ class _InventoryCheckScreenState extends State<InventoryCheckScreen> {
                   ),
                   maxLines: 3,
                   onChanged: (value) => cleaningNotes = value,
-                ),
-                const SizedBox(height: 16),
-                TextFormField(
-                  decoration: const InputDecoration(
-                    labelText: 'Comentarios (opcional)',
-                    border: OutlineInputBorder(),
-                  ),
-                  maxLines: 3,
-                  onChanged: (value) => comments = value,
                 ),
               ],
             ),
@@ -2575,11 +2571,11 @@ class _InventoryCheckScreenState extends State<InventoryCheckScreen> {
             ElevatedButton(
               onPressed: () async {
                 final success = await _saveCheck(
-                  isClean: isClean,
-                  isOrganized: isOrganized,
+                  isClean: false,
+                  isOrganized: false,
                   inventoryComplete: false,
                   cleaningNotes: _cleaningNotesController.text,
-                  comments: comments,
+                  comments: '',
                 );
                 if (success) {
                   Navigator.pop(context);
@@ -2602,6 +2598,8 @@ class _InventoryCheckScreenState extends State<InventoryCheckScreen> {
     // ignore: unused_local_variable
     String cleaningNotes = '';
 
+    bool hasPrevious = _currentScheduleCheck != null;
+
     showDialog(
       context: context,
       builder: (context) => StatefulBuilder(
@@ -2611,6 +2609,27 @@ class _InventoryCheckScreenState extends State<InventoryCheckScreen> {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
+                if (hasPrevious) ...[
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: AppColors.grey100,
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          'Verificación del Estudiante',
+                          style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.primary),
+                        ),
+                        const SizedBox(height: 8),
+                        Text('Notas de limpieza: ${_currentScheduleCheck!['cleaning_notes'] ?? 'N/A'}'),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                ],
                 Container(
                   padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
@@ -2644,25 +2663,27 @@ class _InventoryCheckScreenState extends State<InventoryCheckScreen> {
                     });
                   },
                 ),
-                CheckboxListTile(
-                  title: const Text('Inventario completo'),
-                  subtitle: const Text('Todos los items están presentes y en buen estado'),
-                  value: inventoryComplete,
-                  onChanged: (value) {
-                    setDialogState(() {
-                      inventoryComplete = value ?? false;
-                    });
-                  },
-                ),
-                TextFormField(
-                  controller: _cleaningNotesController,
-                  decoration: const InputDecoration(
-                    labelText: 'Notas de limpieza (opcional)',
-                    border: OutlineInputBorder(),
+                if (hasPrevious)
+                  CheckboxListTile(
+                    title: const Text('Inventario completo'),
+                    subtitle: const Text('Todos los items están presentes y en buen estado'),
+                    value: inventoryComplete,
+                    onChanged: (value) {
+                      setDialogState(() {
+                        inventoryComplete = value ?? false;
+                      });
+                    },
                   ),
-                  maxLines: 3,
-                  onChanged: (value) => cleaningNotes = value,
-                ),
+                if (!hasPrevious)
+                  TextFormField(
+                    controller: _cleaningNotesController,
+                    decoration: const InputDecoration(
+                      labelText: 'Notas de limpieza (opcional)',
+                      border: OutlineInputBorder(),
+                    ),
+                    maxLines: 3,
+                    onChanged: (value) => cleaningNotes = value,
+                  ),
                 const SizedBox(height: 16),
                 TextFormField(
                   decoration: const InputDecoration(
@@ -2685,8 +2706,8 @@ class _InventoryCheckScreenState extends State<InventoryCheckScreen> {
                 final success = await _saveCheck(
                   isClean: isClean,
                   isOrganized: isOrganized,
-                  inventoryComplete: inventoryComplete,
-                  cleaningNotes: _cleaningNotesController.text,
+                  inventoryComplete: hasPrevious ? inventoryComplete : false,
+                  cleaningNotes: hasPrevious ? (_currentScheduleCheck!['cleaning_notes'] ?? '') : _cleaningNotesController.text,
                   comments: comments,
                 );
                 if (success) {
@@ -2707,6 +2728,11 @@ class _InventoryCheckScreenState extends State<InventoryCheckScreen> {
     bool isOrganized = false;
     bool inventoryComplete = false;
     String comments = '';
+    // ignore: unused_local_variable
+    String cleaningNotes = '';
+
+    bool hasPrevious = _currentScheduleCheck != null;
+
     showDialog(
       context: context,
       builder: (context) => StatefulBuilder(
@@ -2717,6 +2743,29 @@ class _InventoryCheckScreenState extends State<InventoryCheckScreen> {
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
+                if (hasPrevious) ...[
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: AppColors.grey100,
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          'Verificación Anterior',
+                          style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.primary),
+                        ),
+                        const SizedBox(height: 8),
+                        Text('Notas de limpieza: ${_currentScheduleCheck!['cleaning_notes'] ?? 'N/A'}'),
+                        if (_currentScheduleCheck!['instructor_comments'] != null)
+                          Text('Comentarios del Instructor: ${_currentScheduleCheck!['instructor_comments'] ?? 'N/A'}'),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                ],
                 Container(
                   padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
@@ -2784,6 +2833,18 @@ class _InventoryCheckScreenState extends State<InventoryCheckScreen> {
                   },
                 ),
                 const SizedBox(height: 16),
+                if (!hasPrevious || _currentStatus == 'instructor_review')
+                  TextFormField(
+                    controller: _cleaningNotesController,
+                    decoration: const InputDecoration(
+                      labelText: 'Notas de limpieza (opcional)',
+                      hintText: 'Detalles específicos sobre el estado del ambiente...',
+                      border: OutlineInputBorder(),
+                    ),
+                    maxLines: 2,
+                    onChanged: (value) => cleaningNotes = value,
+                  ),
+                const SizedBox(height: 16),
                 TextFormField(
                   decoration: const InputDecoration(
                     labelText: 'Comentarios de supervisión',
@@ -2792,16 +2853,6 @@ class _InventoryCheckScreenState extends State<InventoryCheckScreen> {
                   ),
                   maxLines: 3,
                   onChanged: (value) => comments = value,
-                ),
-                const SizedBox(height: 16),
-                TextFormField(
-                  controller: _cleaningNotesController,
-                  decoration: const InputDecoration(
-                    labelText: 'Notas de limpieza (opcional)',
-                    hintText: 'Detalles específicos sobre el estado del ambiente...',
-                    border: OutlineInputBorder(),
-                  ),
-                  maxLines: 2,
                 ),
               ],
             ),
@@ -2817,7 +2868,7 @@ class _InventoryCheckScreenState extends State<InventoryCheckScreen> {
                   isClean: isClean,
                   isOrganized: isOrganized,
                   inventoryComplete: inventoryComplete,
-                  cleaningNotes: _cleaningNotesController.text,
+                  cleaningNotes: hasPrevious && _currentStatus != 'instructor_review' ? (_currentScheduleCheck!['cleaning_notes'] ?? '') : _cleaningNotesController.text,
                   comments: comments,
                 );
                 if (success) {
@@ -2987,28 +3038,173 @@ class _InventoryCheckScreenState extends State<InventoryCheckScreen> {
                 Container(
                   padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
-                    color: AppColors.info.withOpacity(0.1),
+                    color: AppColors.grey100,
                     borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: AppColors.info),
                   ),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text(
-                        'Resumen de la Verificación:',
-                        style: TextStyle(fontWeight: FontWeight.bold),
+                      Text(
+                        'Información General',
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          color: AppColors.primary,
+                          fontSize: 16,
+                        ),
                       ),
                       const SizedBox(height: 8),
-                      Text('Total Items: ${_calculateTotalEnvironmentItems()}'),
-                      Text('Items Buenos: ${check['items_good'] ?? 0}'),
-                      Text('Items Dañados: ${check['items_damaged'] ?? 0}'),
-                      Text('Items Faltantes: ${check['items_missing'] ?? 0}'),
+                      _buildDetailRow('Estado', _statusTranslations[check['status']] ?? check['status']),
+                      _buildDetailRow('Fecha', check['check_date'] ?? 'N/A'),
+                      if (check['check_time'] != null)
+                        _buildDetailRow('Hora', _formatColombianTime(check['check_time'])),
+                      if (check['environment_id'] != null)
+                        _buildDetailRow('Ambiente ID', check['environment_id'].toString().substring(0, 8)),
+                      if (check['schedule_id'] != null)
+                        _buildDetailRow('Horario ID', check['schedule_id'].toString().substring(0, 8)),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: AppColors.grey100,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Participantes',
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          color: AppColors.primary,
+                          fontSize: 16,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      if (check['student_id'] != null)
+                        _buildDetailRow('Estudiante ID', check['student_id'].toString().substring(0, 8)),
+                      if (check['instructor_id'] != null)
+                        _buildDetailRow('Instructor ID', check['instructor_id'].toString().substring(0, 8)),
+                      if (check['supervisor_id'] != null)
+                        _buildDetailRow('Supervisor ID', check['supervisor_id'].toString().substring(0, 8)),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: AppColors.grey100,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Estadísticas de Inventario',
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          color: AppColors.primary,
+                          fontSize: 16,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      _buildDetailRow('Total Items', '${_calculateTotalEnvironmentItems()}'),
+                      _buildDetailRow('Items Buenos', (check['items_good'] ?? 0).toString()),
+                      _buildDetailRow('Items Dañados', (check['items_damaged'] ?? 0).toString()),
+                      _buildDetailRow('Items Faltantes', (check['items_missing'] ?? 0).toString()),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: AppColors.grey100,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Estado de Verificación',
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          color: AppColors.primary,
+                          fontSize: 16,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
                       if (check['is_clean'] != null)
-                        Text('Aula Limpia: ${check['is_clean'] ? 'Sí' : 'No'}'),
+                        _buildDetailRow('Aula Limpia', check['is_clean'] ? 'Sí' : 'No'),
                       if (check['is_organized'] != null)
-                        Text('Aula Organizada: ${check['is_organized'] ? 'Sí' : 'No'}'),
+                        _buildDetailRow('Aula Organizada', check['is_organized'] ? 'Sí' : 'No'),
                       if (check['inventory_complete'] != null)
-                        Text('Inventario Completo: ${check['inventory_complete'] ? 'Sí' : 'No'}'),
+                        _buildDetailRow('Inventario Completo', check['inventory_complete'] ? 'Sí' : 'No'),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: AppColors.grey100,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Comentarios y Notas',
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          color: AppColors.primary,
+                          fontSize: 16,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      if (check['cleaning_notes'] != null && check['cleaning_notes'].toString().isNotEmpty)
+                        _buildDetailRow('Notas de Limpieza (Estudiante)', check['cleaning_notes']),
+                      if (check['comments'] != null && check['comments'].toString().isNotEmpty)
+                        _buildDetailRow('Comentarios Generales', check['comments']),
+                      if (check['instructor_comments'] != null && check['instructor_comments'].toString().isNotEmpty)
+                        _buildDetailRow('Comentarios del Instructor', check['instructor_comments']),
+                      if (check['supervisor_comments'] != null && check['supervisor_comments'].toString().isNotEmpty)
+                        _buildDetailRow('Comentarios del Supervisor', check['supervisor_comments']),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: AppColors.grey100,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Historial de Confirmaciones',
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          color: AppColors.primary,
+                          fontSize: 16,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      if (check['student_confirmed_at'] != null)
+                        _buildDetailRow('Confirmado por Estudiante', _formatDateTime(check['student_confirmed_at'])),
+                      if (check['instructor_confirmed_at'] != null)
+                        _buildDetailRow('Confirmado por Instructor', _formatDateTime(check['instructor_confirmed_at'])),
+                      if (check['supervisor_confirmed_at'] != null)
+                        _buildDetailRow('Confirmado por Supervisor', _formatDateTime(check['supervisor_confirmed_at'])),
+                      if (check['created_at'] != null)
+                        _buildDetailRow('Creado', _formatDateTime(check['created_at'])),
+                      if (check['updated_at'] != null)
+                        _buildDetailRow('Última Actualización', _formatDateTime(check['updated_at'])),
                     ],
                   ),
                 ),

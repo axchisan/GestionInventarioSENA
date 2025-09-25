@@ -50,12 +50,6 @@ class _ReportGeneratorScreenState extends State<ReportGeneratorScreen> {
         'description': 'Lista y estado de todos los ambientes',
         'icon': Icons.location_on,
       },
-      {
-        'id': 'audit',
-        'title': 'Reporte de Auditoría',
-        'description': 'Log de actividades del sistema',
-        'icon': Icons.security,
-      },
     ],
     'admin': [
       {
