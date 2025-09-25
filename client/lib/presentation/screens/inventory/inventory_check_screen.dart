@@ -13,11 +13,13 @@ import '../maintenance/maintenance_request_screen.dart';
 import '../../../core/services/notification_service.dart';
 import '../../widgets/common/notification_badge.dart';
 import 'package:http/http.dart' as http;
+
 class InventoryCheckScreen extends StatefulWidget {
   const InventoryCheckScreen({super.key});
   @override
   State<InventoryCheckScreen> createState() => _InventoryCheckScreenState();
 }
+
 class _InventoryCheckScreenState extends State<InventoryCheckScreen> {
   final TextEditingController _searchController = TextEditingController();
   final TextEditingController _cleaningNotesController = TextEditingController();
@@ -776,65 +778,6 @@ class _InventoryCheckScreenState extends State<InventoryCheckScreen> {
           Text(
             'Última verificación: ${checkData['last_check'] ?? 'N/A'}',
             style: const TextStyle(fontSize: 11),
-          ),
-        ],
-      ),
-    );
-  }
-  void _editItemDialog(Map<String, dynamic> item) {
-    final nameController = TextEditingController(text: item['name']);
-    final descriptionController = TextEditingController(text: item['description']);
-    final quantityController = TextEditingController(text: item['quantity']?.toString() ?? '1');
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Editar Item'),
-        content: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextField(
-                controller: nameController,
-                decoration: const InputDecoration(
-                  labelText: 'Nombre',
-                  border: OutlineInputBorder(),
-                ),
-              ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: descriptionController,
-                decoration: const InputDecoration(
-                  labelText: 'Descripción',
-                  border: OutlineInputBorder(),
-                ),
-                maxLines: 3,
-              ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: quantityController,
-                decoration: const InputDecoration(
-                  labelText: 'Cantidad',
-                  border: OutlineInputBorder(),
-                ),
-                keyboardType: TextInputType.number,
-              ),
-            ],
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancelar'),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              // Implement item update logic
-              Navigator.pop(context);
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Item actualizado exitosamente')),
-              );
-            },
-            child: const Text('Guardar'),
           ),
         ],
       ),
@@ -2190,7 +2133,7 @@ class _InventoryCheckScreenState extends State<InventoryCheckScreen> {
                     const SizedBox(width: 12),
                     Expanded(
                       child: OutlinedButton.icon(
-                        onPressed: () => _editItemDialog(item),
+                        onPressed: () => context.push('/edit-inventory-item', extra: item).then((_) => _fetchData()),
                         icon: const Icon(Icons.edit_document),
                         label: const Text('Editar Item'),
                         style: OutlinedButton.styleFrom(

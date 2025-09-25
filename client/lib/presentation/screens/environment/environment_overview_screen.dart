@@ -279,10 +279,7 @@ class _EnvironmentOverviewScreenState extends State<EnvironmentOverviewScreen>
       floatingActionButton: role == 'supervisor' || role == 'admin'
           ? FloatingActionButton(
               onPressed: () {
-                context.push(
-                  '/add-inventory-item',
-                  extra: {'environmentId': _environmentId},
-                ).then((_) => _fetchData());
+                context.push('/add-inventory-item', extra: {'environmentId': _environmentId}).then((_) => _fetchData());
               },
               backgroundColor: AppColors.primary,
               child: const Icon(Icons.add, color: Colors.white),
@@ -590,7 +587,7 @@ class _EnvironmentOverviewScreenState extends State<EnvironmentOverviewScreen>
   }
 
   void _editItem(Map<String, dynamic> item) {
-    context.push('/edit-inventory-item', extra: {'item': item}).then((_) => _fetchData());
+    context.push('/edit-inventory-item', extra: item).then((_) => _fetchData());
   }
 
   void _deleteItem(Map<String, dynamic> item) {
