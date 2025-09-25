@@ -109,6 +109,16 @@ class _MaintenanceRequestScreenState extends State<MaintenanceRequestScreen>
                  category.contains(searchLower);
         }).toList();
       }
+      // Asegurarse de que el item seleccionado siempre esté en la lista filtrada
+      if (_selectedItemId != null && !_filteredItems.any((item) => item['id'].toString() == _selectedItemId)) {
+        final selectedItem = _inventoryItems.firstWhere(
+          (item) => item['id'].toString() == _selectedItemId,
+          orElse: () => <String, dynamic>{},
+        );
+        if (selectedItem.isNotEmpty) {
+          _filteredItems.insert(0, selectedItem);
+        }
+      }
     });
   }
 
@@ -335,11 +345,19 @@ class _MaintenanceRequestScreenState extends State<MaintenanceRequestScreen>
                           prefixIcon: Icon(Icons.inventory),
                         ),
                         isExpanded: true,
+                        itemHeight: 60.0, // Aumentado para acomodar el contenido de dos líneas sin overflow
+                        selectedItemBuilder: (context) => _filteredItems.map((item) {
+                          return Text(
+                            item['name'] ?? 'Sin nombre',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          );
+                        }).toList(),
                         items: _filteredItems.map((item) {
                           return DropdownMenuItem<String>(
                             value: item['id'].toString(),
                             child: Container(
-                              padding: const EdgeInsets.symmetric(vertical: 8),
+                              padding: const EdgeInsets.symmetric(vertical: 4.0), // Reducido para optimizar espacio
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 mainAxisSize: MainAxisSize.min,

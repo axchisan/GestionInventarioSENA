@@ -346,6 +346,9 @@ class _InstructorDashboardState extends State<InstructorDashboard> {
                           Icons.build_circle,
                           AppColors.warning,
                           '/maintenance-request',
+                          extra: {
+                            'environmentId': user?.environmentId ?? '',
+                          },
                         ),
                         _buildActionCard(
                           context,
@@ -736,7 +739,9 @@ class _InstructorDashboardState extends State<InstructorDashboard> {
           ListTile(
             leading: const Icon(Icons.build_circle),
             title: const Text('Solicitar Mantenimiento'),
-            onTap: () => context.push('/maintenance-request'),
+            onTap: () => context.push('/maintenance-request', extra: {
+              'environmentId': user?.environmentId ?? '',
+            }),
           ),
           ListTile(
             leading: const Icon(Icons.location_on),

@@ -99,7 +99,14 @@ class NavigationService {
       GoRoute(
         path: '/maintenance-request',
         name: 'maintenance-request',
-        builder: (context, state) => const MaintenanceRequestScreen(environmentId: '',),
+        builder: (context, state) {
+          final extra = state.extra as Map<String, dynamic>? ?? {};
+          return MaintenanceRequestScreen(
+            environmentId: extra['environmentId'] as String? ?? '',
+            preselectedItemId: extra['preselectedItemId'] as String?,
+            preselectedItemName: extra['preselectedItemName'] as String?,
+          );
+        },
       ),
       GoRoute(
         path: '/admin-dashboard',
