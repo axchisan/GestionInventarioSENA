@@ -5,12 +5,13 @@ from jose import JWTError, jwt
 from datetime import datetime
 from typing import cast
 from ..database import get_db
-from ..schemas.user import LoginRequest, TokenResponse, UserCreate, UserResponse
+from ..schemas.user import LoginRequest, TokenResponse, UserCreate, UserResponse, ProfileUpdateRequest, PasswordChangeRequest
 from ..services.auth_service import authenticate_user
-from ..utils.security import hash_password
+from ..utils.security import hash_password, verify_password
 from ..models.users import User
 from ..config import settings
 import uuid
+import bcrypt
 
 router = APIRouter(tags=["auth"])
 
@@ -73,3 +74,82 @@ async def get_current_user(token: str = Depends(oauth2_scheme), db: Session = De
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Usuario no encontrado")
     
     return UserResponse.from_orm(user)
+
+@router.put("/me", response_model=UserResponse)
+async def update_current_user_profile(
+    profile_data: ProfileUpdateRequest,
+    token: str = Depends(oauth2_scheme),
+    db: Session = Depends(get_db)
+):
+    """Update current user's profile"""
+    try:
+        payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
+        user_id: str = payload.get("sub")
+        if user_id is None:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Token inválido",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+    except JWTError:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Token inválido o expirado",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    user = db.query(User).filter(User.id == uuid.UUID(user_id)).first()
+    if user is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Usuario no encontrado")
+    
+    # Update fields if provided
+    update_data = profile_data.dict(exclude_unset=True)
+    for field, value in update_data.items():
+        setattr(user, field, value)
+    
+    user.updated_at = datetime.utcnow()
+    db.commit()
+    db.refresh(user)
+    
+    return UserResponse.from_orm(user)
+
+@router.post("/me/change-password")
+async def change_password(
+    password_data: PasswordChangeRequest,
+    token: str = Depends(oauth2_scheme),
+    db: Session = Depends(get_db)
+):
+    """Change current user's password"""
+    try:
+        payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
+        user_id: str = payload.get("sub")
+        if user_id is None:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Token inválido",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+    except JWTError:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Token inválido o expirado",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    user = db.query(User).filter(User.id == uuid.UUID(user_id)).first()
+    if user is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Usuario no encontrado")
+    
+    # Verify current password
+    if not verify_password(password_data.current_password, user.password_hash):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Contraseña actual incorrecta"
+        )
+    
+    # Hash and update new password
+    user.password_hash = hash_password(password_data.new_password)
+    user.updated_at = datetime.utcnow()
+    db.commit()
+    
+    return {"message": "Contraseña actualizada exitosamente"}
