@@ -15,3 +15,4 @@ const String inventoryCheckItemsEndpoint = '/api/inventory-check-items/';
 const String maintenanceRequestsEndpoint = '/api/maintenance-requests/';
 const String reportsEndpoint = '/api/reports/';
 const String auditLogsEndpoint = '/api/audit-logs/';
+const String feedbackEndpoint = '/api/feedback/';

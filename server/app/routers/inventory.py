@@ -16,18 +16,24 @@ def get_inventory_items(
     db: Session = Depends(get_db),
     search: str = "",
     environment_id: Optional[UUID] = None,
+    system_wide: Optional[bool] = False,
+    admin_access: Optional[bool] = False,
     current_user: User = Depends(get_current_user)
 ):
     query = db.query(InventoryItem).filter(InventoryItem.status != "lost")
-    if environment_id:
+    
+    if current_user.role == "admin_general" and (system_wide or admin_access):
+        pass  # Admin general can see all inventory items across all environments
+    elif environment_id:
         query = query.filter(InventoryItem.environment_id == environment_id)
     elif current_user.environment_id:
         query = query.filter(InventoryItem.environment_id == current_user.environment_id)
     else:
-        raise HTTPException(
-            status_code=400,
-            detail="No se ha vinculado un ambiente al usuario"
-        )
+        if current_user.role != "admin_general":
+            raise HTTPException(
+                status_code=400,
+                detail="No se ha vinculado un ambiente al usuario"
+            )
 
     if search:
         search = search.lower()
@@ -37,7 +43,7 @@ def get_inventory_items(
             (InventoryItem.category.ilike(f"%{search}%"))
         )
     items = query.all()
-    if not items:
+    if not items and current_user.role != "admin_general":
         raise HTTPException(status_code=404, detail="No se encontraron ítems")
     return items
 

@@ -1,5 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import '../../widgets/common/sena_app_bar.dart';
+import '../../providers/auth_provider.dart';
+import '../../../core/services/api_service.dart';
+import '../../../core/constants/api_constants.dart';
 
 class FeedbackFormScreen extends StatefulWidget {
   const FeedbackFormScreen({Key? key}) : super(key: key);
@@ -13,11 +17,15 @@ class _FeedbackFormScreenState extends State<FeedbackFormScreen> {
   final _titleController = TextEditingController();
   final _descriptionController = TextEditingController();
   final _emailController = TextEditingController();
+  late ApiService _apiService;
   
   String selectedCategory = 'suggestion';
   int selectedRating = 5;
   bool isAnonymous = false;
   bool isSubmitting = false;
+  bool isLoadingFeedback = true;
+  
+  List<Map<String, dynamic>> recentFeedback = [];
 
   final List<Map<String, dynamic>> categories = [
     {
@@ -64,35 +72,92 @@ class _FeedbackFormScreenState extends State<FeedbackFormScreen> {
     },
   ];
 
-  final List<Map<String, dynamic>> recentFeedback = [
-    {
-      'title': 'Mejorar búsqueda de equipos',
-      'category': 'Sugerencia',
-      'date': '10/01/2024',
-      'status': 'En revisión',
-      'rating': 4,
-    },
-    {
-      'title': 'Error al generar reportes',
-      'category': 'Error/Bug',
-      'date': '08/01/2024',
-      'status': 'Resuelto',
-      'rating': 3,
-    },
-    {
-      'title': 'Notificaciones push',
-      'category': 'Nueva Funcionalidad',
-      'date': '05/01/2024',
-      'status': 'Planificado',
-      'rating': 5,
-    },
-  ];
+  @override
+  void initState() {
+    super.initState();
+    final authProvider = Provider.of<AuthProvider>(context, listen: false);
+    _apiService = ApiService(authProvider: authProvider);
+    _loadRecentFeedback();
+  }
+
+  Future<void> _loadRecentFeedback() async {
+    try {
+      setState(() => isLoadingFeedback = true);
+      
+      final feedbackData = await _apiService.get(
+        feedbackEndpoint,
+        queryParams: {'limit': '5'},
+      );
+      
+      if (feedbackData != null && feedbackData is List) {
+        setState(() {
+          recentFeedback = feedbackData.map((item) {
+            return {
+              'id': item['id'],
+              'title': item['title'],
+              'category': _getCategoryTitle(item['type']),
+              'date': _formatDate(item['created_at']),
+              'status': _getStatusText(item['status']),
+              'rating': item['rating'] ?? 0,
+            };
+          }).toList();
+          isLoadingFeedback = false;
+        });
+      } else {
+        setState(() {
+          recentFeedback = [];
+          isLoadingFeedback = false;
+        });
+      }
+    } catch (e) {
+      print('Error loading feedback: $e');
+      setState(() {
+        recentFeedback = [];
+        isLoadingFeedback = false;
+      });
+    }
+  }
+
+  String _getCategoryTitle(String type) {
+    final category = categories.firstWhere(
+      (cat) => cat['id'] == type,
+      orElse: () => categories.last,
+    );
+    return category['title'];
+  }
+
+  String _getStatusText(String status) {
+    switch (status) {
+      case 'submitted':
+        return 'Enviado';
+      case 'reviewed':
+        return 'En revisión';
+      case 'in_progress':
+        return 'En progreso';
+      case 'completed':
+        return 'Completado';
+      case 'rejected':
+        return 'Rechazado';
+      default:
+        return 'Desconocido';
+    }
+  }
+
+  String _formatDate(String dateStr) {
+    try {
+      final date = DateTime.parse(dateStr);
+      return '${date.day.toString().padLeft(2, '0')}/${date.month.toString().padLeft(2, '0')}/${date.year}';
+    } catch (e) {
+      return dateStr;
+    }
+  }
 
   @override
   void dispose() {
     _titleController.dispose();
     _descriptionController.dispose();
     _emailController.dispose();
+    _apiService.dispose();
     super.dispose();
   }
 
@@ -426,7 +491,25 @@ class _FeedbackFormScreenState extends State<FeedbackFormScreen> {
               ),
             ),
             const SizedBox(height: 16),
-            ...recentFeedback.map((feedback) => _buildFeedbackItem(feedback)),
+            if (isLoadingFeedback)
+              const Center(
+                child: Padding(
+                  padding: EdgeInsets.all(20),
+                  child: CircularProgressIndicator(),
+                ),
+              )
+            else if (recentFeedback.isEmpty)
+              const Center(
+                child: Padding(
+                  padding: EdgeInsets.all(20),
+                  child: Text(
+                    'No has enviado comentarios aún',
+                    style: TextStyle(color: Colors.grey),
+                  ),
+                ),
+              )
+            else
+              ...recentFeedback.map((feedback) => _buildFeedbackItem(feedback)),
           ],
         ),
       ),
@@ -547,29 +630,57 @@ class _FeedbackFormScreenState extends State<FeedbackFormScreen> {
 
     setState(() => isSubmitting = true);
     
-    // Simular envío
-    await Future.delayed(const Duration(seconds: 2));
-    
-    setState(() => isSubmitting = false);
-    
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('¡Comentario enviado exitosamente! Gracias por tu retroalimentación.'),
-          backgroundColor: Color(0xFF00A651),
-          duration: Duration(seconds: 3),
-        ),
-      );
+    try {
+      final feedbackData = {
+        'type': selectedCategory,
+        'category': _getCategoryTitle(selectedCategory),
+        'title': _titleController.text,
+        'description': _descriptionController.text,
+        'priority': 'medium',
+        'rating': selectedRating,
+        'include_device_info': false,
+        'include_logs': false,
+        'allow_follow_up': !isAnonymous,
+      };
+
+      await _apiService.post(feedbackEndpoint, feedbackData);
       
-      // Limpiar formulario
-      _titleController.clear();
-      _descriptionController.clear();
-      _emailController.clear();
-      setState(() {
-        selectedCategory = 'suggestion';
-        selectedRating = 5;
-        isAnonymous = false;
-      });
+      setState(() => isSubmitting = false);
+      
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('¡Comentario enviado exitosamente! Gracias por tu retroalimentación.'),
+            backgroundColor: Color(0xFF00A651),
+            duration: Duration(seconds: 3),
+          ),
+        );
+        
+        // Limpiar formulario
+        _titleController.clear();
+        _descriptionController.clear();
+        _emailController.clear();
+        setState(() {
+          selectedCategory = 'suggestion';
+          selectedRating = 5;
+          isAnonymous = false;
+        });
+        
+        // Reload recent feedback
+        _loadRecentFeedback();
+      }
+    } catch (e) {
+      setState(() => isSubmitting = false);
+      
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error al enviar comentario: $e'),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 3),
+          ),
+        );
+      }
     }
   }
 }

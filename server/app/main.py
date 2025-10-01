@@ -1,6 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from .routers import auth, environments, inventory, qr, schedules, users, inventory_checks, supervisor_reviews, inventory_check_items, system_alerts, notifications, maintenance_requests, maintenance_history, stats, loans, alert_settings, reports, audit_logs
+from .routers import auth, environments, inventory, qr, schedules, users, inventory_checks, supervisor_reviews, inventory_check_items, system_alerts, notifications, maintenance_requests, maintenance_history, stats, loans, alert_settings, reports, audit_logs, feedback
 from .middleware.audit_middleware import AuditMiddleware
 from .config import settings
 
@@ -36,6 +36,7 @@ app.include_router(loans.router, prefix="/api/loans", tags=["loans"])
 app.include_router(alert_settings.router, prefix="/api/alert-settings", tags=["alert-settings"])
 app.include_router(reports.router, prefix="/api/reports", tags=["reports"])
 app.include_router(audit_logs.router, prefix="/api/audit-logs", tags=["audit-logs"])
+app.include_router(feedback.router, prefix="/api/feedback", tags=["feedback"])
 
 @app.get("/")
 async def root():

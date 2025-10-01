@@ -19,9 +19,14 @@ def get_maintenance_requests(
     item_id: Optional[UUID] = None,
     status: Optional[str] = None,
     environment_id: Optional[UUID] = None,
+    system_wide: Optional[bool] = False,
+    admin_access: Optional[bool] = False,
     current_user: User = Depends(get_current_user)
 ):
-    if current_user.role in ["admin", "supervisor"]:
+    if current_user.role == "admin_general" and (system_wide or admin_access):
+        # Admin general can see all maintenance requests
+        query = db.query(MaintenanceRequest)
+    elif current_user.role in ["admin", "supervisor"]:
         # Admin and supervisor can see all requests or filter by environment
         query = db.query(MaintenanceRequest)
         if environment_id:
