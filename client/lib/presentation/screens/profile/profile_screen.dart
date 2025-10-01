@@ -2,6 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/services/theme_service.dart';
+import '../../../core/services/profile_service.dart';
+import '../../../data/models/user_model.dart';
+import '../../providers/auth_provider.dart';
 import '../../widgets/common/sena_app_bar.dart';
 
 class ProfileScreen extends StatefulWidget {
@@ -13,15 +16,87 @@ class ProfileScreen extends StatefulWidget {
 
 class _ProfileScreenState extends State<ProfileScreen> {
   final _formKey = GlobalKey<FormState>();
-  final _nameController = TextEditingController(text: 'Usuario Demo');
-  final _emailController = TextEditingController(text: 'usuario@sena.edu.co');
-  final _phoneController = TextEditingController(text: '+57 300 123 4567');
-  final _idController = TextEditingController(text: '12345678');
+  final _firstNameController = TextEditingController();
+  final _lastNameController = TextEditingController();
+  final _emailController = TextEditingController();
+  final _phoneController = TextEditingController();
+  final _programController = TextEditingController();
+  final _fichaController = TextEditingController();
   
   bool _notificationsEnabled = true;
+  bool _isLoading = true;
+  bool _isSaving = false;
+  UserModel? _currentUser;
+  String? _errorMessage;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadUserData();
+  }
+
+  Future<void> _loadUserData() async {
+    setState(() {
+      _isLoading = true;
+      _errorMessage = null;
+    });
+
+    try {
+      final authProvider = Provider.of<AuthProvider>(context, listen: false);
+      final profileService = ProfileService(token: authProvider.token);
+      
+      final user = await profileService.getCurrentUser();
+      
+      setState(() {
+        _currentUser = user;
+        _firstNameController.text = user.firstName ?? '';
+        _lastNameController.text = user.lastName ?? '';
+        _emailController.text = user.email ?? '';
+        _phoneController.text = user.phone ?? '';
+        _programController.text = user.program ?? '';
+        _fichaController.text = user.ficha ?? '';
+        _isLoading = false;
+      });
+    } catch (e) {
+      setState(() {
+        _errorMessage = 'Error al cargar datos del usuario: $e';
+        _isLoading = false;
+      });
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
+    if (_isLoading) {
+      return Scaffold(
+        appBar: const SenaAppBar(title: 'Perfil y Configuración'),
+        body: const Center(
+          child: CircularProgressIndicator(),
+        ),
+      );
+    }
+
+    if (_errorMessage != null) {
+      return Scaffold(
+        appBar: const SenaAppBar(title: 'Perfil y Configuración'),
+        body: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Icon(Icons.error_outline, size: 64, color: AppColors.error),
+              const SizedBox(height: 16),
+              Text(_errorMessage!, textAlign: TextAlign.center),
+              const SizedBox(height: 16),
+              ElevatedButton(
+                onPressed: _loadUserData,
+                child: const Text('Reintentar'),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
     return Scaffold(
       appBar: const SenaAppBar(title: 'Perfil y Configuración'),
       body: SingleChildScrollView(
@@ -56,12 +131,27 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           ),
                           child: ClipRRect(
                             borderRadius: BorderRadius.circular(50),
-                            child: Image.asset(
-                              '/sena-logo.png',
-                              width: 90,
-                              height: 90,
-                              fit: BoxFit.contain,
-                            ),
+                            child: _currentUser?.avatarUrl != null
+                                ? Image.network(
+                                    _currentUser!.avatarUrl!,
+                                    width: 90,
+                                    height: 90,
+                                    fit: BoxFit.cover,
+                                    errorBuilder: (context, error, stackTrace) {
+                                      return Image.asset(
+                                        '/sena-logo.png',
+                                        width: 90,
+                                        height: 90,
+                                        fit: BoxFit.contain,
+                                      );
+                                    },
+                                  )
+                                : Image.asset(
+                                    '/sena-logo.png',
+                                    width: 90,
+                                    height: 90,
+                                    fit: BoxFit.contain,
+                                  ),
                           ),
                         ),
                         Positioned(
@@ -85,29 +175,30 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       ],
                     ),
                     const SizedBox(height: 16),
-                    const Text(
-                      'Usuario Demo',
-                      style: TextStyle(
+                    Text(
+                      '${_currentUser?.firstName ?? ''} ${_currentUser?.lastName ?? ''}'.trim(),
+                      style: const TextStyle(
                         fontSize: 24,
                         fontWeight: FontWeight.bold,
                       ),
                     ),
-                    const Text(
-                      'Estudiante SENA',
-                      style: TextStyle(
+                    Text(
+                      _getRoleDisplayName(_currentUser?.role ?? ''),
+                      style: const TextStyle(
                         fontSize: 16,
                         color: AppColors.grey600,
                       ),
                     ),
-                    const SizedBox(height: 16),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                      children: [
-                        _buildStatItem('Préstamos', '23'),
-                        _buildStatItem('Activos', '2'),
-                        _buildStatItem('Historial', '45'),
-                      ],
-                    ),
+                    if (_currentUser?.program != null) ...[
+                      const SizedBox(height: 4),
+                      Text(
+                        _currentUser!.program!,
+                        style: const TextStyle(
+                          fontSize: 14,
+                          color: AppColors.grey500,
+                        ),
+                      ),
+                    ],
                   ],
                 ),
               ),
@@ -133,15 +224,31 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       const SizedBox(height: 16),
                       
                       TextFormField(
-                        controller: _nameController,
+                        controller: _firstNameController,
                         decoration: const InputDecoration(
-                          labelText: 'Nombre Completo',
+                          labelText: 'Nombre',
                           border: OutlineInputBorder(),
                           prefixIcon: Icon(Icons.person),
                         ),
                         validator: (value) {
                           if (value == null || value.isEmpty) {
                             return 'Por favor ingrese su nombre';
+                          }
+                          return null;
+                        },
+                      ),
+                      const SizedBox(height: 16),
+                      
+                      TextFormField(
+                        controller: _lastNameController,
+                        decoration: const InputDecoration(
+                          labelText: 'Apellido',
+                          border: OutlineInputBorder(),
+                          prefixIcon: Icon(Icons.person_outline),
+                        ),
+                        validator: (value) {
+                          if (value == null || value.isEmpty) {
+                            return 'Por favor ingrese su apellido';
                           }
                           return null;
                         },
@@ -156,12 +263,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           prefixIcon: Icon(Icons.email),
                         ),
                         keyboardType: TextInputType.emailAddress,
-                        validator: (value) {
-                          if (value == null || value.isEmpty) {
-                            return 'Por favor ingrese su correo';
-                          }
-                          return null;
-                        },
+                        readOnly: true,
+                        enabled: false,
                       ),
                       const SizedBox(height: 16),
                       
@@ -177,13 +280,22 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       const SizedBox(height: 16),
                       
                       TextFormField(
-                        controller: _idController,
+                        controller: _programController,
                         decoration: const InputDecoration(
-                          labelText: 'Número de Identificación',
+                          labelText: 'Programa de Formación',
+                          border: OutlineInputBorder(),
+                          prefixIcon: Icon(Icons.school),
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      
+                      TextFormField(
+                        controller: _fichaController,
+                        decoration: const InputDecoration(
+                          labelText: 'Número de Ficha',
                           border: OutlineInputBorder(),
                           prefixIcon: Icon(Icons.badge),
                         ),
-                        readOnly: true,
                       ),
                     ],
                   ),
@@ -192,6 +304,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             ),
             const SizedBox(height: 16),
             
+            // Configuración
             Card(
               child: Padding(
                 padding: const EdgeInsets.all(16.0),
@@ -207,7 +320,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     ),
                     const SizedBox(height: 16),
                     
-                    // Tema
                     Consumer<ThemeService>(
                       builder: (context, themeService, child) {
                         return SwitchListTile(
@@ -223,7 +335,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       },
                     ),
                     
-                    // Notificaciones (preparado para futuro)
                     SwitchListTile(
                       title: const Text('Notificaciones'),
                       subtitle: const Text('Recibir notificaciones de la app'),
@@ -320,8 +431,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
             SizedBox(
               width: double.infinity,
               child: ElevatedButton(
-                onPressed: _saveChanges,
-                child: const Text('Guardar Cambios'),
+                onPressed: _isSaving ? null : _saveChanges,
+                child: _isSaving
+                    ? const SizedBox(
+                        height: 20,
+                        width: 20,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Text('Guardar Cambios'),
               ),
             ),
           ],
@@ -330,26 +447,21 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  Widget _buildStatItem(String label, String value) {
-    return Column(
-      children: [
-        Text(
-          value,
-          style: const TextStyle(
-            fontSize: 20,
-            fontWeight: FontWeight.bold,
-            color: AppColors.primary,
-          ),
-        ),
-        Text(
-          label,
-          style: const TextStyle(
-            fontSize: 12,
-            color: AppColors.grey600,
-          ),
-        ),
-      ],
-    );
+  String _getRoleDisplayName(String role) {
+    switch (role) {
+      case 'student':
+        return 'Estudiante SENA';
+      case 'instructor':
+        return 'Instructor SENA';
+      case 'supervisor':
+        return 'Supervisor';
+      case 'admin':
+        return 'Administrador';
+      case 'admin_general':
+        return 'Administrador General';
+      default:
+        return 'Usuario SENA';
+    }
   }
 
   void _changeProfilePicture() {
@@ -402,15 +514,116 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   void _changePassword() {
+    final currentPasswordController = TextEditingController();
+    final newPasswordController = TextEditingController();
+    final confirmPasswordController = TextEditingController();
+    final formKey = GlobalKey<FormState>();
+
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Cambiar Contraseña'),
-        content: const Text('Funcionalidad para cambiar contraseña en desarrollo.'),
+        content: Form(
+          key: formKey,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextFormField(
+                controller: currentPasswordController,
+                decoration: const InputDecoration(
+                  labelText: 'Contraseña Actual',
+                  border: OutlineInputBorder(),
+                  prefixIcon: Icon(Icons.lock_outline),
+                ),
+                obscureText: true,
+                validator: (value) {
+                  if (value == null || value.isEmpty) {
+                    return 'Ingrese su contraseña actual';
+                  }
+                  return null;
+                },
+              ),
+              const SizedBox(height: 16),
+              TextFormField(
+                controller: newPasswordController,
+                decoration: const InputDecoration(
+                  labelText: 'Nueva Contraseña',
+                  border: OutlineInputBorder(),
+                  prefixIcon: Icon(Icons.lock),
+                ),
+                obscureText: true,
+                validator: (value) {
+                  if (value == null || value.isEmpty) {
+                    return 'Ingrese una nueva contraseña';
+                  }
+                  if (value.length < 6) {
+                    return 'La contraseña debe tener al menos 6 caracteres';
+                  }
+                  return null;
+                },
+              ),
+              const SizedBox(height: 16),
+              TextFormField(
+                controller: confirmPasswordController,
+                decoration: const InputDecoration(
+                  labelText: 'Confirmar Nueva Contraseña',
+                  border: OutlineInputBorder(),
+                  prefixIcon: Icon(Icons.lock),
+                ),
+                obscureText: true,
+                validator: (value) {
+                  if (value == null || value.isEmpty) {
+                    return 'Confirme su nueva contraseña';
+                  }
+                  if (value != newPasswordController.text) {
+                    return 'Las contraseñas no coinciden';
+                  }
+                  return null;
+                },
+              ),
+            ],
+          ),
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text('Cerrar'),
+            child: const Text('Cancelar'),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              if (formKey.currentState!.validate()) {
+                Navigator.pop(context);
+                
+                try {
+                  final authProvider = Provider.of<AuthProvider>(context, listen: false);
+                  final profileService = ProfileService(token: authProvider.token);
+                  
+                  await profileService.changePassword(
+                    currentPassword: currentPasswordController.text,
+                    newPassword: newPasswordController.text,
+                  );
+                  
+                  if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('Contraseña actualizada exitosamente'),
+                        backgroundColor: AppColors.success,
+                      ),
+                    );
+                  }
+                } catch (e) {
+                  if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text('Error: $e'),
+                        backgroundColor: AppColors.error,
+                      ),
+                    );
+                  }
+                }
+              }
+            },
+            child: const Text('Cambiar'),
           ),
         ],
       ),
@@ -499,9 +712,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
             child: const Text('Cancelar'),
           ),
           ElevatedButton(
-            onPressed: () {
-              Navigator.pop(context);
-              Navigator.pushReplacementNamed(context, '/login');
+            onPressed: () async {
+              final authProvider = Provider.of<AuthProvider>(context, listen: false);
+              await authProvider.logout();
+              if (mounted) {
+                Navigator.pop(context);
+                Navigator.pushReplacementNamed(context, '/login');
+              }
             },
             style: ElevatedButton.styleFrom(
               backgroundColor: AppColors.error,
@@ -513,23 +730,65 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  void _saveChanges() {
+  Future<void> _saveChanges() async {
     if (_formKey.currentState!.validate()) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Cambios guardados exitosamente'),
-          backgroundColor: AppColors.success,
-        ),
-      );
+      setState(() {
+        _isSaving = true;
+      });
+
+      try {
+        final authProvider = Provider.of<AuthProvider>(context, listen: false);
+        final profileService = ProfileService(token: authProvider.token);
+        
+        final updatedUser = await profileService.updateProfile(
+          firstName: _firstNameController.text,
+          lastName: _lastNameController.text,
+          phone: _phoneController.text.isEmpty ? null : _phoneController.text,
+          program: _programController.text.isEmpty ? null : _programController.text,
+          ficha: _fichaController.text.isEmpty ? null : _fichaController.text,
+        );
+        
+        setState(() {
+          _currentUser = updatedUser;
+          _isSaving = false;
+        });
+        
+        // Update auth provider with new user data
+        await authProvider.checkSession();
+        
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Cambios guardados exitosamente'),
+              backgroundColor: AppColors.success,
+            ),
+          );
+        }
+      } catch (e) {
+        setState(() {
+          _isSaving = false;
+        });
+        
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Error al guardar cambios: $e'),
+              backgroundColor: AppColors.error,
+            ),
+          );
+        }
+      }
     }
   }
 
   @override
   void dispose() {
-    _nameController.dispose();
+    _firstNameController.dispose();
+    _lastNameController.dispose();
     _emailController.dispose();
     _phoneController.dispose();
-    _idController.dispose();
+    _programController.dispose();
+    _fichaController.dispose();
     super.dispose();
   }
 }

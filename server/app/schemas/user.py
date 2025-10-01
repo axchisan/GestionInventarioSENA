@@ -38,3 +38,15 @@ class TokenResponse(BaseModel):
 
 class LinkEnvironmentRequest(BaseModel):
     environment_id: UUID
+
+class ProfileUpdateRequest(BaseModel):
+    first_name: Optional[str] = None
+    last_name: Optional[str] = None
+    phone: Optional[str] = None
+    program: Optional[str] = None
+    ficha: Optional[str] = None
+    avatar_url: Optional[str] = None
+
+class PasswordChangeRequest(BaseModel):
+    current_password: str
+    new_password: str
