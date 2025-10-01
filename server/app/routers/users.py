@@ -47,6 +47,10 @@ async def get_users(
     role: Optional[str] = Query(None),
     is_active: Optional[bool] = Query(None),
     search: Optional[str] = Query(None),
+    start_date: Optional[str] = Query(None),
+    end_date: Optional[str] = Query(None),
+    system_wide: Optional[bool] = Query(None),
+    admin_access: Optional[bool] = Query(None),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
@@ -58,6 +62,15 @@ async def get_users(
         )
     
     query = db.query(User)
+    
+    # Apply date filtering for statistics
+    if start_date and end_date:
+        try:
+            start = datetime.fromisoformat(start_date)
+            end = datetime.fromisoformat(end_date)
+            query = query.filter(User.created_at.between(start, end))
+        except ValueError:
+            pass
     
     # Apply filters
     if role:

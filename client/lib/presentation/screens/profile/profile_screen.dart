@@ -19,13 +19,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
   final _idController = TextEditingController(text: '12345678');
   
   bool _notificationsEnabled = true;
-  bool _emailNotifications = true;
-  bool _pushNotifications = true;
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: const SenaAppBar(title: 'Mi Perfil'),
+      appBar: const SenaAppBar(title: 'Perfil y Configuración'),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16.0),
         child: Column(
@@ -194,7 +192,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
             ),
             const SizedBox(height: 16),
             
-            // Configuraciones
             Card(
               child: Padding(
                 padding: const EdgeInsets.all(16.0),
@@ -202,7 +199,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     const Text(
-                      'Configuraciones',
+                      'Configuración',
                       style: TextStyle(
                         fontSize: 18,
                         fontWeight: FontWeight.bold,
@@ -226,7 +223,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       },
                     ),
                     
-                    // Notificaciones
+                    // Notificaciones (preparado para futuro)
                     SwitchListTile(
                       title: const Text('Notificaciones'),
                       subtitle: const Text('Recibir notificaciones de la app'),
@@ -235,40 +232,21 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         setState(() {
                           _notificationsEnabled = value;
                         });
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text(
+                              value 
+                                ? 'Notificaciones activadas' 
+                                : 'Notificaciones desactivadas'
+                            ),
+                          ),
+                        );
                       },
                       secondary: const Icon(
                         Icons.notifications,
                         color: AppColors.primary,
                       ),
                     ),
-                    
-                    if (_notificationsEnabled) ...[
-                      Padding(
-                        padding: const EdgeInsets.only(left: 16.0),
-                        child: Column(
-                          children: [
-                            SwitchListTile(
-                              title: const Text('Notificaciones por Email'),
-                              value: _emailNotifications,
-                              onChanged: (value) {
-                                setState(() {
-                                  _emailNotifications = value;
-                                });
-                              },
-                            ),
-                            SwitchListTile(
-                              title: const Text('Notificaciones Push'),
-                              value: _pushNotifications,
-                              onChanged: (value) {
-                                setState(() {
-                                  _pushNotifications = value;
-                                });
-                              },
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
                   ],
                 ),
               ),
@@ -314,6 +292,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       trailing: const Icon(Icons.chevron_right),
                       onTap: _showHelp,
                     ),
+                    
+                    ListTile(
+                      leading: const Icon(Icons.info_outline, color: AppColors.info),
+                      title: const Text('Acerca de'),
+                      subtitle: const Text('Información de la aplicación'),
+                      trailing: const Icon(Icons.chevron_right),
+                      onTap: _showAbout,
+                    ),
+                    
+                    const Divider(),
                     
                     ListTile(
                       leading: const Icon(Icons.logout, color: AppColors.error),
@@ -376,7 +364,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
               title: const Text('Tomar Foto'),
               onTap: () {
                 Navigator.pop(context);
-                // Implementar tomar foto
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('Funcionalidad de cámara en desarrollo'),
+                  ),
+                );
               },
             ),
             ListTile(
@@ -384,7 +376,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
               title: const Text('Seleccionar de Galería'),
               onTap: () {
                 Navigator.pop(context);
-                // Implementar seleccionar de galería
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('Funcionalidad de galería en desarrollo'),
+                  ),
+                );
               },
             ),
             ListTile(
@@ -392,7 +388,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
               title: const Text('Eliminar Foto'),
               onTap: () {
                 Navigator.pop(context);
-                // Implementar eliminar foto
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('Foto eliminada'),
+                  ),
+                );
               },
             ),
           ],
@@ -406,7 +406,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Cambiar Contraseña'),
-        content: const Text('Funcionalidad para cambiar contraseña.'),
+        content: const Text('Funcionalidad para cambiar contraseña en desarrollo.'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
@@ -451,6 +451,42 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
+  void _showAbout() {
+    showAboutDialog(
+      context: context,
+      applicationName: 'SENA Inventory',
+      applicationVersion: '1.0.0',
+      applicationIcon: Container(
+        width: 60,
+        height: 60,
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(12),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.1),
+              blurRadius: 8,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(12),
+          child: Image.asset(
+            '/sena-logo.png',
+            fit: BoxFit.cover,
+          ),
+        ),
+      ),
+      children: const [
+        Text(
+          'Sistema de Gestión de Inventario SENA\n\n'
+          'Desarrollado para optimizar el control y seguimiento de equipos '
+          'e instrumentos en los ambientes de formación del SENA.',
+        ),
+      ],
+    );
+  }
+
   void _logout() {
     showDialog(
       context: context,
@@ -465,13 +501,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
           ElevatedButton(
             onPressed: () {
               Navigator.pop(context);
-              // Implementar logout
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('Sesión cerrada exitosamente'),
-                ),
-              );
+              Navigator.pushReplacementNamed(context, '/login');
             },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.error,
+            ),
             child: const Text('Cerrar Sesión'),
           ),
         ],
