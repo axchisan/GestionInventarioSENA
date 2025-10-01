@@ -25,6 +25,7 @@ class _EnvironmentOverviewScreenState extends State<EnvironmentOverviewScreen>
   List<dynamic> _inventory = [];
   List<dynamic> _schedules = [];
   List<dynamic> _checks = [];
+  List<dynamic> _allEnvironments = [];
   bool _isLoading = true;
   final DateFormat _colombianTimeFormat = DateFormat('hh:mm a');
   String _environmentId = '';
@@ -47,6 +48,18 @@ class _EnvironmentOverviewScreenState extends State<EnvironmentOverviewScreen>
     try {
       final authProvider = Provider.of<AuthProvider>(context, listen: false);
       final user = authProvider.currentUser;
+      final role = user?.role ?? '';
+      
+      if (role == 'admin_general') {
+        final environments = await _apiService.get(environmentsEndpoint);
+        
+        setState(() {
+          _allEnvironments = environments ?? [];
+          _isLoading = false;
+        });
+        return;
+      }
+      
       if (user?.environmentId == null) {
         setState(() {
           _isLoading = false;
@@ -145,136 +158,22 @@ class _EnvironmentOverviewScreenState extends State<EnvironmentOverviewScreen>
     final authProvider = Provider.of<AuthProvider>(context);
     final role = authProvider.currentUser?.role ?? '';
 
+    String appBarTitle = 'Ambiente';
+    if (role == 'admin') {
+      appBarTitle = 'Administración de Almacén';
+    } else if (role == 'admin_general') {
+      appBarTitle = 'Todos los Ambientes';
+    }
+
     return Scaffold(
-      appBar: SenaAppBar(title: 'Ambiente'),
+      appBar: SenaAppBar(title: appBarTitle),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
           : RefreshIndicator(
               onRefresh: _fetchData,
-              child: Column(
-                children: [
-                  Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF00324D),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withOpacity(0.1),
-                          blurRadius: 4,
-                          offset: const Offset(0, 2),
-                        ),
-                      ],
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          children: [
-                            Container(
-                              width: 60,
-                              height: 60,
-                              decoration: BoxDecoration(
-                                color: Colors.white,
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                              child: ClipRRect(
-                                borderRadius: BorderRadius.circular(8),
-                                child: Image.asset(
-                                  'assets/images/sena_logo.png',
-                                  fit: BoxFit.contain,
-                                ),
-                              ),
-                            ),
-                            const SizedBox(width: 16),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    _environment?['name'] ?? 'Ambiente $_environmentId',
-                                    style: const TextStyle(
-                                      color: Colors.white,
-                                      fontSize: 18,
-                                      fontWeight: FontWeight.bold,
-                                    ),
-                                  ),
-                                  Text(
-                                    'ID: $_environmentId',
-                                    style: const TextStyle(
-                                      color: Colors.white70,
-                                      fontSize: 14,
-                                    ),
-                                  ),
-                                  Text(
-                                    'Ubicación: ${_environment?['location'] ?? 'N/A'}',
-                                    style: const TextStyle(
-                                      color: Colors.white70,
-                                      fontSize: 14,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 8),
-                                  Row(
-                                    children: [
-                                      _buildStatChip(
-                                        'Equipos',
-                                        '${_calculateTotalItems()}',
-                                        Colors.blue,
-                                      ),
-                                      const SizedBox(width: 8),
-                                      _buildStatChip(
-                                        'Disponibles',
-                                        '${_calculateAvailableItems()}',
-                                        Colors.green,
-                                      ),
-                                      const SizedBox(width: 8),
-                                      _buildStatChip(
-                                        'En uso',
-                                        '${_calculateInUseItems()}',
-                                        Colors.orange,
-                                      ),
-                                      const SizedBox(width: 8),
-                                      _buildStatChip(
-                                        'Dañados/Faltantes',
-                                        '${_calculateDamagedMissingItems()}',
-                                        Colors.red,
-                                      ),
-                                    ],
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ],
-                        ),
-                      ],
-                    ),
-                  ),
-                  Container(
-                    color: Colors.white,
-                    child: TabBar(
-                      controller: _tabController,
-                      labelColor: const Color(0xFF00324D),
-                      unselectedLabelColor: Colors.grey,
-                      indicatorColor: const Color(0xFF00324D),
-                      tabs: const [
-                        Tab(text: 'Inventario'),
-                        Tab(text: 'Horarios'),
-                        Tab(text: 'Estadísticas'),
-                      ],
-                    ),
-                  ),
-                  Expanded(
-                    child: TabBarView(
-                      controller: _tabController,
-                      children: [
-                        _buildInventoryTab(role),
-                        _buildScheduleTab(role),
-                        _buildStatsTab(),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
+              child: role == 'admin_general' 
+                  ? _buildAllEnvironmentsView()
+                  : _buildSingleEnvironmentView(role),
             ),
       floatingActionButton: role == 'supervisor' || role == 'admin'
           ? FloatingActionButton(
@@ -285,6 +184,295 @@ class _EnvironmentOverviewScreenState extends State<EnvironmentOverviewScreen>
               child: const Icon(Icons.add, color: Colors.white),
             )
           : null,
+    );
+  }
+
+  Widget _buildAllEnvironmentsView() {
+    if (_allEnvironments.isEmpty) {
+      return const Center(
+        child: Text('No hay ambientes registrados en el sistema'),
+      );
+    }
+
+    return ListView.builder(
+      padding: const EdgeInsets.all(16),
+      itemCount: _allEnvironments.length,
+      itemBuilder: (context, index) {
+        final env = _allEnvironments[index];
+        return Padding(
+          padding: const EdgeInsets.only(bottom: 12),
+          child: SenaCard(
+            child: InkWell(
+              onTap: () => _showEnvironmentDetails(env),
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Container(
+                          width: 50,
+                          height: 50,
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF00324D),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: const Icon(
+                            Icons.location_on,
+                            color: Colors.white,
+                            size: 28,
+                          ),
+                        ),
+                        const SizedBox(width: 16),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                env['name'] ?? 'Sin nombre',
+                                style: const TextStyle(
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                              Text(
+                                'Ubicación: ${env['location'] ?? 'N/A'}',
+                                style: TextStyle(
+                                  color: Colors.grey[600],
+                                  fontSize: 14,
+                                ),
+                              ),
+                              Text(
+                                'ID: ${env['id']}',
+                                style: TextStyle(
+                                  color: Colors.grey[600],
+                                  fontSize: 12,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        Icon(
+                          env['is_active'] == true
+                              ? Icons.check_circle
+                              : Icons.cancel,
+                          color: env['is_active'] == true
+                              ? Colors.green
+                              : Colors.red,
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    Row(
+                      children: [
+                        _buildEnvironmentStatChip(
+                          env['is_warehouse'] == true ? 'Almacén' : 'Aula',
+                          env['is_warehouse'] == true
+                              ? Icons.warehouse
+                              : Icons.school,
+                          Colors.blue,
+                        ),
+                        const SizedBox(width: 8),
+                        _buildEnvironmentStatChip(
+                          'Capacidad: ${env['capacity'] ?? 'N/A'}',
+                          Icons.people,
+                          Colors.orange,
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildEnvironmentStatChip(String label, IconData icon, Color color) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: color.withOpacity(0.5)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 14, color: color),
+          const SizedBox(width: 4),
+          Text(
+            label,
+            style: TextStyle(
+              color: color,
+              fontSize: 12,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showEnvironmentDetails(Map<String, dynamic> env) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(env['name'] ?? 'Ambiente'),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('ID: ${env['id']}'),
+              Text('Ubicación: ${env['location'] ?? 'N/A'}'),
+              Text('Capacidad: ${env['capacity'] ?? 'N/A'}'),
+              Text('Tipo: ${env['is_warehouse'] == true ? 'Almacén' : 'Aula'}'),
+              Text('Estado: ${env['is_active'] == true ? 'Activo' : 'Inactivo'}'),
+              Text('Código QR: ${env['qr_code'] ?? 'N/A'}'),
+              Text('Descripción: ${env['description'] ?? 'N/A'}'),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cerrar'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSingleEnvironmentView(String role) {
+    String environmentLabel = role == 'admin' ? 'Almacén' : 'Ambiente';
+    
+    return Column(
+      children: [
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: const Color(0xFF00324D),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.1),
+                blurRadius: 4,
+                offset: const Offset(0, 2),
+              ),
+            ],
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    width: 60,
+                    height: 60,
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(8),
+                      child: Image.asset(
+                        'assets/images/sena_logo.png',
+                        fit: BoxFit.contain,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          _environment?['name'] ?? '$environmentLabel $_environmentId',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        Text(
+                          'ID: $_environmentId',
+                          style: const TextStyle(
+                            color: Colors.white70,
+                            fontSize: 14,
+                          ),
+                        ),
+                        Text(
+                          'Ubicación: ${_environment?['location'] ?? 'N/A'}',
+                          style: const TextStyle(
+                            color: Colors.white70,
+                            fontSize: 14,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Row(
+                          children: [
+                            _buildStatChip(
+                              role == 'admin' ? 'Items' : 'Equipos',
+                              '${_calculateTotalItems()}',
+                              Colors.blue,
+                            ),
+                            const SizedBox(width: 8),
+                            _buildStatChip(
+                              'Disponibles',
+                              '${_calculateAvailableItems()}',
+                              Colors.green,
+                            ),
+                            const SizedBox(width: 8),
+                            _buildStatChip(
+                              'En uso',
+                              '${_calculateInUseItems()}',
+                              Colors.orange,
+                            ),
+                            const SizedBox(width: 8),
+                            _buildStatChip(
+                              'Dañados/Faltantes',
+                              '${_calculateDamagedMissingItems()}',
+                              Colors.red,
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+        Container(
+          color: Colors.white,
+          child: TabBar(
+            controller: _tabController,
+            labelColor: const Color(0xFF00324D),
+            unselectedLabelColor: Colors.grey,
+            indicatorColor: const Color(0xFF00324D),
+            tabs: [
+              Tab(text: role == 'admin' ? 'Items' : 'Inventario'),
+              const Tab(text: 'Horarios'),
+              const Tab(text: 'Estadísticas'),
+            ],
+          ),
+        ),
+        Expanded(
+          child: TabBarView(
+            controller: _tabController,
+            children: [
+              _buildInventoryTab(role),
+              _buildScheduleTab(role),
+              _buildStatsTab(),
+            ],
+          ),
+        ),
+      ],
     );
   }
 
@@ -909,7 +1097,7 @@ class _EnvironmentOverviewScreenState extends State<EnvironmentOverviewScreen>
                     'environment_id': _environmentId,
                     'instructor_id': Provider.of<AuthProvider>(context, listen: false).currentUser!.id,
                     'program': program,
-                    'ficha': ficha,
+                    ' ficha': ficha,
                     'topic': topic,
                     'start_time': '${startTime.hour.toString().padLeft(2, '0')}:${startTime.minute.toString().padLeft(2, '0')}:00',
                     'end_time': '${endTime.hour.toString().padLeft(2, '0')}:${endTime.minute.toString().padLeft(2, '0')}:00',
@@ -1043,7 +1231,7 @@ class _EnvironmentOverviewScreenState extends State<EnvironmentOverviewScreen>
                 try {
                   await _apiService.put('/api/schedules/${schedule['id']}', {
                     'program': program,
-                    'ficha': ficha,
+                    ' ficha': ficha,
                     'topic': topic,
                     'start_time': '${startTime.hour.toString().padLeft(2, '0')}:${startTime.minute.toString().padLeft(2, '0')}:00',
                     'end_time': '${endTime.hour.toString().padLeft(2, '0')}:${endTime.minute.toString().padLeft(2, '0')}:00',
