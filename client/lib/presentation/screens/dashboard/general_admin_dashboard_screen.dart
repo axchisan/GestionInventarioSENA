@@ -236,14 +236,6 @@ class _GeneralAdminDashboardScreenState extends State<GeneralAdminDashboardScree
                   ),
                   _action(
                     context,
-                    title: 'Monitoreo del Sistema',
-                    subtitle: 'Salud y rendimiento',
-                    icon: Icons.monitor_heart,
-                    color: Colors.orange,
-                    route: '/monitoring',
-                  ),
-                  _action(
-                    context,
                     title: 'Feedback',
                     subtitle: 'Sugerencias internas',
                     icon: Icons.feedback,
@@ -462,11 +454,6 @@ class _GeneralAdminDashboardScreenState extends State<GeneralAdminDashboardScree
             leading: const Icon(Icons.description),
             title: const Text('Reportes'),
             onTap: () => context.push('/report-generator'),
-          ),
-          ListTile(
-            leading: const Icon(Icons.monitor_heart),
-            title: const Text('Monitoreo del Sistema'),
-            onTap: () => context.push('/system-monitoring'),
           ),
           ListTile(
             leading: const Icon(Icons.feedback),

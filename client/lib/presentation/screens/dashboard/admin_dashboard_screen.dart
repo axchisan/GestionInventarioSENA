@@ -184,14 +184,6 @@ class AdminDashboardScreen extends StatelessWidget {
                 ),
                 _buildActionCard(
                   context,
-                  'Alertas del Sistema',
-                  'Monitoreo de alertas críticas',
-                  Icons.warning,
-                  AppColors.warning,
-                  '/inventory-alerts',
-                ),
-                _buildActionCard(
-                  context,
                   'Generador de Reportes',
                   'Reportes personalizados avanzados',
                   Icons.description,
@@ -209,30 +201,6 @@ class AdminDashboardScreen extends StatelessWidget {
               ],
             ),
             const SizedBox(height: 24),
-
-            Card(
-              child: Padding(
-                padding: const EdgeInsets.all(16.0),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text(
-                      'Estado del Sistema',
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    _buildSystemStatusItem('Servidor Principal', 'Operativo', AppColors.success),
-                    _buildSystemStatusItem('Base de Datos', 'Operativo', AppColors.success),
-                    _buildSystemStatusItem('Almacenamiento', '85% utilizado', AppColors.warning),
-                    _buildSystemStatusItem('Backup', 'Último: hace 2 horas', AppColors.success),
-                    const SizedBox(height: 8),
-                  ],
-                ),
-              ),
-            ),
           ],
         ),
       ),
@@ -313,41 +281,6 @@ class AdminDashboardScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildSystemStatusItem(String component, String status, Color statusColor) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 8.0),
-      child: Row(
-        children: [
-          Container(
-            width: 8,
-            height: 8,
-            decoration: BoxDecoration(
-              color: statusColor,
-              shape: BoxShape.circle,
-            ),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Text(
-              component,
-              style: const TextStyle(
-                fontWeight: FontWeight.w500,
-                fontSize: 14,
-              ),
-            ),
-          ),
-          Text(
-            status,
-            style: TextStyle(
-              color: statusColor,
-              fontSize: 12,
-              fontWeight: FontWeight.w500,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
 
   Widget _buildDrawer(BuildContext context) {
     return Drawer(
