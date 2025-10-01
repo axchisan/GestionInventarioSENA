@@ -194,7 +194,7 @@ class _FeedbackFormScreenState extends State<FeedbackFormScreen> {
                 borderRadius: BorderRadius.circular(12),
               ),
               child: Image.asset(
-                'assets/images/sena-logo.png',
+                'assets/images/sena_logo.png',
                 width: 40,
                 height: 40,
               ),
