@@ -211,8 +211,8 @@ class NavigationService {
         builder: (context, state) => const ReportGeneratorScreen(),
       ),
       GoRoute(
-        path: '/feedback-form',
-        name: 'feedback-form',
+        path: '/feedback',
+        name: 'feedback',
         builder: (context, state) => const FeedbackFormScreen(),
       ),
     ],

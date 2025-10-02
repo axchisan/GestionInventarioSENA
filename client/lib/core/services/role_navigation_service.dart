@@ -38,6 +38,7 @@ class RoleNavigationService {
           '/profile',
           '/settings',
           '/environment-overview',
+          '/feedback',
         ];
       case 'instructor':
         return [
@@ -55,6 +56,7 @@ class RoleNavigationService {
           '/notifications',
           '/profile',
           '/settings',
+          '/feedback',
         ];
       case 'supervisor':
         return [
@@ -73,8 +75,9 @@ class RoleNavigationService {
           '/qr-generate',
           '/environment-overview',
           '/qr-scan',
-          '/add-inventory-item', 
-          '/edit-inventory-item', 
+          '/add-inventory-item',
+          '/edit-inventory-item',
+          '/feedback',
         ];
       case 'admin':
         return [
@@ -85,7 +88,7 @@ class RoleNavigationService {
           '/inventory-alerts',
           '/audit-log',
           '/report-generator',
-          '/feedback-form',
+          '/feedback',
           '/notifications',
           '/profile',
           '/settings',
@@ -128,6 +131,7 @@ class RoleNavigationService {
           '/admin-dashboard',
           '/add-inventory-item',
           '/edit-inventory-item',
+          '/feedback',
         ];
       default:
         return ['/login', '/register'];
@@ -169,7 +173,7 @@ class RoleNavigationService {
       '/inventory-alerts': ['supervisor', 'admin', 'admin_general'],
       '/audit-log': ['supervisor', 'admin', 'admin_general'],
       '/report-generator': ['supervisor', 'admin', 'admin_general'],
-      '/feedback-form': ['admin', 'admin_general'],
+      '/feedback': ['admin', 'admin_general', 'student', 'instructor', 'supervisor'],
       '/qr-scan': ['student', 'instructor', 'admin', 'admin_general', 'supervisor'],
       '/qr-generate': ['supervisor', 'instructor', 'admin', 'admin_general'],
       '/inventory-check': ['student', 'instructor', 'admin', 'admin_general', 'supervisor'],

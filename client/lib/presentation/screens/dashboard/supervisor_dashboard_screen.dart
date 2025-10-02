@@ -523,6 +523,22 @@ class _SupervisorDashboardScreenState extends State<SupervisorDashboardScreen> {
                           AppColors.success,
                           '/report-generator',
                         ),
+                        _buildActionCard(
+                          context,
+                          'Feedback',
+                          'Envía tus comentarios y sugerencias',
+                          Icons.feedback,
+                          AppColors.success,
+                          '/feedback',
+                        ),
+                        _buildActionCard(
+                          context,
+                          'Configuración',
+                          'Ver y editar configuración',
+                          Icons.settings,
+                          AppColors.primary,
+                          '/profile',
+                        ),
                         _buildNotificationActionCard(context),
                       ],
                     ),
@@ -936,6 +952,11 @@ class _SupervisorDashboardScreenState extends State<SupervisorDashboardScreen> {
             onTap: () => context.push('/report-generator'),
           ),
           ListTile(
+            leading: const Icon(Icons.feedback),
+            title: const Text('Feedback'),
+            onTap: () => context.push('/feedback'),
+          ),
+          ListTile(
             leading: Stack(
               children: [
                 const Icon(Icons.notifications),
@@ -973,14 +994,9 @@ class _SupervisorDashboardScreenState extends State<SupervisorDashboardScreen> {
           ),
           const Divider(),
           ListTile(
-            leading: const Icon(Icons.person),
-            title: const Text('Mi Perfil'),
-            onTap: () => context.push('/profile'),
-          ),
-          ListTile(
             leading: const Icon(Icons.settings),
             title: const Text('Configuración'),
-            onTap: () => context.push('/settings'),
+            onTap: () => context.push('/profile'),
           ),
           ListTile(
             leading: const Icon(Icons.logout),

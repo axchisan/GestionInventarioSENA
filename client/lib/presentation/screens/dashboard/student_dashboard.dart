@@ -23,6 +23,7 @@ class _StudentDashboardState extends State<StudentDashboard> {
   bool _isLoading = true;
   List<Map<String, dynamic>> _recentNotifications = [];
   int _unreadNotificationsCount = 0;
+  List<dynamic> _items = [];
 
   @override
   void initState() {
@@ -61,15 +62,12 @@ class _StudentDashboardState extends State<StudentDashboard> {
 
       setState(() {
         _environment = environment;
+        _items = items;
         _inventoryStats = {
-          'total': items.length,
-          'available': items
-              .where((item) => item['status'] == 'available')
-              .length,
-          'in_use': items.where((item) => item['status'] == 'in_use').length,
-          'maintenance': items
-              .where((item) => item['status'] == 'maintenance')
-              .length,
+          'total': _calculateTotalEnvironmentItems(),
+          'available': _calculateAvailableEnvironmentItems(),
+          'damaged': _calculateDamagedEnvironmentItems(),
+          'missing': _calculateMissingEnvironmentItems(),
         };
         _recentNotifications = notifications.take(3).toList();
         _unreadNotificationsCount = unreadCount;
@@ -83,6 +81,34 @@ class _StudentDashboardState extends State<StudentDashboard> {
         context,
       ).showSnackBar(SnackBar(content: Text('Error al cargar datos: $e')));
     }
+  }
+
+  int _calculateTotalEnvironmentItems() {
+    return _items.fold(0, (sum, item) => sum + (item['quantity'] as int? ?? 1));
+  }
+
+  int _calculateDamagedEnvironmentItems() {
+    return _items.fold(0, (sum, item) {
+      final damagedQuantity = item['quantity_damaged'] as int? ?? 0;
+      return sum + damagedQuantity;
+    });
+  }
+
+  int _calculateMissingEnvironmentItems() {
+    return _items.fold(0, (sum, item) {
+      final missingQuantity = item['quantity_missing'] as int? ?? 0;
+      return sum + missingQuantity;
+    });
+  }
+
+  int _calculateAvailableEnvironmentItems() {
+    return _items.fold(0, (sum, item) {
+      final totalQuantity = item['quantity'] as int? ?? 1;
+      final damagedQuantity = item['quantity_damaged'] as int? ?? 0;
+      final missingQuantity = item['quantity_missing'] as int? ?? 0;
+      final availableQuantity = totalQuantity - damagedQuantity - missingQuantity;
+      return sum + availableQuantity;
+    });
   }
 
   @override
@@ -207,18 +233,18 @@ class _StudentDashboardState extends State<StudentDashboard> {
                         children: [
                           Expanded(
                             child: _buildStatCard(
-                              'En Uso',
-                              _inventoryStats!['in_use'].toString(),
-                              Icons.assignment,
+                              'Dañados',
+                              _inventoryStats!['damaged'].toString(),
+                              Icons.warning,
                               AppColors.warning,
                             ),
                           ),
                           const SizedBox(width: 12),
                           Expanded(
                             child: _buildStatCard(
-                              'Mantenimiento',
-                              _inventoryStats!['maintenance'].toString(),
-                              Icons.build,
+                              'Faltantes',
+                              _inventoryStats!['missing'].toString(),
+                              Icons.error,
                               AppColors.error,
                             ),
                           ),
@@ -250,7 +276,7 @@ class _StudentDashboardState extends State<StudentDashboard> {
                         _buildActionCard(
                           context,
                           'Escanear QR',
-                          'Vincula un ambiente',
+                          'Identifica elementos y vinculate a un ambiente',
                           Icons.qr_code_scanner,
                           AppColors.primary,
                           '/qr-scan',
@@ -270,9 +296,7 @@ class _StudentDashboardState extends State<StudentDashboard> {
                           Icons.build_circle,
                           AppColors.warning,
                           '/maintenance-request',
-                          extra: {
-                            'environmentId': user?.environmentId ?? '',
-                          }, 
+                          extra: {'environmentId': user?.environmentId ?? ''},
                         ),
                         _buildActionCard(
                           context,
@@ -293,9 +317,17 @@ class _StudentDashboardState extends State<StudentDashboard> {
                         _buildNotificationActionCard(context),
                         _buildActionCard(
                           context,
-                          'Mi Perfil',
-                          'Actualiza información',
-                          Icons.person,
+                          'Feedback',
+                          'Envía tus comentarios y sugerencias',
+                          Icons.feedback,
+                          AppColors.success,
+                          '/feedback',
+                        ),
+                        _buildActionCard(
+                          context,
+                          'Configuración',
+                          'Ajusta tu perfil y preferencias',
+                          Icons.settings,
                           AppColors.success,
                           '/profile',
                         ),
@@ -658,9 +690,10 @@ class _StudentDashboardState extends State<StudentDashboard> {
           ListTile(
             leading: const Icon(Icons.build_circle),
             title: const Text('Solicitar Mantenimiento'),
-            onTap: () => context.push('/maintenance-request', extra: {
-              'environmentId': user?.environmentId ?? '',
-            }),
+            onTap: () => context.push(
+              '/maintenance-request',
+              extra: {'environmentId': user?.environmentId ?? ''},
+            ),
           ),
           ListTile(
             leading: const Icon(Icons.location_on),
@@ -712,15 +745,15 @@ class _StudentDashboardState extends State<StudentDashboard> {
             onTap: () => context.push('/notifications'),
           ),
           ListTile(
-            leading: const Icon(Icons.person),
-            title: const Text('Mi Perfil'),
-            onTap: () => context.push('/profile'),
+            leading: const Icon(Icons.feedback),
+            title: const Text('Feedback'),
+            onTap: () => context.push('/feedback'),
           ),
           const Divider(),
           ListTile(
             leading: const Icon(Icons.settings),
             title: const Text('Configuración'),
-            onTap: () => context.push('/settings'),
+            onTap: () => context.push('/profile'),
           ),
           ListTile(
             leading: const Icon(Icons.logout),
