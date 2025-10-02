@@ -1,8 +1,8 @@
 # 📦 Sistema de Gestión de Inventario SENA
 
 <div align="center">
+<img width="649" height="628" alt="sena_logo" src="https://github.com/user-attachments/assets/568f1412-82ec-4196-af51-6ba87d84ce69" />
 
-![SENA Logo](public/placeholder-logo.png)
 
 **Sistema Integral de Gestión de Inventario para Ambientes de Formación**
 
@@ -1542,7 +1542,8 @@ SENA - Servicio Nacional de Aprendizaje
 
 **SENA - Servicio Nacional de Aprendizaje**
 
-![SENA Logo](public/placeholder-logo.png)
+<img width="649" height="628" alt="sena_logo" src="https://github.com/user-attachments/assets/5f69ea47-ea22-4834-a019-2590d959783e" />
+
 
 ---
 
