@@ -139,7 +139,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                     fit: BoxFit.cover,
                                     errorBuilder: (context, error, stackTrace) {
                                       return Image.asset(
-                                        '/sena-logo.png',
+                                        'assets/images/sena_logo.png',
                                         width: 90,
                                         height: 90,
                                         fit: BoxFit.contain,
@@ -147,7 +147,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                     },
                                   )
                                 : Image.asset(
-                                    '/sena-logo.png',
+                                    'assets/images/sena_logo.png',
                                     width: 90,
                                     height: 90,
                                     fit: BoxFit.contain,
@@ -389,14 +389,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     ),
                     
                     ListTile(
-                      leading: const Icon(Icons.history, color: AppColors.secondary),
-                      title: const Text('Historial de Préstamos'),
-                      subtitle: const Text('Ver tu historial completo'),
-                      trailing: const Icon(Icons.chevron_right),
-                      onTap: _viewHistory,
-                    ),
-                    
-                    ListTile(
                       leading: const Icon(Icons.help, color: AppColors.info),
                       title: const Text('Ayuda y Soporte'),
                       subtitle: const Text('Obtener ayuda o reportar problemas'),
@@ -630,13 +622,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  void _viewHistory() {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Navegando al historial de préstamos...'),
-      ),
-    );
-  }
 
   void _showHelp() {
     showDialog(
@@ -649,9 +634,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
           children: [
             Text('Para obtener ayuda:'),
             SizedBox(height: 8),
-            Text('• Email: soporte@sena.edu.co'),
-            Text('• Teléfono: +57 1 234 5678'),
-            Text('• Horario: Lunes a Viernes 8:00 - 17:00'),
+            Text('• Email: axchisan923@gmail.com'),
+            Text('• Teléfono: +573183038190'),
+            Text('• Horario: Lunes a Viernes 8:00 - 5:00'),
           ],
         ),
         actions: [
@@ -685,7 +670,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         child: ClipRRect(
           borderRadius: BorderRadius.circular(12),
           child: Image.asset(
-            '/sena-logo.png',
+            'assets/images/sena_logo.png',
             fit: BoxFit.cover,
           ),
         ),
@@ -693,7 +678,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       children: const [
         Text(
           'Sistema de Gestión de Inventario SENA\n\n'
-          'Desarrollado para optimizar el control y seguimiento de equipos '
+          'Desarrollado por DUvan-Axchi para optimizar el control y seguimiento de equipos '
           'e instrumentos en los ambientes de formación del SENA.',
         ),
       ],

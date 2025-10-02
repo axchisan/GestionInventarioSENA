@@ -248,7 +248,7 @@ class _GeneralAdminDashboardScreenState extends State<GeneralAdminDashboardScree
                     subtitle: 'Tema, idioma y más',
                     icon: Icons.settings,
                     color: AppColors.grey600,
-                    route: '/settings',
+                    route: '/profile',
                   ),
                 ],
               ),
@@ -464,11 +464,6 @@ class _GeneralAdminDashboardScreenState extends State<GeneralAdminDashboardScree
           ListTile(
             leading: const Icon(Icons.settings),
             title: const Text('Configuracion'),
-            onTap: () => context.push('/settings'),
-          ),
-          ListTile(
-            leading: const Icon(Icons.person),
-            title: const Text('Mi Perfil'),
             onTap: () => context.push('/profile'),
           ),
           ListTile(

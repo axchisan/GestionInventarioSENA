@@ -17,7 +17,7 @@ class InstructorDashboard extends StatefulWidget {
 }
 
 class _InstructorDashboardState extends State<InstructorDashboard> {
-  late final ApiService _apiService; 
+  late final ApiService _apiService;
   Map<String, dynamic>? _environment;
   Map<String, dynamic>? _inventoryStats;
   List<Map<String, dynamic>> _recentNotifications = [];
@@ -27,7 +27,9 @@ class _InstructorDashboardState extends State<InstructorDashboard> {
   @override
   void initState() {
     super.initState();
-    _apiService = ApiService(authProvider: Provider.of<AuthProvider>(context, listen: false));
+    _apiService = ApiService(
+      authProvider: Provider.of<AuthProvider>(context, listen: false),
+    );
     _fetchData();
   }
 
@@ -58,9 +60,9 @@ class _InstructorDashboardState extends State<InstructorDashboard> {
         _environment = environment;
       });
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error al cargar ambiente: $e')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Error al cargar ambiente: $e')));
     }
   }
 
@@ -75,21 +77,22 @@ class _InstructorDashboardState extends State<InstructorDashboard> {
         inventoryEndpoint,
         queryParams: {'environment_id': user!.environmentId.toString()},
       );
-      
+
       int totalQuantity = 0;
       int availableQuantity = 0;
       int damagedQuantity = 0;
       int missingQuantity = 0;
-      
+
       for (var item in items) {
         totalQuantity += (item['quantity'] as int? ?? 0);
-        availableQuantity += (item['quantity'] as int? ?? 0) - 
-                            (item['quantity_damaged'] as int? ?? 0) - 
-                            (item['quantity_missing'] as int? ?? 0);
+        availableQuantity +=
+            (item['quantity'] as int? ?? 0) -
+            (item['quantity_damaged'] as int? ?? 0) -
+            (item['quantity_missing'] as int? ?? 0);
         damagedQuantity += (item['quantity_damaged'] as int? ?? 0);
         missingQuantity += (item['quantity_missing'] as int? ?? 0);
       }
-      
+
       setState(() {
         _inventoryStats = {
           'total': items.length,
@@ -97,9 +100,13 @@ class _InstructorDashboardState extends State<InstructorDashboard> {
           'available_quantity': availableQuantity,
           'damaged_quantity': damagedQuantity,
           'missing_quantity': missingQuantity,
-          'available': items.where((item) => item['status'] == 'available').length,
+          'available': items
+              .where((item) => item['status'] == 'available')
+              .length,
           'in_use': items.where((item) => item['status'] == 'in_use').length,
-          'maintenance': items.where((item) => item['status'] == 'maintenance').length,
+          'maintenance': items
+              .where((item) => item['status'] == 'maintenance')
+              .length,
         };
       });
     } catch (e) {
@@ -113,7 +120,7 @@ class _InstructorDashboardState extends State<InstructorDashboard> {
     try {
       final notifications = await NotificationService.getNotifications();
       final unreadCount = await NotificationService.getUnreadCount();
-      
+
       setState(() {
         _recentNotifications = notifications.take(3).toList();
         _unreadNotificationsCount = unreadCount;
@@ -149,7 +156,9 @@ class _InstructorDashboardState extends State<InstructorDashboard> {
         ],
       ),
       body: _isLoading
-          ? const Center(child: CircularProgressIndicator(color: AppColors.secondary))
+          ? const Center(
+              child: CircularProgressIndicator(color: AppColors.secondary),
+            )
           : RefreshIndicator(
               onRefresh: _fetchData,
               child: SingleChildScrollView(
@@ -346,9 +355,7 @@ class _InstructorDashboardState extends State<InstructorDashboard> {
                           Icons.build_circle,
                           AppColors.warning,
                           '/maintenance-request',
-                          extra: {
-                            'environmentId': user?.environmentId ?? '',
-                          },
+                          extra: {'environmentId': user?.environmentId ?? ''},
                         ),
                         _buildActionCard(
                           context,
@@ -366,6 +373,23 @@ class _InstructorDashboardState extends State<InstructorDashboard> {
                                 }
                               : null,
                         ),
+                        _buildActionCard(
+                          context,
+                          'Feedback',
+                          'Envíanos tus comentarios y sugerencias',
+                          Icons.feedback,
+                          AppColors.warning,
+                          '/feedback',
+                        ),
+                         _buildActionCard(
+                          context,
+                          'Configuración',
+                          'Ajusta tu perfil y preferencias',
+                          Icons.settings,
+                          AppColors.primary,
+                          '/profile',
+                        ),
+
                         _buildNotificationActionCard(context),
                       ],
                     ),
@@ -388,7 +412,10 @@ class _InstructorDashboardState extends State<InstructorDashboard> {
                                 const Spacer(),
                                 if (_unreadNotificationsCount > 0)
                                   Container(
-                                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 8,
+                                      vertical: 4,
+                                    ),
                                     decoration: BoxDecoration(
                                       color: AppColors.error,
                                       borderRadius: BorderRadius.circular(12),
@@ -406,11 +433,13 @@ class _InstructorDashboardState extends State<InstructorDashboard> {
                             ),
                             const SizedBox(height: 12),
                             if (_recentNotifications.isNotEmpty) ...[
-                              ..._recentNotifications.map((notification) => 
-                                _buildNotificationItem(
+                              ..._recentNotifications.map(
+                                (notification) => _buildNotificationItem(
                                   notification['title'] ?? 'Sin título',
                                   notification['message'] ?? 'Sin mensaje',
-                                  _getNotificationColor(notification['type'] ?? 'system'),
+                                  _getNotificationColor(
+                                    notification['type'] ?? 'system',
+                                  ),
                                   !(notification['is_read'] ?? false),
                                 ),
                               ),
@@ -422,6 +451,7 @@ class _InstructorDashboardState extends State<InstructorDashboard> {
                                 false,
                               ),
                             ],
+
                             const SizedBox(height: 8),
                             TextButton(
                               onPressed: () => context.push('/notifications'),
@@ -468,7 +498,9 @@ class _InstructorDashboardState extends State<InstructorDashboard> {
                           minHeight: 16,
                         ),
                         child: Text(
-                          _unreadNotificationsCount > 99 ? '99+' : _unreadNotificationsCount.toString(),
+                          _unreadNotificationsCount > 99
+                              ? '99+'
+                              : _unreadNotificationsCount.toString(),
                           style: const TextStyle(
                             color: Colors.white,
                             fontSize: 10,
@@ -484,21 +516,15 @@ class _InstructorDashboardState extends State<InstructorDashboard> {
               const Text(
                 'Notificaciones',
                 textAlign: TextAlign.center,
-                style: TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.bold,
-                ),
+                style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
               ),
               const SizedBox(height: 4),
               Text(
-                _unreadNotificationsCount > 0 
+                _unreadNotificationsCount > 0
                     ? '$_unreadNotificationsCount sin leer'
                     : 'Alertas y mensajes',
                 textAlign: TextAlign.center,
-                style: const TextStyle(
-                  fontSize: 10,
-                  color: AppColors.grey600,
-                ),
+                style: const TextStyle(fontSize: 10, color: AppColors.grey600),
               ),
             ],
           ),
@@ -525,7 +551,12 @@ class _InstructorDashboardState extends State<InstructorDashboard> {
     }
   }
 
-  Widget _buildNotificationItem(String title, String subtitle, Color statusColor, bool isUnread) {
+  Widget _buildNotificationItem(
+    String title,
+    String subtitle,
+    Color statusColor,
+    bool isUnread,
+  ) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 8.0),
       child: Row(
@@ -549,7 +580,9 @@ class _InstructorDashboardState extends State<InstructorDashboard> {
                       child: Text(
                         title,
                         style: TextStyle(
-                          fontWeight: isUnread ? FontWeight.bold : FontWeight.w500,
+                          fontWeight: isUnread
+                              ? FontWeight.bold
+                              : FontWeight.w500,
                           fontSize: 14,
                         ),
                       ),
@@ -581,7 +614,12 @@ class _InstructorDashboardState extends State<InstructorDashboard> {
     );
   }
 
-  Widget _buildStatCard(String title, String value, IconData icon, Color color) {
+  Widget _buildStatCard(
+    String title,
+    String value,
+    IconData icon,
+    Color color,
+  ) {
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(16.0),
@@ -600,10 +638,7 @@ class _InstructorDashboardState extends State<InstructorDashboard> {
             Text(
               title,
               textAlign: TextAlign.center,
-              style: const TextStyle(
-                fontSize: 12,
-                color: AppColors.grey600,
-              ),
+              style: const TextStyle(fontSize: 12, color: AppColors.grey600),
             ),
           ],
         ),
@@ -643,10 +678,7 @@ class _InstructorDashboardState extends State<InstructorDashboard> {
               Text(
                 subtitle,
                 textAlign: TextAlign.center,
-                style: const TextStyle(
-                  fontSize: 10,
-                  color: AppColors.grey600,
-                ),
+                style: const TextStyle(fontSize: 10, color: AppColors.grey600),
               ),
             ],
           ),
@@ -664,9 +696,7 @@ class _InstructorDashboardState extends State<InstructorDashboard> {
         padding: EdgeInsets.zero,
         children: [
           DrawerHeader(
-            decoration: const BoxDecoration(
-              color: AppColors.secondary,
-            ),
+            decoration: const BoxDecoration(color: AppColors.secondary),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -698,10 +728,7 @@ class _InstructorDashboardState extends State<InstructorDashboard> {
                 ),
                 Text(
                   user?.email ?? 'instructor@sena.edu.co',
-                  style: const TextStyle(
-                    color: Colors.white70,
-                    fontSize: 14,
-                  ),
+                  style: const TextStyle(color: Colors.white70, fontSize: 14),
                 ),
               ],
             ),
@@ -739,9 +766,10 @@ class _InstructorDashboardState extends State<InstructorDashboard> {
           ListTile(
             leading: const Icon(Icons.build_circle),
             title: const Text('Solicitar Mantenimiento'),
-            onTap: () => context.push('/maintenance-request', extra: {
-              'environmentId': user?.environmentId ?? '',
-            }),
+            onTap: () => context.push(
+              '/maintenance-request',
+              extra: {'environmentId': user?.environmentId ?? ''},
+            ),
           ),
           ListTile(
             leading: const Icon(Icons.location_on),
@@ -755,6 +783,11 @@ class _InstructorDashboardState extends State<InstructorDashboard> {
                     }
                   : null,
             ),
+          ),
+          ListTile(
+            leading: const Icon(Icons.feedback),
+            title: const Text('Feedback'),
+            onTap: () => context.push('/feedback'),
           ),
           ListTile(
             leading: Stack(
@@ -775,7 +808,9 @@ class _InstructorDashboardState extends State<InstructorDashboard> {
                         minHeight: 12,
                       ),
                       child: Text(
-                        _unreadNotificationsCount > 9 ? '9+' : _unreadNotificationsCount.toString(),
+                        _unreadNotificationsCount > 9
+                            ? '9+'
+                            : _unreadNotificationsCount.toString(),
                         style: const TextStyle(
                           color: Colors.white,
                           fontSize: 8,
@@ -792,20 +827,18 @@ class _InstructorDashboardState extends State<InstructorDashboard> {
           ),
           const Divider(),
           ListTile(
-            leading: const Icon(Icons.person),
-            title: const Text('Mi Perfil'),
-            onTap: () => context.push('/profile'),
-          ),
-          ListTile(
             leading: const Icon(Icons.settings),
             title: const Text('Configuración'),
-            onTap: () => context.push('/settings'),
+            onTap: () => context.push('/profile'),
           ),
           ListTile(
             leading: const Icon(Icons.logout),
             title: const Text('Cerrar Sesión'),
             onTap: () async {
-              final authProvider = Provider.of<AuthProvider>(context, listen: false);
+              final authProvider = Provider.of<AuthProvider>(
+                context,
+                listen: false,
+              );
               await authProvider.logout();
               context.go('/login');
             },

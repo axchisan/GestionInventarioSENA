@@ -187,4 +187,27 @@ class UserManagementService {
       throw Exception('Error al obtener estadísticas del dashboard: $e');
     }
   }
+
+  Future<Map<String, dynamic>> getDashboardStats() async {
+    try {
+      final token = await SessionService.getAccessToken();
+      if (token == null) throw Exception('No hay token de autenticación');
+
+      final response = await http.get(
+        Uri.parse('${ApiConfig.baseUrl}/api/stats/dashboard'), // Full URL: https://senainventario.axchisan.com/api/stats/dashboard
+        headers: {
+          'Authorization': 'Bearer $token',
+          'Content-Type': 'application/json',
+        },
+      );
+
+      if (response.statusCode == 200) {
+        return json.decode(response.body);
+      } else {
+        throw Exception('Error al obtener estadísticas del dashboard: ${response.statusCode}');
+      }
+    } catch (e) {
+      throw Exception('Error al obtener estadísticas del dashboard: $e');
+    }
+  }
 }

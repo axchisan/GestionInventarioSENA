@@ -416,26 +416,26 @@ class _EnvironmentOverviewScreenState extends State<EnvironmentOverviewScreen>
                         Row(
                           children: [
                             _buildStatChip(
-                              role == 'admin' ? 'Items' : 'Equipos',
-                              '${_calculateTotalItems()}',
+                              role == 'admin' ? 'Items' : 'Total',
+                              '${_calculateTotalEnvironmentItems()}',
                               Colors.blue,
                             ),
                             const SizedBox(width: 8),
                             _buildStatChip(
                               'Disponibles',
-                              '${_calculateAvailableItems()}',
+                              '${_calculateAvailableEnvironmentItems()}',
                               Colors.green,
                             ),
                             const SizedBox(width: 8),
                             _buildStatChip(
-                              'En uso',
-                              '${_calculateInUseItems()}',
+                              'Dañados',
+                              '${_calculateDamagedEnvironmentItems()}',
                               Colors.orange,
                             ),
                             const SizedBox(width: 8),
                             _buildStatChip(
-                              'Dañados/Faltantes',
-                              '${_calculateDamagedMissingItems()}',
+                              'Faltantes',
+                              '${_calculateMissingEnvironmentItems()}',
                               Colors.red,
                             ),
                           ],
@@ -476,34 +476,31 @@ class _EnvironmentOverviewScreenState extends State<EnvironmentOverviewScreen>
     );
   }
 
-  int _calculateTotalItems() {
+  int _calculateTotalEnvironmentItems() {
     return _inventory.fold(0, (sum, item) => sum + (item['quantity'] as int? ?? 1));
   }
 
-  int _calculateAvailableItems() {
+  int _calculateDamagedEnvironmentItems() {
     return _inventory.fold(0, (sum, item) {
-      if (item['status'] == 'available') {
-        return sum + (item['quantity'] as int? ?? 1);
-      }
-      return sum;
+      final damagedQuantity = item['quantity_damaged'] as int? ?? 0;
+      return sum + damagedQuantity;
     });
   }
 
-  int _calculateInUseItems() {
+  int _calculateMissingEnvironmentItems() {
     return _inventory.fold(0, (sum, item) {
-      if (item['status'] == 'in_use') {
-        return sum + (item['quantity'] as int? ?? 1);
-      }
-      return sum;
+      final missingQuantity = item['quantity_missing'] as int? ?? 0;
+      return sum + missingQuantity;
     });
   }
 
-  int _calculateDamagedMissingItems() {
+  int _calculateAvailableEnvironmentItems() {
     return _inventory.fold(0, (sum, item) {
-      if (item['status'] == 'damaged' || item['status'] == 'lost') {
-        return sum + (item['quantity'] as int? ?? 1);
-      }
-      return sum;
+      final totalQuantity = item['quantity'] as int? ?? 1;
+      final damagedQuantity = item['quantity_damaged'] as int? ?? 0;
+      final missingQuantity = item['quantity_missing'] as int? ?? 0;
+      final availableQuantity = totalQuantity - damagedQuantity - missingQuantity;
+      return sum + availableQuantity;
     });
   }
 
@@ -1097,7 +1094,7 @@ class _EnvironmentOverviewScreenState extends State<EnvironmentOverviewScreen>
                     'environment_id': _environmentId,
                     'instructor_id': Provider.of<AuthProvider>(context, listen: false).currentUser!.id,
                     'program': program,
-                    ' ficha': ficha,
+                    'ficha': ficha,
                     'topic': topic,
                     'start_time': '${startTime.hour.toString().padLeft(2, '0')}:${startTime.minute.toString().padLeft(2, '0')}:00',
                     'end_time': '${endTime.hour.toString().padLeft(2, '0')}:${endTime.minute.toString().padLeft(2, '0')}:00',
@@ -1231,7 +1228,7 @@ class _EnvironmentOverviewScreenState extends State<EnvironmentOverviewScreen>
                 try {
                   await _apiService.put('/api/schedules/${schedule['id']}', {
                     'program': program,
-                    ' ficha': ficha,
+                    'ficha': ficha,
                     'topic': topic,
                     'start_time': '${startTime.hour.toString().padLeft(2, '0')}:${startTime.minute.toString().padLeft(2, '0')}:00',
                     'end_time': '${endTime.hour.toString().padLeft(2, '0')}:${endTime.minute.toString().padLeft(2, '0')}:00',
@@ -1264,16 +1261,10 @@ class _EnvironmentOverviewScreenState extends State<EnvironmentOverviewScreen>
   }
 
   Widget _buildStatsTab() {
-    final totalEquipment = _calculateTotalItems();
-    final available = _calculateAvailableItems();
-    final inUse = _calculateInUseItems();
-    final damagedMissing = _calculateDamagedMissingItems();
-    final maintenance = _inventory.fold(0, (sum, item) {
-      if (item['status'] == 'maintenance') {
-        return sum + (item['quantity'] as int? ?? 1);
-      }
-      return sum;
-    });
+    final totalEquipment = _calculateTotalEnvironmentItems();
+    final available = _calculateAvailableEnvironmentItems();
+    final damaged = _calculateDamagedEnvironmentItems();
+    final missing = _calculateMissingEnvironmentItems();
     final completedChecks = _calculateCompletedChecks();
     final totalChecks = _checks.length;
 
@@ -1313,29 +1304,22 @@ class _EnvironmentOverviewScreenState extends State<EnvironmentOverviewScreen>
             children: [
               Expanded(
                 child: _buildStatCard(
-                  'En Uso',
-                  inUse.toString(),
+                  'Dañados',
+                  damaged.toString(),
                   Colors.orange,
-                  Icons.person_outline,
+                  Icons.broken_image,
                 ),
               ),
               const SizedBox(width: 12),
               Expanded(
                 child: _buildStatCard(
-                  'Mantenimiento',
-                  maintenance.toString(),
+                  'Faltantes',
+                  missing.toString(),
                   Colors.red,
-                  Icons.build_outlined,
+                  Icons.error_outline,
                 ),
               ),
             ],
-          ),
-          const SizedBox(height: 12),
-          _buildStatCard(
-            'Dañados/Faltantes',
-            damagedMissing.toString(),
-            Colors.red,
-            Icons.warning,
           ),
           const SizedBox(height: 24),
           const Text(

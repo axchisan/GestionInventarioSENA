@@ -96,7 +96,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 ),
                 const SizedBox(height: 32),
                 const Text(
-                  'SENA Inventory',
+                  'Gestion de Inventario',
                   style: TextStyle(
                     fontSize: 28,
                     fontWeight: FontWeight.bold,
